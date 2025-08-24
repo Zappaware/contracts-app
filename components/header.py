@@ -17,12 +17,12 @@ def header():
     ):
         # Left section: logo, navbar, dropdowns
         with ui.element("div").classes("flex flex-row items-center gap-3"):
-            ui.label("Aruba Bank").classes(
-                "text-h6 font-normal w-[200px] h-[39px] text-center items-center text-black font-[segoe ui]"
+            ui.link("Aruba Bank", "/").classes(
+                "font-bold text-xl text-center mt-3 text-black w-32 h-[39px]"
             )
             ui.link("Home", "/").classes("text-black")
-            ui.link("New Contract", "/new-vendor")
-            ui.link("New Vendor", "/new-contract")
+            ui.link("New Contract", "/new-contract")
+            ui.link("New Vendor", "/new-vendor")
             with (
                 ui.dropdown_button("Reports", auto_close=True, color=None)
                 .classes(
