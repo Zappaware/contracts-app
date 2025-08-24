@@ -4,11 +4,22 @@ from components.header import header
 from components.home_page import home_page
 
 
-def main():
+@ui.page("/")
+def main_page():
     header()
     home_page()
-    ui.run(port=5000)
 
 
-if __name__ in {"__main__", "__mp_main__"}:
-    main()
+@ui.page("/new-vendor")
+def new_vendor_page():
+    header()
+    ui.label("New Vendor Page - Under Construction")
+
+
+@ui.page("/new-contract")
+def new_contract_page():
+    header()
+    ui.label("New Contract Page - Under Construction")
+
+
+ui.run(title="Aruba Bank", port=5000)
