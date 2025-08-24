@@ -1,6 +1,14 @@
+from nicegui import ui
+
+from components.header import header
+from components.home_page import home_page
+
+
 def main():
-    print("Hello from contracts-aruba!")
+    header()
+    home_page()
+    ui.run(port=5000)
 
 
-if __name__ == "__main__":
+if __name__ in {"__main__", "__mp_main__"}:
     main()
