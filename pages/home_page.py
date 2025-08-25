@@ -57,10 +57,6 @@ def home_page():
                     ui.label("1 day ago").classes("text-sm text-gray-500")
     with ui.element("div").classes("max-w-6xl mt-8 mx-auto w-full"):
         ui.label("Vendor List").classes("text-h5 ml-4 font-bold ")
-        with ui.row().classes("items-center ml-4"):
-            ui.label("Show").classes("text-base mr-2")
-            entries = ui.select([10, 25, 50, 100], value=10).classes("w-24 mr-2")
-            ui.label("entries").classes("text-base ml-2")
 
     columns = [
         {
@@ -220,14 +216,9 @@ def home_page():
     ]
 
     with ui.element("div").classes("max-w-6xl mx-auto w-full"):
-        ui.table(columns=columns, column_defaults=columns_defaults, rows=rows).classes(
-            "w-full"
-        ).props("flat").classes("vendor-table shadow-lg rounded-lg overflow-hidden")
+        ui.table(
+            columns=columns, column_defaults=columns_defaults, rows=rows, pagination=3
+        ).classes("w-full").props("flat").classes(
+            "vendor-table shadow-lg rounded-lg overflow-hidden"
+        )
         ui.add_css(".vendor-table thead tr { background-color: #144c8e !important; }")
-        with ui.row().classes("justify-between items-center w-full my-2"):
-            ui.label("Showing 1 to 10 of 466 entries").classes("text-xs text-gray-600")
-            with ui.row().classes("items-center gap-1 text-xs text-gray-600"):
-                ui.label("Previous").props("flat")
-                for i in range(1, 6):
-                    ui.button(str(i), color=None).props("flat")
-                ui.label("Next").props("flat")
