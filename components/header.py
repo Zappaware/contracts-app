@@ -30,12 +30,22 @@ def header():
                 )
                 .props("flat")
             ):
-                ui.menu_item("Vendors Report").classes(
+                ui.menu_item("Active agreements").classes(
                     "text-black font-[segoe ui] flex flex-column p-2"
                 )
-                ui.menu_item("Contracts Report").classes(
+                ui.menu_item("Pending agreements").classes(
                     "text-black font-[segoe ui] flex flex-column p-2"
                 )
+                ui.menu_item("Expired agreements").classes(
+                    "text-black font-[segoe ui] flex flex-column p-2"
+                )
+                ui.menu_item("Terminated agreements").classes(
+                    "text-black font-[segoe ui] flex flex-column p-2"
+                )
+                ui.menu_item("Audit trail").classes(
+                    "text-black font-[segoe ui] flex flex-column p-2 border-t border-gray-200"
+                )
+
             with (
                 ui.dropdown_button("Advanced search", auto_close=True, color=None)
                 .props("flat")
