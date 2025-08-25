@@ -139,7 +139,7 @@ def new_contract():
                     with ui.element('div').classes(label_cell_classes):
                         ui.label("Comments").classes(label_classes)
                     with ui.element('div').classes(input_cell_classes):
-                        ui.textarea().classes("w-full font-[segoe ui] h-12 max-h-12 overflow-y-auto").props("outlined")
+                        ui.input().classes(input_classes).props("outlined")
 
                 # Row 9 - Notify when Expired? & Attention
                 with ui.element('div').classes(f"{row_classes} {std_row_height}"):
@@ -150,7 +150,7 @@ def new_contract():
                     with ui.element('div').classes(label_cell_classes):
                         ui.label("Attention").classes(label_classes)
                     with ui.element('div').classes(input_cell_classes):
-                        ui.textarea().classes("w-full font-[segoe ui] h-12 max-h-12 overflow-y-auto").props("outlined")
+                        ui.input().classes(input_classes).props("outlined")
 
                 # Row 10 - Notification Email Address & Last Revision User
                 with ui.element('div').classes(f"{row_classes} {std_row_height}"):
@@ -167,8 +167,8 @@ def new_contract():
                 with ui.element('div').classes(f"{row_classes} {std_row_height}"):
                     with ui.element('div').classes(label_cell_classes):
                         ui.label("Attachments").classes("text-white font-[segoe ui] py-8 px-4 h-full")
-                    with ui.element('div').classes(f"{input_cell_classes} pt-4"):
-                        with ui.card().classes("w-full h-auto p-0"):
+                    with ui.element('div').classes(f"{input_cell_classes} pt-4 pb-0"):
+                        with ui.card().classes("w-full h-auto p-0 mt-4"):
                             
                             def handle_upload(e):
                                 for file_name in e.file_names:
