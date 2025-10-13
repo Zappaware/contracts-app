@@ -8,6 +8,7 @@ from pages.terminated_contracts import terminated_contracts
 from pages.active_contracts import active_contracts
 from pages.pending_contracts import pending_contracts
 from pages.expired_contracts import expired_contracts
+from pages.vendor_info import vendor_info
 
 
 @ui.page("/")
@@ -57,5 +58,10 @@ def pending_contracts_page():
 def expired_contracts_page():
     header()
     expired_contracts()
+
+@ui.page("/vendor-info")
+def vendor_info_page():
+    header()
+    vendor_info()
 
 ui.run(title="Aruba Bank", port=5000, storage_secret="aruba_bank_secret")
