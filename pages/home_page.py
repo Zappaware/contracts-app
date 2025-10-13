@@ -1,4 +1,6 @@
+
 from nicegui import ui
+import requests
 
 
 def home_page():
@@ -112,108 +114,31 @@ def home_page():
         "align": "left",
         "headerClasses": "bg-[#144c8e] text-white",
     }
-    rows = [
-        {
-            "id": 1,
-            "name": "Acme Corp",
-            "contact": "John Doe",
-            "country": "Aruba",
-            "telephone": "+297 123 4567",
-            "email": "john@acme.com",
-            "dd_performed": "Yes",
-            "attention": "None",
-        },
-        {
-            "id": 2,
-            "name": "Beta Ltd",
-            "contact": "Jane Smith",
-            "country": "USA",
-            "telephone": "+1 555 234 5678",
-            "email": "jane@beta.com",
-            "dd_performed": "No",
-            "attention": "Review",
-        },
-        {
-            "id": 3,
-            "name": "Gamma LLC",
-            "contact": "Carlos Ruiz",
-            "country": "Colombia",
-            "telephone": "+57 321 654 9870",
-            "email": "carlos@gamma.com",
-            "dd_performed": "Yes",
-            "attention": "Urgent",
-        },
-        {
-            "id": 4,
-            "name": "Delta Inc",
-            "contact": "Anna Lee",
-            "country": "Canada",
-            "telephone": "+1 416 555 0192",
-            "email": "anna@delta.com",
-            "dd_performed": "No",
-            "attention": "None",
-        },
-        {
-            "id": 5,
-            "name": "Epsilon GmbH",
-            "contact": "Max Müller",
-            "country": "Germany",
-            "telephone": "+49 30 123456",
-            "email": "max@epsilon.com",
-            "dd_performed": "Yes",
-            "attention": "Follow-up",
-        },
-        {
-            "id": 6,
-            "name": "Zeta S.A.",
-            "contact": "Lucía Gómez",
-            "country": "Spain",
-            "telephone": "+34 912 345 678",
-            "email": "lucia@zeta.com",
-            "dd_performed": "No",
-            "attention": "None",
-        },
-        {
-            "id": 7,
-            "name": "Eta Co.",
-            "contact": "Tom Brown",
-            "country": "UK",
-            "telephone": "+44 20 7946 0958",
-            "email": "tom@eta.com",
-            "dd_performed": "Yes",
-            "attention": "Review",
-        },
-        {
-            "id": 8,
-            "name": "Theta Pty",
-            "contact": "Emily Clark",
-            "country": "Australia",
-            "telephone": "+61 2 9876 5432",
-            "email": "emily@theta.com",
-            "dd_performed": "No",
-            "attention": "Urgent",
-        },
-        {
-            "id": 9,
-            "name": "Iota BV",
-            "contact": "Pieter de Vries",
-            "country": "Netherlands",
-            "telephone": "+31 20 123 4567",
-            "email": "pieter@iota.com",
-            "dd_performed": "Yes",
-            "attention": "None",
-        },
-        {
-            "id": 10,
-            "name": "Kappa SARL",
-            "contact": "Sophie Dubois",
-            "country": "France",
-            "telephone": "+33 1 2345 6789",
-            "email": "sophie@kappa.com",
-            "dd_performed": "No",
-            "attention": "Follow-up",
-        },
-    ]
+    def fetch_vendors():
+        url = "http://localhost:8000/api/v1/vendors/"
+        try:
+            response = requests.get(url)
+            response.raise_for_status()
+            vendor_list = response.json()
+            # Map backend vendor data to table row format
+            rows = []
+            for v in vendor_list:
+                rows.append({
+                    "id": v.get("id", ""),
+                    "name": v.get("vendor_name", ""),
+                    "contact": v.get("vendor_contact_person", ""),
+                    "country": v.get("vendor_country", ""),
+                    "telephone": v.get("phones", [{}])[0].get("phone_number", "") if v.get("phones") else "",
+                    "email": v.get("emails", [{}])[0].get("email", "") if v.get("emails") else "",
+                    "dd_performed": "Yes" if v.get("due_diligence_required", "No") == "Yes" else "No",
+                    "attention": v.get("attention", "")
+                })
+            return rows
+        except Exception as e:
+            ui.notify(f"Error fetching vendors: {e}", type="negative")
+            return []
+
+    rows = fetch_vendors()
 
     with ui.element("div").classes("max-w-6xl mx-auto w-full"):
         ui.table(
