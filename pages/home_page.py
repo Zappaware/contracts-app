@@ -1,7 +1,8 @@
 
-from nicegui import ui
-import requests
 from datetime import datetime, timedelta
+
+import requests
+from nicegui import ui
 
 
 def home_page():
@@ -10,63 +11,86 @@ def home_page():
         with ui.row().classes(
             "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 mt-8 gap-6 w-full"
         ):
+            # Row 1
             with ui.link(target='/active-contracts').classes('no-underline w-full').style('text-decoration: none !important;'):
-                with ui.card().classes("w-full cursor-pointer hover:bg-gray-50 transition-colors").props('flat'):
+                with ui.card().classes("w-full cursor-pointer hover:bg-gray-50 transition-colors shadow-lg").props('flat'):
                     with ui.row().classes('items-center gap-2'):
                         ui.icon('article', color='primary').style('font-size: 28px')
                 ui.label("Active Contracts").classes("text-lg font-bold")
                 ui.label("Currently active contracts").classes("text-sm text-gray-500")
-                    #ui.label("1,247").classes("text-2xl font-medium text-primary mt-2")
+                ui.label("1,247").classes("text-2xl font-medium text-primary mt-2")
             with ui.link(target='/pending-contracts').classes('no-underline w-full').style('text-decoration: none !important;'):
-                with ui.card().classes("w-full cursor-pointer hover:bg-gray-50 transition-colors").props('flat'):
+                with ui.card().classes("w-full cursor-pointer hover:bg-gray-50 transition-colors shadow-lg").props('flat'):
+                    with ui.row().classes('items-center gap-2'):
+                        ui.icon('edit', color='primary').style('font-size: 28px')
+                ui.label("Pending Documents").classes("text-lg font-bold")
+                ui.label("Contracts missing documents").classes("text-sm text-gray-500")
+                ui.label("12").classes("text-2xl font-medium text-primary mt-2")
+            with ui.link(target='/contract-managers').classes('no-underline w-full').style('text-decoration: none !important;'):
+                with ui.card().classes("w-full cursor-pointer hover:bg-gray-50 transition-colors shadow-lg").props('flat'):
+                    with ui.row().classes('items-center gap-2'):
+                        ui.icon('people', color='primary').style('font-size: 28px')
+                ui.label("List Contract Managers").classes("text-lg font-bold")
+                ui.label("Owners & Backups").classes("text-sm text-gray-500")
+                ui.label("15").classes("text-2xl font-medium text-primary mt-2")
+            
+            # Row 2
+            with ui.link(target='/pending-contracts').classes('no-underline w-full').style('text-decoration: none !important;'):
+                with ui.card().classes("w-full cursor-pointer hover:bg-gray-50 transition-colors shadow-lg").props('flat'):
                     with ui.row().classes('items-center gap-2'):
                         ui.icon('pending', color='primary').style('font-size: 28px')
                 ui.label("Pending Reviews").classes("text-lg font-bold")
                 ui.label("Contracts awaiting review").classes("text-sm text-gray-500")
-                    #ui.label("23").classes("text-2xl font-medium text-primary mt-2")
+                ui.label("23").classes("text-2xl font-medium text-primary mt-2")
             with ui.link(target='/active-contracts').classes('no-underline w-full').style('text-decoration: none !important;'):
-                with ui.card().classes("w-full cursor-pointer hover:bg-gray-50 transition-colors").props('flat'):
+                with ui.card().classes("w-full cursor-pointer hover:bg-gray-50 transition-colors shadow-lg").props('flat'):
                     with ui.row().classes('items-center gap-2'):
                         ui.icon('search', color='primary').style('font-size: 28px')
                 ui.label("Total Vendors").classes("text-lg font-bold")
                 ui.label("Registered vendors").classes("text-sm text-gray-500")
-                    #ui.label("89").classes("text-2xl font-medium text-primary mt-2")
+                ui.label("89").classes("text-2xl font-medium text-primary mt-2")
+            with ui.link(target='/contracts-requiring-attention').classes('no-underline w-full').style('text-decoration: none !important;'):
+                with ui.card().classes("w-full cursor-pointer hover:bg-gray-50 transition-colors shadow-lg").props('flat'):
+                    with ui.row().classes('items-center gap-2'):
+                        ui.icon('warning', color='primary').style('font-size: 28px')
+                ui.label("Contracts Requiring Attention").classes("text-lg font-bold")
+                ui.label("Contracts approaching or past their expiration date").classes("text-sm text-gray-500")
+                ui.label("8").classes("text-2xl font-medium text-primary mt-2")
 
-    # ===== COMMENTED OUT: Recent Activity Section =====
-    # with ui.element("div").classes("max-w-6xl mt-8 mx-auto w-full"):
-    #     with ui.card().classes("mt-8 w-full"):
-    #         ui.label("Recent Activity").classes("text-lg font-bold")
-    #         ui.label("Latest contract management activities").classes(
-    #             "text-sm text-gray-500 mb-4"
-    #         )
-    #         with ui.column().classes("space-y-4 w-full"):
-    #             with ui.row().classes(
-    #                 "flex items-center justify-between py-2 border-b border-gray-200 last:border-b-0 w-full"
-    #             ):
-    #                 with ui.column():
-    #                     ui.label("New contract created").classes("font-medium")
-    #                     ui.label("Contract #CTR-2024-001 with ABC Corp").classes(
-    #                         "text-sm text-gray-500"
-    #                     )
-    #                 ui.label("2 hours ago").classes("text-sm text-gray-500")
-    #             with ui.row().classes(
-    #                 "flex items-center justify-between py-2 border-b border-gray-200 last:border-b-0 w-full"
-    #             ):
-    #                 with ui.column():
-    #                     ui.label("Vendor registered").classes("font-medium")
-    #                     ui.label("XYZ Services added to vendor database").classes(
-    #                         "text-sm text-gray-500"
-    #                     )
-    #                 ui.label("4 hours ago").classes("text-sm text-gray-500")
-    #             with ui.row().classes(
-    #                 "flex items-center justify-between py-2 border-b border-gray-200 last:border-b-0 w-full"
-    #             ):
-    #                 with ui.column():
-    #                     ui.label("Contract approved").classes("font-medium")
-    #                     ui.label(
-    #                         "Contract #CTR-2024-002 approved by management"
-    #                     ).classes("text-sm text-gray-500")
-    #                 ui.label("1 day ago").classes("text-sm text-gray-500")
+    with ui.element("div").classes("max-w-6xl mt-8 mx-auto w-full"):
+        with ui.card().classes("mt-8 w-full"):
+            ui.label("Recent Activity").classes("text-lg font-bold")
+            ui.label("Latest contract management activities").classes(
+                "text-sm text-gray-500 mb-4"
+            )
+            with ui.column().classes("space-y-4 w-full"):
+                with ui.row().classes(
+                    "flex items-center justify-between py-2 border-b border-gray-200 last:border-b-0 w-full"
+                ):
+                    with ui.column():
+                        ui.label("New contract created").classes("font-medium")
+                        ui.label("Contract #CTR-2024-001 with ABC Corp").classes(
+                            "text-sm text-gray-500"
+                        )
+                    ui.label("2 hours ago").classes("text-sm text-gray-500")
+                with ui.row().classes(
+                    "flex items-center justify-between py-2 border-b border-gray-200 last:border-b-0 w-full"
+                ):
+                    with ui.column():
+                        ui.label("Vendor registered").classes("font-medium")
+                        ui.label("XYZ Services added to vendor database").classes(
+                            "text-sm text-gray-500"
+                        )
+                    ui.label("4 hours ago").classes("text-sm text-gray-500")
+                with ui.row().classes(
+                    "flex items-center justify-between py-2 border-b border-gray-200 last:border-b-0 w-full"
+                ):
+                    with ui.column():
+                        ui.label("Contract approved").classes("font-medium")
+                        ui.label(
+                            "Contract #CTR-2024-002 approved by management"
+                        ).classes("text-sm text-gray-500")
+                    ui.label("1 day ago").classes("text-sm text-gray-500")
 
     # ===== COMMENTED OUT: Vendor List Section =====
     # with ui.element("div").classes("max-w-6xl mt-8 mx-auto w-full"):
@@ -160,6 +184,7 @@ def home_page():
     #     )
     #     ui.add_css(".vendor-table thead tr { background-color: #144c8e !important; }")
 
+    
     # ===== NEW SECTION: Contracts Requiring Attention =====
     
     # Mock data for contracts requiring attention (since API is not available yet)
