@@ -1,173 +1,271 @@
+from datetime import datetime, timedelta
 from nicegui import ui
 
 
 def pending_contracts():
+    # Navigation
+    with ui.row().classes("max-w-6xl mx-auto mt-4"):
+        with ui.link(target='/').classes('no-underline'):
+            ui.button("← Back to Dashboard", icon="arrow_back").props('flat color=primary')
     
-    with ui.element("div").classes("flex flex-col items-center justify-center max-w-6xl mt-8 mx-auto w-full"):
-        ui.label("Pending Contract Agreement for:").classes("text-normal ml-4 font-bold ")
-        ui.label("Acme corp.").classes("text-sm text-light ml-4 ")
+    # Global variables for table and data
+    contracts_table = None
+    contract_rows = []
+    
+    # Function to handle owned/backup switch toggle (no functionality for now)
+    def on_switch_toggle(value):
+        if value:
+            ui.notify("Owned contracts selected", type="info")
+        else:
+            ui.notify("Backup contracts selected", type="info")
+    
+    # Mock data for pending contracts
+    def get_mock_pending_contracts():
+        """
+        Simulates contracts that are pending documents.
+        This will be replaced with actual API call when available.
+        """
+        today = datetime.now()
+        
+        mock_contracts = [
+            {
+                "contract_id": "CTR-2024-001",
+                "vendor_name": "Acme Corp",
+                "contract_type": "Service Agreement",
+                "description": "IT Support Services",
+                "expiration_date": today + timedelta(days=30),  # 30 days remaining
+                "manager": "William Defoe",
+                "role": "owned"
+            },
+            {
+                "contract_id": "CTR-2024-012",
+                "vendor_name": "Beta Technologies",
+                "contract_type": "Software License",
+                "description": "Enterprise Software Licensing",
+                "expiration_date": today + timedelta(days=45),  # 45 days remaining
+                "manager": "John Doe",
+                "role": "backup"
+            },
+            {
+                "contract_id": "CTR-2024-023",
+                "vendor_name": "Gamma Consulting",
+                "contract_type": "Consulting",
+                "description": "Business Process Optimization",
+                "expiration_date": today + timedelta(days=60),  # 60 days remaining
+                "manager": "William Defoe",
+                "role": "owned"
+            },
+            {
+                "contract_id": "CTR-2024-034",
+                "vendor_name": "Delta Logistics",
+                "contract_type": "Transportation",
+                "description": "Freight and Delivery Services",
+                "expiration_date": today + timedelta(days=15),  # 15 days remaining
+                "manager": "John Doe",
+                "role": "backup"
+            },
+            {
+                "contract_id": "CTR-2023-089",
+                "vendor_name": "Epsilon Security",
+                "contract_type": "Security Services",
+                "description": "Building Security and Monitoring",
+                "expiration_date": today + timedelta(days=90),  # 90 days remaining
+                "manager": "William Defoe",
+                "role": "owned"
+            },
+            {
+                "contract_id": "CTR-2024-045",
+                "vendor_name": "Zeta Solutions",
+                "contract_type": "Maintenance",
+                "description": "Equipment Maintenance Contract",
+                "expiration_date": today + timedelta(days=75),  # 75 days remaining
+                "manager": "John Doe",
+                "role": "backup"
+            },
+            {
+                "contract_id": "CTR-2024-056",
+                "vendor_name": "Eta Services",
+                "contract_type": "Cleaning Services",
+                "description": "Office Cleaning and Janitorial",
+                "expiration_date": today + timedelta(days=25),  # 25 days remaining
+                "manager": "William Defoe",
+                "role": "owned"
+            },
+            {
+                "contract_id": "CTR-2024-067",
+                "vendor_name": "Theta Communications",
+                "contract_type": "Telecommunications",
+                "description": "Internet and Phone Services",
+                "expiration_date": today + timedelta(days=50),  # 50 days remaining
+                "manager": "John Doe",
+                "role": "backup"
+            },
+        ]
+        
+        rows = []
+        for contract in mock_contracts:
+            exp_date = contract["expiration_date"]
+            
+            rows.append({
+                "contract_id": contract["contract_id"],
+                "vendor_name": contract["vendor_name"],
+                "contract_type": contract["contract_type"],
+                "description": contract["description"],
+                "expiration_date": exp_date.strftime("%Y-%m-%d"),
+                "expiration_timestamp": exp_date.timestamp(),  # For sorting
+                "status": "Pending documents",  # Fixed status for pending contracts
+                "manager": contract["manager"],
+                "role": contract["role"],
+            })
+        
+        return rows
 
-    columns = [
+    contract_columns = [
         {
-            "name": "id",
-            "label": "Id",
-            "field": "id",
+            "name": "contract_id",
+            "label": "Contract ID",
+            "field": "contract_id",
+            "align": "left",
+            "sortable": True,
+        },
+        {
+            "name": "vendor_name",
+            "label": "Vendor Name",
+            "field": "vendor_name",
+            "align": "left",
+            "sortable": True,
+        },
+        {
+            "name": "contract_type",
+            "label": "Contract Type",
+            "field": "contract_type",
+            "align": "left",
+            "sortable": True,
+        },
+        {
+            "name": "description",
+            "label": "Contract Description",
+            "field": "description",
             "align": "left",
         },
         {
-            "name": "name",
-            "label": "Name",
-            "field": "name",
+            "name": "expiration_date",
+            "label": "Expiration Date",
+            "field": "expiration_date",
+            "align": "left",
+            "sortable": True,
+            "sort-order": "ad",  # Ascending/Descending
+        },
+        {
+            "name": "status",
+            "label": "Status",
+            "field": "status",
             "align": "left",
         },
         {
-            "name": "contact",
-            "label": "Contact Person",
-            "field": "contact",
+            "name": "manager",
+            "label": "Manager",
+            "field": "manager",
             "align": "left",
-        },
-        {
-            "name": "country",
-            "label": "Country",
-            "field": "country",
-            "align": "left",
-        },
-        {
-            "name": "telephone",
-            "label": "Telephone",
-            "field": "telephone",
-            "align": "left",
-        },
-        {
-            "name": "email",
-            "label": "Email",
-            "field": "email",
-            "align": "left",
-        },
-        {
-            "name": "D.D. Performed",
-            "label": "D.D. Performed",
-            "field": "dd_performed",
-            "align": "left",
-        },
-        {
-            "name": "attention",
-            "label": "Attention",
-            "field": "attention",
-            "align": "left",
+            "sortable": True,
         },
     ]
-    columns_defaults = {
+
+    contract_columns_defaults = {
         "align": "left",
         "headerClasses": "bg-[#144c8e] text-white",
     }
-    rows = [
-        {
-            "id": 1,
-            "name": "Acme Corp",
-            "contact": "John Doe",
-            "country": "Aruba",
-            "telephone": "+297 123 4567",
-            "email": "john@acme.com",
-            "dd_performed": "Yes",
-            "attention": "None",
-        },
-        {
-            "id": 2,
-            "name": "Beta Ltd",
-            "contact": "Jane Smith",
-            "country": "USA",
-            "telephone": "+1 555 234 5678",
-            "email": "jane@beta.com",
-            "dd_performed": "No",
-            "attention": "Review",
-        },
-        {
-            "id": 3,
-            "name": "Gamma LLC",
-            "contact": "Carlos Ruiz",
-            "country": "Colombia",
-            "telephone": "+57 321 654 9870",
-            "email": "carlos@gamma.com",
-            "dd_performed": "Yes",
-            "attention": "Urgent",
-        },
-        {
-            "id": 4,
-            "name": "Delta Inc",
-            "contact": "Anna Lee",
-            "country": "Canada",
-            "telephone": "+1 416 555 0192",
-            "email": "anna@delta.com",
-            "dd_performed": "No",
-            "attention": "None",
-        },
-        {
-            "id": 5,
-            "name": "Epsilon GmbH",
-            "contact": "Max Müller",
-            "country": "Germany",
-            "telephone": "+49 30 123456",
-            "email": "max@epsilon.com",
-            "dd_performed": "Yes",
-            "attention": "Follow-up",
-        },
-        {
-            "id": 6,
-            "name": "Zeta S.A.",
-            "contact": "Lucía Gómez",
-            "country": "Spain",
-            "telephone": "+34 912 345 678",
-            "email": "lucia@zeta.com",
-            "dd_performed": "No",
-            "attention": "None",
-        },
-        {
-            "id": 7,
-            "name": "Eta Co.",
-            "contact": "Tom Brown",
-            "country": "UK",
-            "telephone": "+44 20 7946 0958",
-            "email": "tom@eta.com",
-            "dd_performed": "Yes",
-            "attention": "Review",
-        },
-        {
-            "id": 8,
-            "name": "Theta Pty",
-            "contact": "Emily Clark",
-            "country": "Australia",
-            "telephone": "+61 2 9876 5432",
-            "email": "emily@theta.com",
-            "dd_performed": "No",
-            "attention": "Urgent",
-        },
-        {
-            "id": 9,
-            "name": "Iota BV",
-            "contact": "Pieter de Vries",
-            "country": "Netherlands",
-            "telephone": "+31 20 123 4567",
-            "email": "pieter@iota.com",
-            "dd_performed": "Yes",
-            "attention": "None",
-        },
-        {
-            "id": 10,
-            "name": "Kappa SARL",
-            "contact": "Sophie Dubois",
-            "country": "France",
-            "telephone": "+33 1 2345 6789",
-            "email": "sophie@kappa.com",
-            "dd_performed": "No",
-            "attention": "Follow-up",
-        },
-    ]
 
-    with ui.element("div").classes("max-w-6xl mt-12 mx-auto w-full"):
-        ui.table(
-            columns=columns, column_defaults=columns_defaults, rows=rows, pagination=3
-        ).classes("w-full").props("flat").classes(
-            "vendor-table shadow-lg rounded-lg overflow-hidden"
+    contract_rows = get_mock_pending_contracts()
+    
+    # Main container
+    with ui.element("div").classes("max-w-6xl mt-8 mx-auto w-full"):
+        # Section header with switch
+        with ui.row().classes('items-center justify-between ml-4 mb-4'):
+            with ui.row().classes('items-center gap-2'):
+                ui.icon('edit', color='orange').style('font-size: 32px')
+                ui.label("Pending Documents").classes("text-h5 font-bold")
+            
+            # Switch for Owned/Backup
+            with ui.row().classes('items-center gap-2'):
+                ui.label("Owned").classes("text-sm font-medium")
+                owned_backup_switch = ui.switch(value=True, on_change=on_switch_toggle).props('color=primary')
+                ui.label("Backup").classes("text-sm font-medium")
+        
+        ui.label("Contracts missing required documents").classes(
+            "text-sm text-gray-500 ml-4 mb-4"
         )
-        ui.add_css(".vendor-table thead tr { background-color: #144c8e !important; }")
+        
+        # Define search functions first
+        def filter_contracts():
+            search_term = (search_input.value or "").lower()
+            if not search_term:
+                contracts_table.rows = contract_rows
+            else:
+                filtered = [
+                    row for row in contract_rows
+                    if search_term in (row['contract_id'] or "").lower()
+                    or search_term in (row['vendor_name'] or "").lower()
+                    or search_term in (row['contract_type'] or "").lower()
+                    or search_term in (row['description'] or "").lower()
+                    or search_term in (row['manager'] or "").lower()
+                ]
+                contracts_table.rows = filtered
+            contracts_table.update()
+        
+        def clear_search():
+            search_input.value = ""
+            contracts_table.rows = contract_rows
+            contracts_table.update()
+        
+        # Search input for filtering contracts (above the table)
+        with ui.row().classes('w-full ml-4 mr-4 mb-6 gap-2 px-2'):
+            search_input = ui.input(placeholder='Search by Contract ID, Vendor, Type, Description, or Manager...').classes(
+                'flex-1'
+            ).props('outlined dense clearable')
+            with search_input.add_slot('prepend'):
+                ui.icon('search').classes('text-gray-400')
+            search_button = ui.button(icon='search', on_click=filter_contracts).props('color=primary')
+            clear_button = ui.button(icon='clear', on_click=clear_search).props('color=secondary')
+        
+        # Create table after search bar (showing all contracts)
+        contracts_table = ui.table(
+            columns=contract_columns,
+            column_defaults=contract_columns_defaults,
+            rows=contract_rows,
+            pagination=10,
+            row_key="contract_id"
+        ).classes("w-full").props("flat bordered").classes(
+            "contracts-table shadow-lg rounded-lg overflow-hidden"
+        )
+        
+        search_input.on_value_change(filter_contracts)
+        
+        # Add custom CSS for visual highlighting
+        ui.add_css("""
+            .contracts-table thead tr {
+                background-color: #144c8e !important;
+            }
+            .contracts-table tbody tr {
+                background-color: white !important;
+            }
+        """)
+        
+        # Add slot for vendor name with clickable link
+        contracts_table.add_slot('body-cell-vendor_name', '''
+            <q-td :props="props">
+                <a :href="'/vendor-info'" class="text-blue-600 hover:text-blue-800 underline cursor-pointer">
+                    {{ props.value }}
+                </a>
+            </q-td>
+        ''')
+        
+        # Add slot for custom styling of status column
+        contracts_table.add_slot('body-cell-status', '''
+            <q-td :props="props">
+                <div class="text-orange-600 font-semibold flex items-center gap-1">
+                    <q-icon name="pending" color="orange" size="sm" />
+                    {{ props.value }}
+                </div>
+            </q-td>
+        ''')
