@@ -6,6 +6,22 @@ from nicegui import ui
 
 
 def home_page():
+    # Global variables for table and data
+    contracts_table = None
+    contract_rows = []
+    
+    # Function to show the contracts table and hide recent activity
+    def show_contracts_table():
+        contracts_table_container.visible = True
+        recent_activity_container.visible = False
+    
+    # Function to handle owned/backup switch toggle (no functionality for now)
+    def on_switch_toggle(value):
+        if value:
+            ui.notify("Owned contracts selected", type="info")
+        else:
+            ui.notify("Backup contracts selected", type="info")
+    
     # Quick Stats Cards (shrink to table width)
     with ui.element("div").classes("max-w-6xl mx-auto w-full"):
         with ui.row().classes(
@@ -49,15 +65,17 @@ def home_page():
                 ui.label("Total Vendors").classes("text-lg font-bold")
                 ui.label("Registered vendors").classes("text-sm text-gray-500")
                 ui.label("89").classes("text-2xl font-medium text-primary mt-2")
-            with ui.link(target='/contracts-requiring-attention').classes('no-underline w-full').style('text-decoration: none !important;'):
-                with ui.card().classes("w-full cursor-pointer hover:bg-gray-50 transition-colors shadow-lg").props('flat'):
-                    with ui.row().classes('items-center gap-2'):
-                        ui.icon('warning', color='primary').style('font-size: 28px')
+            with ui.card().classes("w-full cursor-pointer hover:bg-gray-50 transition-colors shadow-lg").props('flat').on('click', show_contracts_table):
+                with ui.row().classes('items-center gap-2'):
+                    ui.icon('warning', color='primary').style('font-size: 28px')
                 ui.label("Contracts Requiring Attention").classes("text-lg font-bold")
                 ui.label("Contracts approaching or past their expiration date").classes("text-sm text-gray-500")
                 ui.label("8").classes("text-2xl font-medium text-primary mt-2")
 
-    with ui.element("div").classes("max-w-6xl mt-8 mx-auto w-full"):
+    # Container for the Recent Activity section
+    recent_activity_container = ui.element("div").classes("max-w-6xl mt-8 mx-auto w-full")
+    
+    with recent_activity_container:
         with ui.card().classes("mt-8 w-full"):
             ui.label("Recent Activity").classes("text-lg font-bold")
             ui.label("Latest contract management activities").classes(
@@ -202,6 +220,8 @@ def home_page():
                 "contract_type": "Service Agreement",
                 "description": "IT Support Services",
                 "expiration_date": today - timedelta(days=5),  # 5 days past due
+                "manager": "William Defoe",
+                "role": "owned"
             },
             {
                 "contract_id": "CTR-2024-012",
@@ -209,6 +229,8 @@ def home_page():
                 "contract_type": "Software License",
                 "description": "Enterprise Software Licensing",
                 "expiration_date": today - timedelta(days=15),  # 15 days past due
+                "manager": "John Doe",
+                "role": "backup"
             },
             {
                 "contract_id": "CTR-2024-023",
@@ -216,6 +238,8 @@ def home_page():
                 "contract_type": "Consulting",
                 "description": "Business Process Optimization",
                 "expiration_date": today + timedelta(days=10),  # 10 days remaining
+                "manager": "William Defoe",
+                "role": "owned"
             },
             {
                 "contract_id": "CTR-2024-034",
@@ -223,6 +247,8 @@ def home_page():
                 "contract_type": "Transportation",
                 "description": "Freight and Delivery Services",
                 "expiration_date": today + timedelta(days=5),  # 5 days remaining
+                "manager": "John Doe",
+                "role": "backup"
             },
             {
                 "contract_id": "CTR-2023-089",
@@ -230,6 +256,8 @@ def home_page():
                 "contract_type": "Security Services",
                 "description": "Building Security and Monitoring",
                 "expiration_date": today - timedelta(days=30),  # 30 days past due
+                "manager": "William Defoe",
+                "role": "owned"
             },
             {
                 "contract_id": "CTR-2024-045",
@@ -237,6 +265,8 @@ def home_page():
                 "contract_type": "Maintenance",
                 "description": "Equipment Maintenance Contract",
                 "expiration_date": today + timedelta(days=20),  # 20 days remaining
+                "manager": "John Doe",
+                "role": "backup"
             },
             {
                 "contract_id": "CTR-2024-056",
@@ -244,6 +274,8 @@ def home_page():
                 "contract_type": "Cleaning Services",
                 "description": "Office Cleaning and Janitorial",
                 "expiration_date": today - timedelta(days=2),  # 2 days past due
+                "manager": "William Defoe",
+                "role": "owned"
             },
             {
                 "contract_id": "CTR-2024-067",
@@ -251,6 +283,8 @@ def home_page():
                 "contract_type": "Telecommunications",
                 "description": "Internet and Phone Services",
                 "expiration_date": today + timedelta(days=15),  # 15 days remaining
+                "manager": "John Doe",
+                "role": "backup"
             },
         ]
         
@@ -281,6 +315,8 @@ def home_page():
                 "status": status,
                 "status_class": status_class,
                 "row_class": row_class,
+                "manager": contract["manager"],
+                "role": contract["role"],
             })
         
         return rows
@@ -327,6 +363,13 @@ def home_page():
             "field": "status",
             "align": "left",
         },
+        {
+            "name": "manager",
+            "label": "Manager",
+            "field": "manager",
+            "align": "left",
+            "sortable": True,
+        },
     ]
 
     contract_columns_defaults = {
@@ -336,23 +379,60 @@ def home_page():
 
     contract_rows = get_mock_contracts()
     
-    # Section header, search, and table
-    with ui.element("div").classes("max-w-6xl mt-8 mx-auto w-full"):
-        with ui.row().classes('items-center gap-2 ml-4 mb-4'):
-            ui.icon('warning', color='orange').style('font-size: 32px')
-            ui.label("Contracts Requiring Attention").classes("text-h5 font-bold")
+    # Container for the contracts table (initially hidden)
+    contracts_table_container = ui.element("div").classes("max-w-6xl mt-8 mx-auto w-full")
+    contracts_table_container.visible = False
+    
+    with contracts_table_container:
+        # Section header with switch
+        with ui.row().classes('items-center justify-between ml-4 mb-4'):
+            with ui.row().classes('items-center gap-2'):
+                ui.icon('warning', color='orange').style('font-size: 32px')
+                ui.label("Contracts Requiring Attention").classes("text-h5 font-bold")
+            
+            # Switch for Owned/Backup
+            with ui.row().classes('items-center gap-2'):
+                ui.label("Owned").classes("text-sm font-medium")
+                owned_backup_switch = ui.switch(value=True, on_change=on_switch_toggle).props('color=primary')
+                ui.label("Backup").classes("text-sm font-medium")
+        
         ui.label("Contracts approaching or past their expiration date").classes(
             "text-sm text-gray-500 ml-4 mb-4"
         )
         
-        # Search input for filtering contracts
-        search_input = ui.input(placeholder='Search by Contract ID, Vendor, Type, or Description...').classes(
-            'w-full ml-4 mr-4 mb-4'
-        ).props('outlined dense clearable')
-        with search_input.add_slot('prepend'):
-            ui.icon('search').classes('text-gray-400')
+        # Define search functions first
+        def filter_contracts():
+            search_term = (search_input.value or "").lower()
+            if not search_term:
+                contracts_table.rows = contract_rows
+            else:
+                filtered = [
+                    row for row in contract_rows
+                    if search_term in (row['contract_id'] or "").lower()
+                    or search_term in (row['vendor_name'] or "").lower()
+                    or search_term in (row['contract_type'] or "").lower()
+                    or search_term in (row['description'] or "").lower()
+                    or search_term in (row['manager'] or "").lower()
+                ]
+                contracts_table.rows = filtered
+            contracts_table.update()
         
-        # Create table
+        def clear_search():
+            search_input.value = ""
+            contracts_table.rows = contract_rows
+            contracts_table.update()
+        
+        # Search input for filtering contracts (above the table)
+        with ui.row().classes('w-full ml-4 mr-4 mb-6 gap-2 px-2'):
+            search_input = ui.input(placeholder='Search by Contract ID, Vendor, Type, Description, or Manager...').classes(
+                'flex-1'
+            ).props('outlined dense clearable')
+            with search_input.add_slot('prepend'):
+                ui.icon('search').classes('text-gray-400')
+            search_button = ui.button(icon='search', on_click=filter_contracts).props('color=primary')
+            clear_button = ui.button(icon='clear', on_click=clear_search).props('color=secondary')
+        
+        # Create table after search bar (showing all contracts)
         contracts_table = ui.table(
             columns=contract_columns,
             column_defaults=contract_columns_defaults,
@@ -363,23 +443,7 @@ def home_page():
             "contracts-table shadow-lg rounded-lg overflow-hidden"
         )
         
-        # Add search functionality
-        def filter_contracts(e):
-            search_term = e.value.lower()
-            if not search_term:
-                contracts_table.rows = contract_rows
-            else:
-                filtered = [
-                    row for row in contract_rows
-                    if search_term in row['contract_id'].lower()
-                    or search_term in row['vendor_name'].lower()
-                    or search_term in row['contract_type'].lower()
-                    or search_term in row['description'].lower()
-                ]
-                contracts_table.rows = filtered
-            contracts_table.update()
-        
-        search_input.on('input', filter_contracts)
+        search_input.on_value_change(filter_contracts)
         
         # Add custom CSS for visual highlighting of expired contracts
         ui.add_css("""
