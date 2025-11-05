@@ -93,10 +93,24 @@ def new_contract():
                 # Row 2 - Automatic Renewal & Expiration Reminder Notice
                 with ui.element('div').classes(f"{row_classes} {std_row_height}"):
                     with ui.element('div').classes(label_cell_classes):
-                        ui.label("Automatic Renewal?").classes(label_classes)
-                    with ui.element('div').classes(input_cell_classes):
-                        with ui.element("div").classes("py-1"):
-                            ui.switch("Yes")
+                        ui.label("Automatic Renewal").classes(label_classes)
+                    with ui.element('div').classes(input_cell_classes + " flex flex-col"):
+                        auto_renewal_options = ["Please Select", "Yes", "No"]
+                        auto_renewal_select = ui.select(options=auto_renewal_options, label="Please Select*").classes(input_classes).props("outlined")
+                        auto_renewal_error = ui.label('').classes('text-red-600 text-xs mt-1 min-h-[18px]').style('display:none')
+                        def validate_auto_renewal(e=None):
+                            value = auto_renewal_select.value or ''
+                            if not value.strip() or value == "Please Select":
+                                auto_renewal_error.text = "Please indicate if there is an automatic renewal period in place"
+                                auto_renewal_error.style('display:block')
+                                auto_renewal_select.classes('border border-red-600')
+                                return False
+                            else:
+                                auto_renewal_error.text = ''
+                                auto_renewal_error.style('display:none')
+                                auto_renewal_select.classes(remove='border border-red-600')
+                                return True
+                        auto_renewal_select.on('blur', validate_auto_renewal)
                     with ui.element('div').classes(label_cell_classes):
                         ui.label("Expiration Reminder Notice").classes(label_classes)
                     with ui.element('div').classes(input_cell_classes + " flex flex-col"):
@@ -117,12 +131,35 @@ def new_contract():
                                 return True
                         expiration_input.on('blur', validate_expiration)
                 
+                # Row 2.5 - Renewal Period (conditional display)
+                renewal_period_row = ui.element('div').classes(f"{row_classes} {std_row_height}").style('display:none')
+                with renewal_period_row:
+                    with ui.element('div').classes(label_cell_classes):
+                        ui.label("Renewal Period").classes(label_classes)
+                    with ui.element('div').classes(input_cell_classes + " flex flex-col"):
+                        renewal_period_options = ["Please Select", "1 Year", "2 Years", "3 Years"]
+                        renewal_period_select = ui.select(options=renewal_period_options, label="Please Select").classes(input_classes).props("outlined")
+                    with ui.element('div').classes(label_cell_classes):
+                        ui.label("").classes(label_classes)
+                    with ui.element('div').classes(input_cell_classes):
+                        ui.label("").classes(input_classes)
+                
+                # Handle showing/hiding renewal period field
+                def handle_renewal_change(e):
+                    if auto_renewal_select.value == "Yes":
+                        renewal_period_row.style('display:flex')
+                    else:
+                        renewal_period_row.style('display:none')
+                        renewal_period_select.value = "Please Select"
+                
+                auto_renewal_select.on('change', handle_renewal_change)
+                
                 # Row 3 - Type of Contract & Currency
                 with ui.element('div').classes(f"{row_classes} {std_row_height}"):
                     with ui.element('div').classes(label_cell_classes):
                         ui.label("Type of Contract").classes(label_classes)
                     with ui.element('div').classes(input_cell_classes + " flex flex-col"):
-                        contract_type_select = ui.select(options=["Advertising", "Publicity", "Account"], label="Please Select*").classes(input_classes).props("outlined")
+                        contract_type_select = ui.select(options=["Hardware", "Software", "Building", "Airco", "Custody Service", "Elevator", "Services", "Other", "Generator", "Certification", "Security", "Price List", "Service Agreement", "Non-Disclosure Agreement", "Terms & Conditions", "Consultancy", "Maintenance", "Proposal", "Advertising", "Termination", "Letter of Intent", "Service & Maintenance", "Lease Agreement", "Job Affirmation", "Legal Services", "Insurance", "Draft", "ATM - Lease Agreement", "Standing Order", "License Agreement", "Letter of Engagement", "Security Agreement", "Agreement", "Concession", "Membership Agreement", "Erfpacht", "Subscription", "Membership", "APPRAISAL", "Sponsorship", "Agency Agreement", "Preventative Service Plan", "Registration", "Quotation", "Statement Of Work"], label="Please Select*").classes(input_classes).props("outlined")
                         contract_type_error = ui.label('').classes('text-red-600 text-xs mt-1 min-h-[18px]').style('display:none')
                         def validate_contract_type(e=None):
                             value = contract_type_select.value or ''
@@ -161,7 +198,7 @@ def new_contract():
                     with ui.element('div').classes(label_cell_classes):
                         ui.label("Department").classes(label_classes)
                     with ui.element('div').classes(input_cell_classes + " flex flex-col"):
-                        department_select = ui.select(options=["Business Continuity", "Certificates", "Organizations"], label="Please Select*").classes(input_classes).props("outlined")
+                        department_select = ui.select(options=["IT - Operations", "Compliance Department", "Finance", "Internal Audit", "Human Resources", "Executive Office", "Insurance Department", "Premises & Facilities", "Marketing Department", "Payment Operations", "Retail Banking", "Payment Strategy & Solutions", "CARC", "Corporate Banking - Mid Office", "Security Department", "Management Team", "Special Assets", "Contact Center", "Corporate Banking - Corporate Credit", "Credit Risk", "Archiving Services", "Project Management Team", "IT - Projects", "KYC Due Diligence", "PBIO", "ORCO Group N.V.", "Business Continuity Management", "Management Board", "Integrity", "Platinum Banking", "OBAB IT", "OBAB Security", "OBAB Retail", "OBAB PBIO", "OBAB Payment Strategy & Solutions", "OBAB Payment Operations", "OBAB Premises & Facilities", "OBAB Internal Audit"], label="Please Select*").classes(input_classes).props("outlined")
                         department_error = ui.label('').classes('text-red-600 text-xs mt-1 min-h-[18px]').style('display:none')
                         def validate_department(e=None):
                             value = department_select.value or ''
@@ -177,9 +214,31 @@ def new_contract():
                                 return True
                         department_select.on('blur', validate_department)
                     with ui.element('div').classes(label_cell_classes):
-                        ui.label("Initial Fee").classes(label_classes)
-                    with ui.element('div').classes(input_cell_classes):
-                        ui.input(label="Do not Format it", value="0.00").props("disabled").classes(input_classes).props("outlined")
+                        ui.label("Contract Amount").classes(label_classes)
+                    with ui.element('div').classes(input_cell_classes + " flex flex-col"):
+                        contract_amount_input = ui.input(label="Contract Amount*").classes(input_classes).props("outlined maxlength=20")
+                        contract_amount_error = ui.label('').classes('text-red-600 text-xs mt-1 min-h-[18px]').style('display:none')
+                        
+                        def validate_contract_amount(e=None):
+                            value = contract_amount_input.value or ''
+                            if not value.strip():
+                                contract_amount_error.text = "Please enter the Contract Amount"
+                                contract_amount_error.style('display:block')
+                                contract_amount_input.classes('border border-red-600')
+                                return False
+                            # Check if value contains only numbers, dots, and commas
+                            import re
+                            if not re.match(r'^[\d.,]+$', value):
+                                contract_amount_error.text = "Please enter only numeric values with . or ,"
+                                contract_amount_error.style('display:block')
+                                contract_amount_input.classes('border border-red-600')
+                                return False
+                            contract_amount_error.text = ''
+                            contract_amount_error.style('display:none')
+                            contract_amount_input.classes(remove='border border-red-600')
+                            return True
+                        
+                        contract_amount_input.on('blur', validate_contract_amount)
 
                 # Row 5 - Contract Start Date & Sub-contractor's name
                 with ui.element('div').classes(f"{row_classes} {std_row_height}"):
@@ -217,7 +276,7 @@ def new_contract():
                 # Row 6 - Contract Expiration Date & Maintenance Fee
                 with ui.element('div').classes(f"{row_classes} {std_row_height}"):
                     with ui.element('div').classes(label_cell_classes):
-                        ui.label("Contract Expiration Date").classes(label_classes)
+                        ui.label("Contract End Date").classes(label_classes)
                     with ui.element('div').classes(input_cell_classes):
                         with ui.input('MM/DD/YYYY', value='08/24/2025').classes(input_classes).props("outlined") as end_date:
                             with ui.menu().props('no-parent-event') as end_menu:
@@ -441,10 +500,12 @@ def new_contract():
                             validate_vendor(),
                             validate_desc(),
                             validate_termination(),
+                            validate_auto_renewal(),
                             validate_expiration(),
                             validate_contract_type(),
                             validate_currency(),
                             validate_department(),
+                            validate_contract_amount(),
                             validate_subcontractor(),
                             validate_maintenance_fee(),
                             validate_payment(),
@@ -463,10 +524,13 @@ def new_contract():
                             'vendor': vendor_select.value,
                             'description': desc_input.value,
                             'termination_notice': termination_input.value,
+                            'automatic_renewal': auto_renewal_select.value,
+                            'renewal_period': renewal_period_select.value if auto_renewal_select.value == "Yes" else None,
                             'expiration_reminder': expiration_input.value,
                             'contract_type': contract_type_select.value,
                             'currency': currency_select.value,
                             'department': department_select.value,
+                            'contract_amount': contract_amount_input.value,
                             'subcontractor': subcontractor_input.value,
                             'maintenance_fee': maintenance_fee_input.value,
                             'payment_method': payment_select.value,
