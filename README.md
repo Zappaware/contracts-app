@@ -13,61 +13,48 @@ This is a contract management system for Aruba Bank that provides functionality 
 ## Prerequisites
 
 - Python 3.13 or higher
-- [uv](https://docs.astral.sh/uv/) package manager
+- pip (Python package manager)
 
 ## Installation
 
-### Using uv (Recommended)
-
-1. **Install uv** (if not already installed):
-   ```bash
-   curl -LsSf https://astral.sh/uv/install.sh | sh
-   ```
-
-2. **Clone the repository** (if not already done):
+1. **Clone the repository** (if not already done):
    ```bash
    git clone <repository-url>
    cd contracts-aruba
    ```
 
-3. **Install dependencies using uv**:
+2. **Create a virtual environment**:
    ```bash
-   uv sync
+   python -m venv .venv
    ```
 
-4. **Activate the virtual environment**:
+3. **Activate the virtual environment**:
+   
+   On Windows:
+   ```bash
+   .venv\Scripts\activate
+   ```
+   
+   On macOS/Linux:
    ```bash
    source .venv/bin/activate
    ```
 
-### Alternative: Using pip with requirements.txt
-
-If you prefer using pip, you can use the provided `requirements.txt`:
-
-1. **Create a virtual environment**:
-   ```bash
-   python3.13 -m venv .venv
-   source .venv/bin/activate
-   ```
-
-2. **Install dependencies**:
+4. **Install dependencies**:
    ```bash
    pip install -r requirements.txt
    ```
 
 ## Running the Application
 
-### Using uv
-
-
-1. **Run the application**:
+1. **Activate the virtual environment** (if not already activated):
+   
+   On Windows:
    ```bash
-   uv run main.py
+   .venv\Scripts\activate
    ```
-
-### Using pip
-
-1. **Activate the virtual environment**:
+   
+   On macOS/Linux:
    ```bash
    source .venv/bin/activate
    ```
@@ -93,9 +80,11 @@ contracts-aruba/
 │   └── header.py       # Navigation header component
 ├── pages/              # Application pages
 │   ├── active_contracts.py
+│   ├── backup.py
 │   ├── expired_contracts.py
 │   ├── home_page.py
 │   ├── login.py
+│   ├── manager.py
 │   ├── new_contract.py
 │   ├── new_vendor.py
 │   ├── pending_contracts.py
@@ -103,8 +92,7 @@ contracts-aruba/
 │   └── vendor_info.py
 ├── main.py             # Main application entry point
 ├── pyproject.toml      # Project configuration and dependencies
-├── requirements.txt    # Pip-compatible requirements file
-├── uv.lock            # uv lock file for reproducible builds
+├── requirements.txt    # Pip requirements file
 └── README.md          # This file
 ```
 
@@ -123,18 +111,17 @@ contracts-aruba/
 
 ### Adding Dependencies
 
-When adding new dependencies, use uv:
+When adding new dependencies, add them to `requirements.txt` and install:
 
 ```bash
-uv add package-name
+pip install package-name
+pip freeze > requirements.txt
 ```
-
-This will automatically update both `pyproject.toml` and `uv.lock`.
 
 ### Updating Dependencies
 
 ```bash
-uv sync --upgrade
+pip install --upgrade -r requirements.txt
 ```
 
 ## Troubleshooting
@@ -150,9 +137,17 @@ uv sync --upgrade
    ```
 
 3. **Dependencies not found**: Make sure the virtual environment is activated and dependencies are installed:
+   
+   On Windows:
+   ```bash
+   .venv\Scripts\activate
+   pip install -r requirements.txt
+   ```
+   
+   On macOS/Linux:
    ```bash
    source .venv/bin/activate
-   uv sync
+   pip install -r requirements.txt
    ```
 
 ## License
