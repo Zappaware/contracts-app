@@ -11,10 +11,10 @@ def home_page():
     contract_rows = []
     manager_label = None
     
-    # Function to show the contracts table and hide recent activity
+    # Function to show the contracts table
     def show_contracts_table():
         contracts_table_container.visible = True
-        recent_activity_container.visible = False
+        # recent_activity_container.visible = False  # Commented out - Recent Activity is hidden
     
     # Function to handle owned/backup toggle
     def on_role_toggle(e):
@@ -103,43 +103,44 @@ def home_page():
                 ui.label("Contracts approaching or past their expiration date").classes("text-sm text-gray-500")
                 ui.label("8").classes("text-2xl font-medium text-primary mt-2")
 
+    # ===== COMMENTED OUT: Recent Activity Section =====
     # Container for the Recent Activity section
-    recent_activity_container = ui.element("div").classes("max-w-6xl mt-8 mx-auto w-full")
-    
-    with recent_activity_container:
-        with ui.card().classes("mt-8 w-full"):
-            ui.label("Recent Activity").classes("text-lg font-bold")
-            ui.label("Latest contract management activities").classes(
-                "text-sm text-gray-500 mb-4"
-            )
-            with ui.column().classes("space-y-4 w-full"):
-                with ui.row().classes(
-                    "flex items-center justify-between py-2 border-b border-gray-200 last:border-b-0 w-full"
-                ):
-                    with ui.column():
-                        ui.label("New contract created").classes("font-medium")
-                        ui.label("Contract #CTR-2024-001 with ABC Corp").classes(
-                            "text-sm text-gray-500"
-                        )
-                    ui.label("2 hours ago").classes("text-sm text-gray-500")
-                with ui.row().classes(
-                    "flex items-center justify-between py-2 border-b border-gray-200 last:border-b-0 w-full"
-                ):
-                    with ui.column():
-                        ui.label("Vendor registered").classes("font-medium")
-                        ui.label("XYZ Services added to vendor database").classes(
-                            "text-sm text-gray-500"
-                        )
-                    ui.label("4 hours ago").classes("text-sm text-gray-500")
-                with ui.row().classes(
-                    "flex items-center justify-between py-2 border-b border-gray-200 last:border-b-0 w-full"
-                ):
-                    with ui.column():
-                        ui.label("Contract approved").classes("font-medium")
-                        ui.label(
-                            "Contract #CTR-2024-002 approved by management"
-                        ).classes("text-sm text-gray-500")
-                    ui.label("1 day ago").classes("text-sm text-gray-500")
+    # recent_activity_container = ui.element("div").classes("max-w-6xl mt-8 mx-auto w-full")
+    # 
+    # with recent_activity_container:
+    #     with ui.card().classes("mt-8 w-full"):
+    #         ui.label("Recent Activity").classes("text-lg font-bold")
+    #         ui.label("Latest contract management activities").classes(
+    #             "text-sm text-gray-500 mb-4"
+    #         )
+    #         with ui.column().classes("space-y-4 w-full"):
+    #             with ui.row().classes(
+    #                 "flex items-center justify-between py-2 border-b border-gray-200 last:border-b-0 w-full"
+    #             ):
+    #                 with ui.column():
+    #                     ui.label("New contract created").classes("font-medium")
+    #                     ui.label("Contract #CTR-2024-001 with ABC Corp").classes(
+    #                         "text-sm text-gray-500"
+    #                     )
+    #                 ui.label("2 hours ago").classes("text-sm text-gray-500")
+    #             with ui.row().classes(
+    #                 "flex items-center justify-between py-2 border-b border-gray-200 last:border-b-0 w-full"
+    #             ):
+    #                 with ui.column():
+    #                     ui.label("Vendor registered").classes("font-medium")
+    #                     ui.label("XYZ Services added to vendor database").classes(
+    #                         "text-sm text-gray-500"
+    #                     )
+    #                 ui.label("4 hours ago").classes("text-sm text-gray-500")
+    #             with ui.row().classes(
+    #                 "flex items-center justify-between py-2 border-b border-gray-200 last:border-b-0 w-full"
+    #             ):
+    #                 with ui.column():
+    #                     ui.label("Contract approved").classes("font-medium")
+    #                     ui.label(
+    #                         "Contract #CTR-2024-002 approved by management"
+    #                     ).classes("text-sm text-gray-500")
+    #                 ui.label("1 day ago").classes("text-sm text-gray-500")
 
     # ===== COMMENTED OUT: Vendor List Section =====
     # with ui.element("div").classes("max-w-6xl mt-8 mx-auto w-full"):
