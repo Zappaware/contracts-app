@@ -142,29 +142,53 @@ def new_contract():
                         termination_input.on('blur', validate_termination)
                 
                 # Row 2 - Automatic Renewal & Expiration Reminder Notice
-                with ui.element('div').classes(f"{row_classes} {std_row_height}"):
-                    with ui.element('div').classes(label_cell_classes):
+                with ui.element('div').classes(f"{row_classes} items-stretch"):
+                    with ui.element('div').classes(label_cell_classes + " items-start"):
                         ui.label("Automatic Renewal").classes(label_classes)
-                    with ui.element('div').classes(input_cell_classes + " flex flex-col"):
-                        auto_renewal_options = ["Please Select", "Yes", "No"]
-                        auto_renewal_select = ui.select(options=auto_renewal_options, label="Please Select*").classes(input_classes).props("outlined")
+                    with ui.element('div').classes(input_cell_classes + " flex flex-col py-2"):
+                        auto_renewal_options = ["Please select", "Yes", "No"]
+                        auto_renewal_select = ui.select(
+                            options=auto_renewal_options, 
+                            value="Please select",
+                            label="Automatic Renewal*"
+                        ).classes(input_classes).props("outlined use-input")
                         auto_renewal_error = ui.label('').classes('text-red-600 text-xs mt-1 min-h-[18px]').style('display:none')
+                        
+                        # Renewal Period field (conditionally shown)
+                        renewal_period_options = ["Please select", "1 Year", "2 Years", "3 Years"]
+                        renewal_period_select = ui.select(
+                            options=renewal_period_options, 
+                            value="Please select",
+                            label="Renewal Period (Optional)"
+                        ).classes(input_classes + " mt-2").props("outlined use-input")
+                        renewal_period_select.set_visibility(False)
+                        
                         def validate_auto_renewal(e=None):
                             value = auto_renewal_select.value or ''
-                            if not value.strip() or value == "Please Select":
+                            if not value.strip() or value == "Please select":
                                 auto_renewal_error.text = "Please indicate if there is an automatic renewal period in place"
                                 auto_renewal_error.style('display:block')
                                 auto_renewal_select.classes('border border-red-600')
+                                renewal_period_select.set_visibility(False)
                                 return False
                             else:
                                 auto_renewal_error.text = ''
                                 auto_renewal_error.style('display:none')
                                 auto_renewal_select.classes(remove='border border-red-600')
+                                # Show renewal period field only if "Yes" is selected
+                                if value == "Yes":
+                                    renewal_period_select.set_visibility(True)
+                                else:
+                                    renewal_period_select.set_visibility(False)
+                                    renewal_period_select.value = "Please select"
                                 return True
+                        
                         auto_renewal_select.on('blur', validate_auto_renewal)
-                    with ui.element('div').classes(label_cell_classes):
+                        auto_renewal_select.on('change', validate_auto_renewal)
+                        
+                    with ui.element('div').classes(label_cell_classes + " items-start"):
                         ui.label("Expiration Reminder Notice").classes(label_classes)
-                    with ui.element('div').classes(input_cell_classes + " flex flex-col"):
+                    with ui.element('div').classes(input_cell_classes + " flex flex-col py-2"):
                         expiration_options = ["15", "30", "60", "90", "120"]
                         expiration_input = ui.select(options=expiration_options, value="30", label="Days*").classes(input_classes).props("outlined")
                         expiration_error = ui.label('').classes('text-red-600 text-xs mt-1 min-h-[18px]').style('display:none')
@@ -181,29 +205,6 @@ def new_contract():
                                 expiration_input.classes(remove='border border-red-600')
                                 return True
                         expiration_input.on('blur', validate_expiration)
-                
-                # Row 2.5 - Renewal Period (conditional display)
-                renewal_period_row = ui.element('div').classes(f"{row_classes} {std_row_height}").style('display:none')
-                with renewal_period_row:
-                    with ui.element('div').classes(label_cell_classes):
-                        ui.label("Renewal Period").classes(label_classes)
-                    with ui.element('div').classes(input_cell_classes + " flex flex-col"):
-                        renewal_period_options = ["Please Select", "1 Year", "2 Years", "3 Years"]
-                        renewal_period_select = ui.select(options=renewal_period_options, label="Please Select").classes(input_classes).props("outlined")
-                    with ui.element('div').classes(label_cell_classes):
-                        ui.label("").classes(label_classes)
-                    with ui.element('div').classes(input_cell_classes):
-                        ui.label("").classes(input_classes)
-                
-                # Handle showing/hiding renewal period field
-                def handle_renewal_change(e):
-                    if auto_renewal_select.value == "Yes":
-                        renewal_period_row.style('display:flex')
-                    else:
-                        renewal_period_row.style('display:none')
-                        renewal_period_select.value = "Please Select"
-                
-                auto_renewal_select.on('change', handle_renewal_change)
                 
                 # Row 3 - Type of Contract & Currency
                 with ui.element('div').classes(f"{row_classes} {std_row_height}"):
