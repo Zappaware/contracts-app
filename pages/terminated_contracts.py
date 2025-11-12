@@ -6,18 +6,49 @@ def terminated_contracts():
     # Navigation
     with ui.row().classes("max-w-6xl mx-auto mt-4"):
         with ui.link(target='/').classes('no-underline'):
-            ui.button("← Back to Dashboard", icon="arrow_back").props('flat color=primary')
+            ui.button("Back to Dashboard", icon="arrow_back").props('flat color=primary')
     
     # Global variables for table and data
     contracts_table = None
     contract_rows = []
+    manager_label = None
     
-    # Function to handle owned/backup switch toggle (no functionality for now)
-    def on_switch_toggle(value):
-        if value:
-            ui.notify("Owned contracts selected", type="info")
-        else:
-            ui.notify("Backup contracts selected", type="info")
+    # Function to handle owned/backup toggle
+    def on_role_toggle(e):
+        role = e.value  # Will be 'backup' or 'owned'
+        
+        # Filter contracts based on selected role
+        filtered = [row for row in contract_rows if row['role'] == role]
+        
+        # Update manager name based on role
+        if role == 'backup':
+            manager_name = "John Doe"
+            ui.notify("Showing backup contracts (John Doe)", type="info")
+        else:  # owned
+            manager_name = "William Defoe"
+            ui.notify("Showing owned contracts (William Defoe)", type="info")
+        
+        # Update the manager label
+        manager_label.set_text(f"Manager: {manager_name}")
+        
+        # If there's an active search, reapply it to the new filtered set
+        try:
+            search_term = (search_input.value or "").lower()
+            if search_term:
+                filtered = [
+                    row for row in filtered
+                    if search_term in (row['contract_id'] or "").lower()
+                    or search_term in (row['vendor_name'] or "").lower()
+                    or search_term in (row['contract_type'] or "").lower()
+                    or search_term in (row['description'] or "").lower()
+                    or search_term in (row['manager'] or "").lower()
+                ]
+        except NameError:
+            pass  # search_input not yet defined
+        
+        # Update table with filtered results
+        contracts_table.rows = filtered
+        contracts_table.update()
     
     # Mock data for terminated contracts
     def get_mock_terminated_contracts():
@@ -180,30 +211,40 @@ def terminated_contracts():
     
     # Main container
     with ui.element("div").classes("max-w-6xl mt-8 mx-auto w-full"):
-        # Section header with switch
-        with ui.row().classes('items-center justify-between ml-4 mb-4'):
+        # Section header with toggle
+        with ui.row().classes('items-center justify-between ml-4 mb-4 w-full'):
             with ui.row().classes('items-center gap-2'):
                 ui.icon('cancel', color='grey').style('font-size: 32px')
                 ui.label("Terminated Contracts").classes("text-h5 font-bold")
             
-            # Switch for Owned/Backup
-            with ui.row().classes('items-center gap-2'):
-                ui.label("Owned").classes("text-sm font-medium")
-                owned_backup_switch = ui.switch(value=True, on_change=on_switch_toggle).props('color=primary')
-                ui.label("Backup").classes("text-sm font-medium")
+            # Toggle for Owned/Backup
+            role_toggle = ui.toggle(
+                {'backup': 'Backup', 'owned': 'Owned'}, 
+                value='backup', 
+                on_change=on_role_toggle
+            ).props('toggle-color=primary text-color=primary').classes('role-toggle')
         
-        ui.label("Contracts that have been terminated").classes(
-            "text-sm text-gray-500 ml-4 mb-4"
-        )
+        # Manager name and description row
+        with ui.row().classes('items-center justify-between ml-4 mb-4 w-full'):
+            ui.label("Contracts that have been terminated").classes(
+                "text-sm text-gray-500"
+            )
+            manager_label = ui.label("Manager: John Doe").classes(
+                "text-base font-semibold text-primary"
+            )
         
         # Define search functions first
         def filter_contracts():
+            # Get base rows based on current toggle state
+            current_role = role_toggle.value
+            base_rows = [row for row in contract_rows if row['role'] == current_role]
+            
             search_term = (search_input.value or "").lower()
             if not search_term:
-                contracts_table.rows = contract_rows
+                contracts_table.rows = base_rows
             else:
                 filtered = [
-                    row for row in contract_rows
+                    row for row in base_rows
                     if search_term in (row['contract_id'] or "").lower()
                     or search_term in (row['vendor_name'] or "").lower()
                     or search_term in (row['contract_type'] or "").lower()
@@ -215,8 +256,7 @@ def terminated_contracts():
         
         def clear_search():
             search_input.value = ""
-            contracts_table.rows = contract_rows
-            contracts_table.update()
+            filter_contracts()  # Use filter_contracts to respect current role
         
         # Search input for filtering contracts (above the table)
         with ui.row().classes('w-full ml-4 mr-4 mb-6 gap-2 px-2'):
@@ -225,14 +265,15 @@ def terminated_contracts():
             ).props('outlined dense clearable')
             with search_input.add_slot('prepend'):
                 ui.icon('search').classes('text-gray-400')
-            search_button = ui.button(icon='search', on_click=filter_contracts).props('color=primary')
-            clear_button = ui.button(icon='clear', on_click=clear_search).props('color=secondary')
+            ui.button(icon='search', on_click=filter_contracts).props('color=primary')
+            ui.button(icon='clear', on_click=clear_search).props('color=secondary')
         
-        # Create table after search bar (showing all contracts)
+        # Create table after search bar (showing backup contracts by default - John Doe)
+        initial_rows = [row for row in contract_rows if row['role'] == 'backup']
         contracts_table = ui.table(
             columns=contract_columns,
             column_defaults=contract_columns_defaults,
-            rows=contract_rows,
+            rows=initial_rows,
             pagination=10,
             row_key="contract_id"
         ).classes("w-full").props("flat bordered").classes(
@@ -241,13 +282,23 @@ def terminated_contracts():
         
         search_input.on_value_change(filter_contracts)
         
-        # Add custom CSS for visual highlighting
+        # Add custom CSS for visual highlighting and toggle styling
         ui.add_css("""
             .contracts-table thead tr {
                 background-color: #144c8e !important;
             }
             .contracts-table tbody tr {
                 background-color: white !important;
+            }
+            
+            /* Toggle button styling - white background for selected button */
+            .role-toggle .q-btn--active {
+                background-color: white !important;
+                box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1) !important;
+            }
+            .role-toggle .q-btn {
+                font-weight: 500;
+                padding: 6px 16px;
             }
         """)
         

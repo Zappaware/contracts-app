@@ -7,7 +7,7 @@ def vendor_info():
     # Navigation
     with ui.row().classes("max-w-3xl mx-auto mt-4"):
         with ui.link(target='/').classes('no-underline'):
-            ui.button("← Back to Dashboard", icon="arrow_back").props('flat color=primary')
+            ui.button("Back to Dashboard", icon="arrow_back").props('flat color=primary')
     
     # Basic info
     with ui.card().classes("max-w-3xl mx-auto mt-4 p-6"):

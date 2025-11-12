@@ -6,7 +6,7 @@ def active_contracts():
     # Navigation
     with ui.row().classes("max-w-6xl mx-auto mt-4"):
         with ui.link(target='/').classes('no-underline'):
-            ui.button("← Back to Dashboard", icon="arrow_back").props('flat color=primary')
+            ui.button("Back to Dashboard", icon="arrow_back").props('flat color=primary')
     
     # Global variables for table and data
     contracts_table = None
