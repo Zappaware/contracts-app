@@ -5,7 +5,7 @@ import requests
 from nicegui import ui
 
 
-def backup():
+def manager():
     # Global variables for table and data
     contracts_table = None
     contract_rows = []
