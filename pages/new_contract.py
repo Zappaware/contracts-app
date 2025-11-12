@@ -2,6 +2,57 @@ from nicegui import ui
 
 
 def new_contract():
+    # Contract Manager data with email addresses
+    contract_managers_data = {
+        "Please select": "",
+        "Ryan Koolman": "ryan.koolman@arubabank.com",
+        "Urvin Werleman": "urvin.werleman@arubabank.com",
+        "Wendy Koffy": "wendy.koffy@arubabank.com",
+        "Joseph Winterdal": "joseph.winterdal@arubabank.com",
+        "Francois Citroen": "francois.citroen@arubabank.com",
+        "Charlotte Cuba De": "charlotte.cubade@arubabank.com",
+        "Noraiza Maduro": "noraiza.maduro@arubabank.com",
+        "Inoira Maduro": "inoira.maduro@arubabank.com",
+        "Marleen van der Borgt": "marleen.vanderborgt@arubabank.com",
+        "Janis Ten Hoope": "janis.tenhoope@arubabank.com",
+        "Herman Brown": "herman.brown@arubabank.com",
+        "Joswald Peterson": "joswald.peterson@arubabank.com",
+        "Sedrick Naranjo": "sedrick.naranjo@arubabank.com",
+        "Julio Jacobs": "julio.jacobs@arubabank.com",
+        "Edseline Semeleer": "edseline.semeleer@arubabank.com",
+        "Tamara Waldron": "tamara.waldron@arubabank.com",
+        "Raysa Ashby": "raysa.ashby@arubabank.com",
+        "Edna Boekhoudt": "edna.boekhoudt@arubabank.com",
+        "Marjory Clark": "marjory.clark@arubabank.com",
+        "Luigi van der Linden": "luigi.vanderlinden@arubabank.com",
+        "Charissa Maduro": "charissa.maduro@arubabank.com",
+        "Tamara Fingal": "tamara.fingal@arubabank.com",
+        "Nathalie Joho": "nathalie.joho@arubabank.com",
+        "Gjalynn Kolfin": "gjalynn.kolfin@arubabank.com",
+        "Nigel Wix": "nigel.wix@arubabank.com",
+        "Corry-Ann Dorotaal": "corryann.dorotaal@arubabank.com",
+        "Lizani Wever": "lizani.wever@arubabank.com",
+        "Jeroen Gerfen": "jeroen.gerfen@arubabank.com",
+        "Edgar Diaz Ponson": "edgar.diazponson@arubabank.com",
+        "Nicole Dijkhoff": "nicole.dijkhoff@arubabank.com",
+        "Gritsana Comenencia": "gritsana.comenencia@arubabank.com",
+        "Marlon Kock": "marlon.kock@arubabank.com",
+        "Michelle Harms": "michelle.harms@arubabank.com",
+        "Stefan Lucas": "stefan.lucas@arubabank.com",
+        "Robbert van der Sloot": "robbert.vandersloot@arubabank.com",
+        "Patricia Goede": "patricia.goede@arubabank.com",
+        "Rodney Geerman": "rodney.geerman@arubabank.com",
+        "Guiselaine Oduber": "guiselaine.oduber@arubabank.com",
+        "Janella Chong": "janella.chong@arubabank.com",
+        "Carina Boekhoudt": "carina.boekhoudt@arubabank.com",
+        "Hubert (Marcel) Zievinger": "hubert.zievinger@arubabank.com",
+        "Eugene Dirksz": "eugene.dirksz@arubabank.com",
+        "Igmar Reyes": "igmar.reyes@arubabank.com",
+        "Nathalie Kelly-Hoevertsz": "nathalie.kellyhoevertsz@arubabank.com",
+        "Jovanny Lacle": "jovanny.lacle@arubabank.com",
+        "Stephanie Camacho": "stephanie.camacho@arubabank.com",
+        "Franchesca Lacle": "franchesca.lacle@arubabank.com"
+    }
     with ui.element("div").classes(
         "flex flex-col items-center justify-center mt-8 w-full "
     ):
@@ -458,6 +509,50 @@ def new_contract():
                                 return True
                         revision_user_input.on('blur', validate_revision_user)
                 
+                # Row 10.2 - Contract Manager & Email Display
+                with ui.element('div').classes(f"{row_classes} {std_row_height}"):
+                    with ui.element('div').classes(label_cell_classes):
+                        ui.label("Contract Manager").classes(label_classes)
+                    with ui.element('div').classes(input_cell_classes + " flex flex-col"):
+                        contract_manager_options = list(contract_managers_data.keys())
+                        contract_manager_select = ui.select(
+                            options=contract_manager_options, 
+                            value="Please select",
+                            label="Contract Manager*"
+                        ).classes(input_classes).props("outlined use-input")
+                        contract_manager_error = ui.label('').classes('text-red-600 text-xs mt-1 min-h-[18px]').style('display:none')
+                        
+                        def validate_contract_manager(e=None):
+                            value = contract_manager_select.value or ''
+                            if not value.strip() or value == "Please select":
+                                contract_manager_error.text = "Please select a Contract Manager."
+                                contract_manager_error.style('display:block')
+                                contract_manager_select.classes('border border-red-600')
+                                return False
+                            else:
+                                contract_manager_error.text = ''
+                                contract_manager_error.style('display:none')
+                                contract_manager_select.classes(remove='border border-red-600')
+                                return True
+                        
+                        contract_manager_select.on('blur', validate_contract_manager)
+                    
+                    with ui.element('div').classes(label_cell_classes):
+                        ui.label("Manager Email").classes(label_classes)
+                    with ui.element('div').classes(input_cell_classes + " flex items-center"):
+                        manager_email_display = ui.input(label="Email Address", value="").classes(input_classes).props("outlined readonly disable")
+                        
+                        # Update email display when contract manager changes
+                        def update_manager_email(e):
+                            selected_manager = contract_manager_select.value
+                            if selected_manager and selected_manager in contract_managers_data:
+                                email = contract_managers_data[selected_manager]
+                                manager_email_display.value = email
+                            else:
+                                manager_email_display.value = ""
+                        
+                        contract_manager_select.on('change', update_manager_email)
+                
                 # Row 10.5 - File Attachments (right below Notification Email Address)
                 with ui.element('div').classes(f"{row_classes} {std_row_height}"):
                     with ui.element('div').classes(label_cell_classes):
@@ -514,7 +609,8 @@ def new_contract():
                             validate_notify(),
                             validate_attention(),
                             validate_email_chips(),
-                            validate_revision_user()
+                            validate_revision_user(),
+                            validate_contract_manager()
                         ]
                         if not all(validations):
                             ui.notify('Please fix all required fields before submitting.', type='negative')
@@ -539,7 +635,9 @@ def new_contract():
                             'notify_when_expired': notify_select.value,
                             'attention': attention_input.value,
                             'notification_emails': email_chips.value,
-                            'last_revision_user': revision_user_input.value
+                            'last_revision_user': revision_user_input.value,
+                            'contract_manager': contract_manager_select.value,
+                            'contract_manager_email': manager_email_display.value
                         }
                         ui.notify('Contract submitted successfully!', type='positive')
                         # Here you can add code to send 'data' to your backend or API
