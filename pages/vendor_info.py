@@ -87,7 +87,7 @@ def vendor_info():
                 
                 # Termination reason
                 with ui.column().classes("w-full"):
-                    ui.label("Termination Reason (Optional)").classes("font-medium")
+                    ui.label("Termination Reason").classes("font-medium")
                     termination_reason = ui.textarea(placeholder="Enter reason for termination...").classes("w-full").props('outlined')
                 
                 # Action buttons
