@@ -10,6 +10,7 @@ from pages.pending_contracts import pending_contracts
 from pages.expired_contracts import expired_contracts
 from pages.vendor_info import vendor_info
 from pages.contract_managers import contract_managers
+from pages.backup import backup
 
 
 @ui.page("/")
@@ -69,5 +70,10 @@ def vendor_info_page():
 def contract_managers_page():
     header()
     contract_managers()
+
+@ui.page("/backup")
+def backup_page():
+    header()
+    backup()
 
 ui.run(title="Aruba Bank", port=5000, storage_secret="aruba_bank_secret")
