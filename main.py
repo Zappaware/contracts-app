@@ -11,6 +11,7 @@ from pages.expired_contracts import expired_contracts
 from pages.vendor_info import vendor_info
 from pages.contract_managers import contract_managers
 from pages.manager import manager
+from pages.pending_reviews import pending_reviews
 
 
 @ui.page("/")
@@ -75,5 +76,10 @@ def contract_managers_page():
 def manager_page():
     header()
     manager()
+
+@ui.page("/pending-reviews")
+def pending_reviews_page():
+    header()
+    pending_reviews()
 
 ui.run(title="Aruba Bank", port=5000, storage_secret="aruba_bank_secret")
