@@ -53,6 +53,13 @@ def new_contract():
         "Stephanie Camacho": "stephanie.camacho@arubabank.com",
         "Franchesca Lacle": "franchesca.lacle@arubabank.com"
     }
+    
+    # Vendor Contract variables (function scope for accessibility)
+    vendor_contract_uploaded = False
+    vendor_contract_file_name = None
+    vendor_contract_rename_input = None
+    vendor_contract_date_input = None
+    
     with ui.element("div").classes(
         "flex flex-col items-center justify-center mt-8 w-full "
     ):
@@ -554,7 +561,221 @@ def new_contract():
                         
                         contract_manager_select.on('change', update_manager_email)
                 
-                # Row 10.5 - File Attachments (right below Notification Email Address)
+                # Row 10.3 - Contract Owner & Email Display
+                with ui.element('div').classes(f"{row_classes} {std_row_height}"):
+                    with ui.element('div').classes(label_cell_classes):
+                        ui.label("Contract Owner").classes(label_classes)
+                    with ui.element('div').classes(input_cell_classes + " flex flex-col"):
+                        contract_owner_options = list(contract_managers_data.keys())
+                        contract_owner_select = ui.select(
+                            options=contract_owner_options, 
+                            value="Please select",
+                            label="Contract Owner*"
+                        ).classes(input_classes).props("outlined use-input")
+                        contract_owner_error = ui.label('').classes('text-red-600 text-xs mt-1 min-h-[18px]').style('display:none')
+                        
+                        def validate_contract_owner(e=None):
+                            value = contract_owner_select.value or ''
+                            if not value.strip() or value == "Please select":
+                                contract_owner_error.text = "Please select a person."
+                                contract_owner_error.style('display:block')
+                                contract_owner_select.classes('border border-red-600')
+                                return False
+                            else:
+                                contract_owner_error.text = ''
+                                contract_owner_error.style('display:none')
+                                contract_owner_select.classes(remove='border border-red-600')
+                                return True
+                        
+                        contract_owner_select.on('blur', validate_contract_owner)
+                    
+                    with ui.element('div').classes(label_cell_classes):
+                        ui.label("Owner Email").classes(label_classes)
+                    with ui.element('div').classes(input_cell_classes + " flex items-center"):
+                        owner_email_display = ui.input(label="Email Address", value="").classes(input_classes).props("outlined readonly disable")
+                        
+                        # Update email display when contract owner changes
+                        def update_owner_email(e):
+                            selected_owner = contract_owner_select.value
+                            if selected_owner and selected_owner in contract_managers_data:
+                                email = contract_managers_data[selected_owner]
+                                owner_email_display.value = email
+                            else:
+                                owner_email_display.value = ""
+                        
+                        contract_owner_select.on('change', update_owner_email)
+                
+                # Row 10.4 - Contract Manager (Backup) & Email Display
+                with ui.element('div').classes(f"{row_classes} {std_row_height}"):
+                    with ui.element('div').classes(label_cell_classes):
+                        ui.label("Contract Manager (Backup)").classes(label_classes)
+                    with ui.element('div').classes(input_cell_classes + " flex flex-col"):
+                        contract_backup_options = list(contract_managers_data.keys())
+                        contract_backup_select = ui.select(
+                            options=contract_backup_options, 
+                            value="Please select",
+                            label="Contract Manager (Backup)*"
+                        ).classes(input_classes).props("outlined use-input")
+                        contract_backup_error = ui.label('').classes('text-red-600 text-xs mt-1 min-h-[18px]').style('display:none')
+                        
+                        def validate_contract_backup(e=None):
+                            value = contract_backup_select.value or ''
+                            if not value.strip() or value == "Please select":
+                                contract_backup_error.text = "Please select a person."
+                                contract_backup_error.style('display:block')
+                                contract_backup_select.classes('border border-red-600')
+                                return False
+                            else:
+                                contract_backup_error.text = ''
+                                contract_backup_error.style('display:none')
+                                contract_backup_select.classes(remove='border border-red-600')
+                                return True
+                        
+                        contract_backup_select.on('blur', validate_contract_backup)
+                    
+                    with ui.element('div').classes(label_cell_classes):
+                        ui.label("Backup Email").classes(label_classes)
+                    with ui.element('div').classes(input_cell_classes + " flex items-center"):
+                        backup_email_display = ui.input(label="Email Address", value="").classes(input_classes).props("outlined readonly disable")
+                        
+                        # Update email display when contract backup changes
+                        def update_backup_email(e):
+                            selected_backup = contract_backup_select.value
+                            if selected_backup and selected_backup in contract_managers_data:
+                                email = contract_managers_data[selected_backup]
+                                backup_email_display.value = email
+                            else:
+                                backup_email_display.value = ""
+                        
+                        contract_backup_select.on('change', update_backup_email)
+                
+                # Row 10.5 - Vendor Contract (Mandatory PDF Upload)
+                with ui.element('div').classes(f"{row_classes} {std_row_height}"):
+                    with ui.element('div').classes(label_cell_classes):
+                        ui.label("Vendor Contract").classes(label_classes)
+                    with ui.element('div').classes(input_cell_classes + " flex flex-col py-2"):
+                        # Upload component
+                        vendor_contract_upload = ui.upload(
+                            on_upload=lambda e: handle_vendor_contract_upload(e),
+                            label="Drop PDF file here or click to browse*"
+                        ).props('accept=.pdf color=primary outlined').classes("w-full")
+                        
+                        # File display and rename section (initially hidden)
+                        vendor_contract_file_display = ui.element("div").classes("w-full mt-2 hidden")
+                        
+                        def handle_vendor_contract_upload(e):
+                            nonlocal vendor_contract_uploaded, vendor_contract_file_name, vendor_contract_rename_input, vendor_contract_date_input
+                            # Check if file was uploaded
+                            if not e.file_names or len(e.file_names) == 0:
+                                ui.notify('No file selected', type='negative')
+                                return
+                            
+                            # Get first file (single upload only)
+                            file_name = e.file_names[0]
+                            
+                            # Check file extension - only PDF allowed
+                            if not file_name.lower().endswith('.pdf'):
+                                ui.notify('Only PDF files are allowed', type='negative')
+                                return
+                            
+                            vendor_contract_uploaded = True
+                            vendor_contract_file_name = file_name
+                            
+                            # Show file display section
+                            vendor_contract_file_display.classes(remove='hidden')
+                            vendor_contract_file_display.clear()
+                            
+                            with vendor_contract_file_display:
+                                with ui.card().classes("p-3 bg-blue-50 w-full"):
+                                    with ui.row().classes("items-center gap-2 mb-2"):
+                                        ui.icon("picture_as_pdf", color="red", size="md")
+                                        ui.label(f"File: {file_name}").classes("text-sm font-medium")
+                                    
+                                    # Rename input with character validation
+                                    nonlocal vendor_contract_rename_input
+                                    vendor_contract_rename_input = ui.input(
+                                        label="Rename Document*",
+                                        value=file_name.replace('.pdf', ''),
+                                        placeholder="Enter document name (letters, numbers, -, |, & only)"
+                                    ).classes(input_classes + " mb-2").props("outlined")
+                                    
+                                    # Add validation on input change
+                                    def validate_rename_input(e):
+                                        import re
+                                        value = vendor_contract_rename_input.value or ''
+                                        if value and not re.match(r'^[a-zA-Z0-9\s\-\|&]*$', value):
+                                            # Remove invalid characters
+                                            cleaned = re.sub(r'[^a-zA-Z0-9\s\-\|&]', '', value)
+                                            vendor_contract_rename_input.value = cleaned
+                                            ui.notify('Only letters, numbers, and special characters (-, |, &) are allowed', type='warning')
+                                    
+                                    vendor_contract_rename_input.on('input', validate_rename_input)
+                                    
+                                    # Date signed input with calendar
+                                    nonlocal vendor_contract_date_input
+                                    with ui.input('MM/DD/YYYY', placeholder='Document Date Signed*').classes(input_classes).props("outlined") as vendor_contract_date_input:
+                                        with ui.menu().props('no-parent-event') as vendor_contract_date_menu:
+                                            with ui.date().props('mask=MM/DD/YYYY').bind_value(vendor_contract_date_input, 
+                                                forward=lambda d: d.replace('-', '/') if d else '', 
+                                                backward=lambda d: d.replace('/', '-') if d else ''):
+                                                with ui.row().classes('justify-end'):
+                                                    ui.button('Close', on_click=vendor_contract_date_menu.close).props('flat')
+                                        with vendor_contract_date_input.add_slot('append'):
+                                            ui.icon('edit_calendar').on('click', vendor_contract_date_menu.open).classes('cursor-pointer')
+                            
+                            vendor_contract_error.text = ''
+                            vendor_contract_error.style('display:none')
+                            vendor_contract_upload.classes(remove='border border-red-600')
+                            ui.notify('PDF file uploaded successfully', type='positive')
+                        
+                        vendor_contract_error = ui.label('').classes('text-red-600 text-xs mt-1 min-h-[18px]').style('display:none')
+                        
+                        def validate_vendor_contract(_e=None):
+                            nonlocal vendor_contract_uploaded, vendor_contract_file_name, vendor_contract_rename_input, vendor_contract_date_input
+                            if not vendor_contract_uploaded or not vendor_contract_file_name:
+                                vendor_contract_error.text = "Please upload this required document"
+                                vendor_contract_error.style('display:block')
+                                vendor_contract_upload.classes('border border-red-600')
+                                return False
+                            
+                            # Validate rename input (only letters, numbers, -, |, &)
+                            if vendor_contract_rename_input:
+                                rename_value = vendor_contract_rename_input.value or ''
+                                import re
+                                if not rename_value.strip():
+                                    vendor_contract_error.text = "Please enter a document name"
+                                    vendor_contract_error.style('display:block')
+                                    vendor_contract_rename_input.classes('border border-red-600')
+                                    return False
+                                # Check for allowed characters: letters, numbers, -, |, &
+                                if not re.match(r'^[a-zA-Z0-9\s\-\|&]+$', rename_value):
+                                    vendor_contract_error.text = "Document name can only contain letters, numbers, and special characters: -, |, &"
+                                    vendor_contract_error.style('display:block')
+                                    vendor_contract_rename_input.classes('border border-red-600')
+                                    return False
+                                vendor_contract_rename_input.classes(remove='border border-red-600')
+                            
+                            # Validate date signed
+                            if vendor_contract_date_input:
+                                date_value = vendor_contract_date_input.value or ''
+                                if not date_value.strip():
+                                    vendor_contract_error.text = "Please enter the document date signed"
+                                    vendor_contract_error.style('display:block')
+                                    vendor_contract_date_input.classes('border border-red-600')
+                                    return False
+                                vendor_contract_date_input.classes(remove='border border-red-600')
+                            
+                            vendor_contract_error.text = ''
+                            vendor_contract_error.style('display:none')
+                            vendor_contract_upload.classes(remove='border border-red-600')
+                            return True
+                    
+                    with ui.element('div').classes(label_cell_classes):
+                        ui.label("").classes(label_classes)
+                    with ui.element('div').classes(input_cell_classes):
+                        ui.label("").classes(input_classes)
+                
+                # Row 10.6 - File Attachments (right below Vendor Contract)
                 with ui.element('div').classes(f"{row_classes} {std_row_height}"):
                     with ui.element('div').classes(label_cell_classes):
                         ui.label("Attachments").classes("text-white font-[segoe ui] py-8 px-4 h-full")
@@ -611,7 +832,10 @@ def new_contract():
                             validate_attention(),
                             validate_email_chips(),
                             validate_revision_user(),
-                            validate_contract_manager()
+                            validate_contract_manager(),
+                            validate_contract_owner(),
+                            validate_contract_backup(),
+                            validate_vendor_contract()
                         ]
                         if not all(validations):
                             ui.notify('Please fix all required fields before submitting.', type='negative')
@@ -638,7 +862,15 @@ def new_contract():
                             'notification_emails': email_chips.value,
                             'last_revision_user': revision_user_input.value,
                             'contract_manager': contract_manager_select.value,
-                            'contract_manager_email': manager_email_display.value
+                            'contract_manager_email': manager_email_display.value,
+                            'contract_owner': contract_owner_select.value,
+                            'contract_owner_email': owner_email_display.value,
+                            'contract_backup': contract_backup_select.value,
+                            'contract_backup_email': backup_email_display.value,
+                            'vendor_contract_file': vendor_contract_file_name if vendor_contract_uploaded else None,
+                            'vendor_contract_rename': vendor_contract_rename_input.value if vendor_contract_rename_input else None,
+                            'vendor_contract_date_signed': vendor_contract_date_input.value if vendor_contract_date_input else None,
+                            'status': 'Active'  # Automatically set to Active for new contracts
                         }
                         ui.notify('Contract submitted successfully!', type='positive')
                         # Here you can add code to send 'data' to your backend or API
