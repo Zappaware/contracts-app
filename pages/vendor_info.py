@@ -15,8 +15,10 @@ def vendor_info():
         with ui.row().classes("mb-2"):
             ui.label("Vendor ID: -").classes("font-bold")
             ui.label("Vendor Name: -").classes("font-bold")
-        with ui.row().classes("mb-2"):
-            ui.label("Status: -").classes("text-lg font-bold text-black-700")
+        with ui.row().classes("mb-2 items-center gap-4"):
+            with ui.row().classes("items-center gap-2"):
+                ui.label("Status:").classes("text-lg font-bold")
+                ui.badge("Active", color="green").classes("text-sm font-semibold")
             ui.label("Contact Person: -")
             ui.label("Email: -")
         with ui.row().classes("mb-2"):
@@ -95,9 +97,12 @@ def vendor_info():
                     save_decision_btn = ui.button("Save Termination Decision", icon="save").props('color=red')
                     cancel_actions_btn = ui.button("Cancel", icon="cancel").props('color=grey')
                     
-                    # Upload documents button (initially hidden)
-                    upload_docs_btn = ui.button("Upload Required Documents", icon="upload").props('color=primary')
-                    upload_docs_btn.visible = False
+                    # Action buttons (initially hidden)
+                    with ui.row().classes("gap-2 mt-4"):
+                        complete_btn = ui.button("COMPLETE", icon="check_circle").props('color=green')
+                        send_back_btn = ui.button("SEND BACK", icon="arrow_back").props('color=orange')
+                    complete_btn.visible = False
+                    send_back_btn.visible = False
             
             # Status indicator
             status_indicator = ui.element("div").classes("mt-4 p-4 rounded-lg hidden")
@@ -161,8 +166,9 @@ def vendor_info():
                     ui.label(f"Saved on: {current_time}").classes("ml-2 text-sm")
                     ui.label("Status: Termination Pending – Documents Required").classes("ml-2 text-sm font-bold text-orange-600")
                 
-                # Show upload documents button
-                upload_docs_btn.visible = True
+                # Show action buttons
+                complete_btn.visible = True
+                send_back_btn.visible = True
                 
                 # Hide the form
                 terminate_radio.visible = False
@@ -180,9 +186,15 @@ def vendor_info():
             termination_reason.value = ""
             contract_actions_dialog.close()
         
-        # Function to handle document upload
-        def upload_documents():
-            ui.notify("Document upload functionality will be implemented in the next phase", type="info")
+        # Function to handle complete action
+        def handle_complete():
+            ui.notify("Contract marked as complete", type="positive")
+            contract_actions_dialog.close()
+        
+        # Function to handle send back action
+        def handle_send_back():
+            ui.notify("Contract sent back for review", type="info")
+            contract_actions_dialog.close()
         
         def upload_pending_documents():
             if not pending_file_upload.value:
@@ -199,7 +211,8 @@ def vendor_info():
         pending_docs_btn.on_click(open_pending_docs)
         save_decision_btn.on_click(save_termination_decision)
         cancel_actions_btn.on_click(cancel_termination)
-        upload_docs_btn.on_click(upload_documents)
+        complete_btn.on_click(handle_complete)
+        send_back_btn.on_click(handle_send_back)
         upload_btn.on_click(upload_pending_documents)
         cancel_upload_btn.on_click(cancel_pending_docs)
 
