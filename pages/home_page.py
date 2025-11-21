@@ -82,7 +82,7 @@ def home_page():
                 ui.label("15").classes("text-2xl font-medium text-primary mt-2")
             
             # Row 2
-            with ui.link(target='/pending-contracts').classes('no-underline w-full').style('text-decoration: none !important;'):
+            with ui.link(target='/pending-reviews').classes('no-underline w-full').style('text-decoration: none !important;'):
                 with ui.card().classes("w-full cursor-pointer hover:bg-gray-50 transition-colors shadow-lg").props('flat'):
                     with ui.row().classes('items-center gap-2'):
                         ui.icon('pending', color='primary').style('font-size: 28px')
@@ -492,6 +492,9 @@ def home_page():
             .contracts-table thead tr {
                 background-color: #144c8e !important;
             }
+            .contracts-table tbody tr:has(td:contains("Termination Pending")) {
+                background-color: #fed7aa !important;
+            }
             .contracts-table tbody tr:has(td:contains("past due")) {
                 background-color: #fee2e2 !important;
             }
@@ -522,7 +525,11 @@ def home_page():
         # Add slot for custom styling of status column
         contracts_table.add_slot('body-cell-status', '''
             <q-td :props="props">
-                <div v-if="props.value.includes('past due')" class="text-red-700 font-bold flex items-center gap-1">
+                <div v-if="props.value.includes('Termination Pending')" class="text-orange-700 font-bold flex items-center gap-1">
+                    <q-icon name="pending" color="orange" size="sm" />
+                    {{ props.value }}
+                </div>
+                <div v-else-if="props.value.includes('past due')" class="text-red-700 font-bold flex items-center gap-1">
                     <q-icon name="error" color="red" size="sm" />
                     {{ props.value }}
                 </div>
