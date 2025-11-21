@@ -72,7 +72,7 @@ def manager():
                     ui.label("12").classes("text-2xl font-medium text-primary mt-2")
             
             # Card 3: Pending Reviews
-            with ui.link(target='/pending-contracts').classes('no-underline w-full').style('text-decoration: none !important;'):
+            with ui.link(target='/pending-reviews').classes('no-underline w-full').style('text-decoration: none !important;'):
                 with ui.card().classes("w-full cursor-pointer hover:bg-gray-50 transition-colors shadow-lg").props('flat'):
                     with ui.row().classes('items-center gap-2'):
                         ui.icon('pending', color='primary').style('font-size: 28px')
@@ -430,11 +430,20 @@ def manager():
             .contracts-table thead tr {
                 background-color: #144c8e !important;
             }
+            .contracts-table tbody tr:has(td:contains("Termination Pending")) {
+                background-color: #fed7aa !important;
+                cursor: pointer;
+            }
             .contracts-table tbody tr:has(td:contains("past due")) {
                 background-color: #fee2e2 !important;
+                cursor: pointer;
             }
             .contracts-table tbody tr:has(td:contains("remaining")) {
                 background-color: #fef3c7 !important;
+                cursor: pointer;
+            }
+            .contracts-table tbody tr:hover {
+                opacity: 0.8;
             }
             
             /* Toggle button styling - white background for selected button */
@@ -460,7 +469,11 @@ def manager():
         # Add slot for custom styling of status column
         contracts_table.add_slot('body-cell-status', '''
             <q-td :props="props">
-                <div v-if="props.value.includes('past due')" class="text-red-700 font-bold flex items-center gap-1">
+                <div v-if="props.value.includes('Termination Pending')" class="text-orange-700 font-bold flex items-center gap-1">
+                    <q-icon name="pending" color="orange" size="sm" />
+                    {{ props.value }}
+                </div>
+                <div v-else-if="props.value.includes('past due')" class="text-red-700 font-bold flex items-center gap-1">
                     <q-icon name="error" color="red" size="sm" />
                     {{ props.value }}
                 </div>
@@ -469,4 +482,247 @@ def manager():
                     {{ props.value }}
                 </div>
             </q-td>
+        ''')
+        
+        # Store contract data for dialog access
+        stored_contract_data = {}
+        
+        # Extend/Terminate Dialog
+        with ui.dialog() as extend_terminate_dialog, ui.card().classes("min-w-[600px] max-w-3xl"):
+            ui.label("Contract Decision").classes("text-h5 mb-4 text-blue-600")
+            
+            # Contract details display
+            contract_details_display = ui.element("div").classes("mb-4 p-4 bg-gray-50 rounded-lg w-full")
+            
+            # Decision selection
+            with ui.column().classes("space-y-4 w-full"):
+                ui.label("Select Decision").classes("text-lg font-bold")
+                
+                decision_radio = ui.radio(['Extend', 'Terminate'], value='Extend').props('inline color=primary')
+                
+                # Extend section (initially visible)
+                extend_section = ui.element("div").classes("w-full mt-4")
+                with extend_section:
+                    ui.label("New Expiration Date*").classes("font-medium mb-2")
+                    new_expiration_date = ui.input('MM/DD/YYYY', placeholder='Select new expiration date*').classes("w-full").props("outlined")
+                    new_expiration_date_menu = None
+                    with new_expiration_date:
+                        with ui.menu().props('no-parent-event') as new_expiration_date_menu:
+                            with ui.date().props('mask=MM/DD/YYYY').bind_value(new_expiration_date, 
+                                forward=lambda d: d.replace('-', '/') if d else '', 
+                                backward=lambda d: d.replace('/', '-') if d else ''):
+                                with ui.row().classes('justify-end'):
+                                    ui.button('Close', on_click=new_expiration_date_menu.close).props('flat')
+                        with new_expiration_date.add_slot('append'):
+                            ui.icon('edit_calendar').on('click', new_expiration_date_menu.open).classes('cursor-pointer')
+                    extend_date_error = ui.label('').classes('text-red-600 text-xs mt-1 min-h-[18px]').style('display:none')
+                
+                # Terminate section (initially hidden)
+                terminate_section = ui.element("div").classes("w-full mt-4 hidden")
+                with terminate_section:
+                    ui.label("Termination Document (PDF)").classes("font-medium mb-2")
+                    termination_uploaded_files = []
+                    
+                    def handle_termination_upload(e):
+                        if e.file_names:
+                            for file_name in e.file_names:
+                                if file_name.lower().endswith('.pdf'):
+                                    termination_uploaded_files.append(file_name)
+                                    ui.notify(f'Uploaded {file_name}', type='positive')
+                                else:
+                                    ui.notify('Only PDF files are allowed', type='negative')
+                    
+                    ui.upload(
+                        on_upload=handle_termination_upload,
+                        label="Drop PDF file here or click to browse (Optional)"
+                    ).props('accept=.pdf color=primary outlined').classes("w-full")
+                
+                # Action buttons
+                with ui.row().classes("gap-4 mt-6 justify-end"):
+                    process_btn = ui.button("Process", icon="check_circle").props('color=primary')
+                    cancel_dialog_btn = ui.button("Cancel", icon="cancel").props('color=grey')
+            
+            # Status indicator
+            dialog_status_indicator = ui.element("div").classes("mt-4 p-4 rounded-lg hidden")
+            
+            # Function to toggle between Extend and Terminate sections
+            def on_decision_change(e):
+                if decision_radio.value == 'Extend':
+                    extend_section.classes(remove='hidden')
+                    terminate_section.classes(add='hidden')
+                else:
+                    extend_section.classes(add='hidden')
+                    terminate_section.classes(remove='hidden')
+            
+            decision_radio.on('change', on_decision_change)
+            
+            # Validation function
+            def validate_decision():
+                if decision_radio.value == 'Extend':
+                    date_value = new_expiration_date.value or ''
+                    if not date_value.strip():
+                        extend_date_error.text = "Please select a new expiration date"
+                        extend_date_error.style('display:block')
+                        new_expiration_date.classes('border border-red-600')
+                        return False
+                    else:
+                        extend_date_error.text = ''
+                        extend_date_error.style('display:none')
+                        new_expiration_date.classes(remove='border border-red-600')
+                        return True
+                else:  # Terminate
+                    # Termination document is optional, so always valid
+                    return True
+            
+            # Process function
+            def process_decision():
+                if not validate_decision():
+                    ui.notify('Please fix validation errors', type='negative')
+                    return
+                
+                decision = decision_radio.value
+                # Get contract ID from the details display or use a stored value
+                contract_id = "Unknown"
+                try:
+                    # Try to extract from contract_details_display
+                    contract_id = stored_contract_data.get('contract_id', 'Unknown')
+                except Exception:
+                    pass
+                
+                if decision == 'Extend':
+                    new_date = new_expiration_date.value
+                    # Here you would send this to your backend/API
+                    ui.notify(f'Contract {contract_id} extended to {new_date}', type='positive')
+                    dialog_status_indicator.classes(remove="hidden")
+                    dialog_status_indicator.classes("bg-green-100 border border-green-400 text-green-700")
+                    dialog_status_indicator.clear()
+                    with dialog_status_indicator:
+                        ui.icon('check_circle', color='green').classes('text-2xl')
+                        ui.label("Contract Extended Successfully!").classes("ml-2 font-bold")
+                        ui.label(f"New expiration date: {new_date}").classes("ml-2 text-sm")
+                else:  # Terminate
+                    doc_count = len(termination_uploaded_files)
+                    # Update contract status in contract_rows
+                    for row in contract_rows:
+                        if row.get('contract_id') == contract_id:
+                            row['status'] = "Termination Pending – Documents Required"
+                            row['status_class'] = "termination_pending"
+                            row['row_class'] = "bg-orange-50"
+                            break
+                    
+                    # Update table if the current row is visible
+                    current_role = role_toggle.value
+                    filtered_rows = [row for row in contract_rows if row['role'] == current_role]
+                    contracts_table.rows = filtered_rows
+                    contracts_table.update()
+                    
+                    # Here you would send this to your backend/API
+                    ui.notify(f'Contract {contract_id} marked for termination', type='positive')
+                    dialog_status_indicator.classes(remove="hidden")
+                    dialog_status_indicator.classes("bg-green-100 border border-green-400 text-green-700")
+                    dialog_status_indicator.clear()
+                    with dialog_status_indicator:
+                        ui.icon('check_circle', color='green').classes('text-2xl')
+                        ui.label("Termination Decision Saved!").classes("ml-2 font-bold")
+                        ui.label("Status: Termination Pending – Documents Required").classes("ml-2 text-sm font-bold text-orange-600")
+                        if doc_count > 0:
+                            ui.label(f"Uploaded {doc_count} document(s)").classes("ml-2 text-sm")
+                
+                # Hide form and show status
+                decision_radio.visible = False
+                extend_section.visible = False
+                terminate_section.visible = False
+                process_btn.visible = False
+                cancel_dialog_btn.visible = False
+            
+            def cancel_dialog():
+                extend_terminate_dialog.close()
+                # Reset form
+                decision_radio.value = 'Extend'
+                new_expiration_date.value = ''
+                termination_uploaded_files.clear()
+                extend_date_error.text = ''
+                extend_date_error.style('display:none')
+                dialog_status_indicator.classes(add='hidden')
+                decision_radio.visible = True
+                extend_section.visible = True
+                terminate_section.visible = True
+                process_btn.visible = True
+                cancel_dialog_btn.visible = True
+            
+            process_btn.on_click(process_decision)
+            cancel_dialog_btn.on_click(cancel_dialog)
+        
+        # Function to open dialog when contract row is clicked
+        def open_contract_dialog(row_data):
+            nonlocal stored_contract_data
+            # Check if contract is about to expire (has "past due" or "remaining" in status)
+            # Also allow opening if status is "Termination Pending" to view/update
+            status = row_data.get('status', '')
+            if 'past due' in status.lower() or 'remaining' in status.lower() or 'Termination Pending' in status:
+                stored_contract_data = row_data
+                contract_details_display.clear()
+                with contract_details_display:
+                    ui.label(f"Contract ID: {row_data.get('contract_id', 'N/A')}").classes("font-bold text-lg")
+                    ui.label(f"Vendor: {row_data.get('vendor_name', 'N/A')}").classes("text-gray-600")
+                    ui.label(f"Type: {row_data.get('contract_type', 'N/A')}").classes("text-gray-600")
+                    ui.label(f"Current Expiration: {row_data.get('expiration_date', 'N/A')}").classes("text-gray-600")
+                    ui.label(f"Status: {row_data.get('status', 'N/A')}").classes("text-orange-600 font-bold")
+                
+                extend_terminate_dialog.open()
+            else:
+                ui.notify('This contract is not expiring soon', type='info')
+        
+        # Make table rows clickable by enabling selection
+        contracts_table.props('selection=single')
+        
+        # Function to handle when a row is selected/clicked
+        last_selected = None
+        
+        def handle_row_selection():
+            nonlocal last_selected
+            try:
+                # Get selected row from table
+                if hasattr(contracts_table, 'selected') and contracts_table.selected:
+                    selected = contracts_table.selected
+                    # Handle both single selection and list
+                    if isinstance(selected, list):
+                        if len(selected) > 0:
+                            selected = selected[0]
+                        else:
+                            return
+                    
+                    # Only open dialog if it's a different row
+                    if isinstance(selected, dict) and selected.get('contract_id') != last_selected:
+                        last_selected = selected.get('contract_id')
+                        open_contract_dialog(selected)
+            except Exception:
+                pass
+        
+        # Monitor table selection changes
+        contracts_table.on('update:selected', handle_row_selection)
+        
+        # Also add a click handler using JavaScript for immediate response
+        ui.run_javascript('''
+            setTimeout(() => {
+                const table = document.querySelector('.contracts-table');
+                if (table) {
+                    const tbody = table.querySelector('tbody');
+                    if (tbody) {
+                        tbody.addEventListener('click', function(e) {
+                            // Find the clicked row
+                            let row = e.target.closest('tr');
+                            if (row && !e.target.closest('a')) {
+                                // Get contract ID from first cell
+                                const firstCell = row.querySelector('td');
+                                if (firstCell) {
+                                    const contractId = firstCell.textContent.trim();
+                                    // Trigger selection by clicking the row
+                                    row.click();
+                                }
+                            }
+                        });
+                    }
+                }
+            }, 500);
         ''')
