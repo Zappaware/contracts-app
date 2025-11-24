@@ -20,7 +20,7 @@ This is a contract management system for Aruba Bank that provides functionality 
 1. **Clone the repository** (if not already done):
    ```bash
    git clone <repository-url>
-   cd contracts-aruba
+   cd contracts-aruba/frontend
    ```
 
 2. **Create a virtual environment**:
