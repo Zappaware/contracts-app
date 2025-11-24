@@ -1,0 +1,521 @@
+{
+	"info": {
+		"_postman_id": "12345678-1234-1234-1234-123456789abc",
+		"name": "Aruba Bank - Vendor Management API",
+		"description": "Colección completa para probar todas las APIs del sistema de gestión de vendors de Aruba Bank",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Health & Info",
+			"item": [
+				{
+					"name": "Root - Welcome",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								""
+							]
+						}
+					}
+				},
+				{
+					"name": "Health Check",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/health",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"health"
+							]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "Vendor Management",
+			"item": [
+				{
+					"name": "Create Vendor - Basic (No Due Diligence)",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "vendor_data",
+									"value": "{\n  \"vendor_name\": \"Tech Solutions Corp\",\n  \"vendor_contact_person\": \"John Smith\",\n  \"vendor_country\": \"United States\",\n  \"material_outsourcing_arrangement\": \"No\",\n  \"bank_customer\": \"None\",\n  \"addresses\": [\n    {\n      \"address\": \"123 Main Street, Suite 100\",\n      \"city\": \"New York\",\n      \"state\": \"New York\",\n      \"zip_code\": \"10001\"\n    }\n  ],\n  \"emails\": [\n    {\n      \"email\": \"contact@techsolutions.com\"\n    }\n  ],\n  \"phones\": [\n    {\n      \"area_code\": \"+1\",\n      \"phone_number\": \"555-123-4567\"\n    }\n  ],\n  \"due_diligence_required\": \"No\"\n}",
+									"type": "text"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/vendors/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"vendors",
+								""
+							]
+						}
+					}
+				},
+				{
+					"name": "Create Vendor - With Due Diligence",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "vendor_data",
+									"value": "{\n  \"vendor_name\": \"Global Services Ltd\",\n  \"vendor_contact_person\": \"Maria Rodriguez\",\n  \"vendor_country\": \"Spain\",\n  \"material_outsourcing_arrangement\": \"Yes\",\n  \"bank_customer\": \"Aruba Bank\",\n  \"cif\": \"123456\",\n  \"addresses\": [\n    {\n      \"address\": \"Calle Mayor 45\",\n      \"city\": \"Madrid\",\n      \"zip_code\": \"28001\"\n    }\n  ],\n  \"emails\": [\n    {\n      \"email\": \"maria@globalservices.es\"\n    }\n  ],\n  \"phones\": [\n    {\n      \"area_code\": \"+34\",\n      \"phone_number\": \"91-123-4567\"\n    }\n  ],\n  \"due_diligence_required\": \"Yes\",\n  \"last_due_diligence_date\": \"2024-01-15T00:00:00\",\n  \"next_required_due_diligence_alert_frequency\": \"30 days\"\n}",
+									"type": "text"
+								},
+								{
+									"key": "due_diligence_doc",
+									"type": "file",
+									"src": []
+								},
+								{
+									"key": "due_diligence_name",
+									"value": "Due Diligence Report 2024",
+									"type": "text"
+								},
+								{
+									"key": "due_diligence_signed_date",
+									"value": "2024-01-15",
+									"type": "text"
+								},
+								{
+									"key": "non_disclosure_doc",
+									"type": "file",
+									"src": []
+								},
+								{
+									"key": "non_disclosure_name",
+									"value": "Non-Disclosure Agreement | Confidentiality",
+									"type": "text"
+								},
+								{
+									"key": "non_disclosure_signed_date",
+									"value": "2024-01-15",
+									"type": "text"
+								},
+								{
+									"key": "risk_assessment_doc",
+									"type": "file",
+									"src": []
+								},
+								{
+									"key": "risk_assessment_name",
+									"value": "Risk Assessment Form & Analysis",
+									"type": "text"
+								},
+								{
+									"key": "risk_assessment_signed_date",
+									"value": "2024-01-15",
+									"type": "text"
+								},
+								{
+									"key": "integrity_policy_doc",
+									"type": "file",
+									"src": []
+								},
+								{
+									"key": "integrity_policy_name",
+									"value": "Integrity Policy - Code of Conduct",
+									"type": "text"
+								},
+								{
+									"key": "integrity_policy_signed_date",
+									"value": "2024-01-15",
+									"type": "text"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/vendors/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"vendors",
+								""
+							]
+						}
+					}
+				},
+				{
+					"name": "Create Vendor - Aruba Country",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "vendor_data",
+									"value": "{\n  \"vendor_name\": \"Aruba Local Services\",\n  \"vendor_contact_person\": \"Carlos Hernandez\",\n  \"vendor_country\": \"Aruba\",\n  \"material_outsourcing_arrangement\": \"No\",\n  \"bank_customer\": \"Orco Bank\",\n  \"cif\": \"654321\",\n  \"addresses\": [\n    {\n      \"address\": \"Main Street 123, Oranjestad\"\n    }\n  ],\n  \"emails\": [\n    {\n      \"email\": \"carlos@arubalocal.aw\"\n    },\n    {\n      \"email\": \"info@arubalocal.aw\"\n    }\n  ],\n  \"phones\": [\n    {\n      \"area_code\": \"+297\",\n      \"phone_number\": \"582-1234\"\n    }\n  ],\n  \"due_diligence_required\": \"No\"\n}",
+									"type": "text"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/vendors/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"vendors",
+								""
+							]
+						}
+					}
+				},
+				{
+					"name": "Get All Vendors",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/vendors/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"vendors",
+								""
+							]
+						}
+					}
+				},
+				{
+					"name": "Get All Vendors - With Pagination",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/vendors/?skip=0&limit=10",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"vendors",
+								""
+							],
+							"query": [
+								{
+									"key": "skip",
+									"value": "0"
+								},
+								{
+									"key": "limit",
+									"value": "10"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Get Vendor by ID",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/vendors/1",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"vendors",
+								"1"
+							]
+						}
+					}
+				},
+				{
+					"name": "Get Vendor by Vendor ID (AB1, OB1, etc.)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/vendors/vendor-id/AB1",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"vendors",
+								"vendor-id",
+								"AB1"
+							]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "Document Management",
+			"item": [
+				{
+					"name": "Upload Document to Existing Vendor",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "document_type",
+									"value": "Due Diligence",
+									"type": "text"
+								},
+								{
+									"key": "custom_document_name",
+									"value": "Updated Due Diligence Report 2024",
+									"type": "text"
+								},
+								{
+									"key": "document_signed_date",
+									"value": "2024-08-31",
+									"type": "text"
+								},
+								{
+									"key": "file",
+									"type": "file",
+									"src": []
+								}
+							]
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/vendors/1/documents",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"vendors",
+								"1",
+								"documents"
+							]
+						}
+					}
+				},
+				{
+					"name": "Get Required Documents for Vendor",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/vendors/1/required-documents",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"vendors",
+								"1",
+								"required-documents"
+							]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "Validation & Enums",
+			"item": [
+				{
+					"name": "Get Validation Enums",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/vendors/validation/enums",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"vendors",
+								"validation",
+								"enums"
+							]
+						}
+					}
+				},
+				{
+					"name": "Get Supported Countries",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/vendors/validation/countries",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"vendors",
+								"validation",
+								"countries"
+							]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "Error Testing",
+			"item": [
+				{
+					"name": "Create Vendor - Missing Required Fields",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "vendor_data",
+									"value": "{\n  \"vendor_name\": \"\",\n  \"vendor_contact_person\": \"\",\n  \"vendor_country\": \"\"\n}",
+									"type": "text"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/vendors/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"vendors",
+								""
+							]
+						}
+					}
+				},
+				{
+					"name": "Create Vendor - Invalid CIF",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "vendor_data",
+									"value": "{\n  \"vendor_name\": \"Test Vendor\",\n  \"vendor_contact_person\": \"John Doe\",\n  \"vendor_country\": \"United States\",\n  \"material_outsourcing_arrangement\": \"No\",\n  \"bank_customer\": \"Aruba Bank\",\n  \"cif\": \"1234567890\",\n  \"addresses\": [\n    {\n      \"address\": \"123 Main St\"\n    }\n  ],\n  \"emails\": [\n    {\n      \"email\": \"test@example.com\"\n    }\n  ],\n  \"phones\": [\n    {\n      \"area_code\": \"+1\",\n      \"phone_number\": \"555-1234\"\n    }\n  ],\n  \"due_diligence_required\": \"No\"\n}",
+									"type": "text"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/vendors/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"vendors",
+								""
+							]
+						}
+					}
+				},
+				{
+					"name": "Create Vendor - Missing Due Diligence Documents",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "vendor_data",
+									"value": "{\n  \"vendor_name\": \"Test Vendor DD\",\n  \"vendor_contact_person\": \"Jane Doe\",\n  \"vendor_country\": \"Canada\",\n  \"material_outsourcing_arrangement\": \"No\",\n  \"bank_customer\": \"None\",\n  \"addresses\": [\n    {\n      \"address\": \"456 Oak Street\",\n      \"city\": \"Toronto\",\n      \"zip_code\": \"M5V 3A8\"\n    }\n  ],\n  \"emails\": [\n    {\n      \"email\": \"jane@testvendor.ca\"\n    }\n  ],\n  \"phones\": [\n    {\n      \"area_code\": \"+1\",\n      \"phone_number\": \"416-555-7890\"\n    }\n  ],\n  \"due_diligence_required\": \"Yes\",\n  \"last_due_diligence_date\": \"2024-01-15T00:00:00\",\n  \"next_required_due_diligence_alert_frequency\": \"60 days\"\n}",
+									"type": "text"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/vendors/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"vendors",
+								""
+							]
+						}
+					}
+				},
+				{
+					"name": "Get Non-Existent Vendor",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/vendors/99999",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"vendors",
+								"99999"
+							]
+						}
+					}
+				}
+			]
+		}
+	],
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "http://localhost:8000",
+			"type": "string"
+		}
+	]
+}
