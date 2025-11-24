@@ -25,19 +25,19 @@ This is a contract management system for Aruba Bank that provides functionality 
 
 2. **Create a virtual environment**:
    ```bash
-   python -m venv .venv
+   python -m venv venv
    ```
 
 3. **Activate the virtual environment**:
    
    On Windows:
    ```bash
-   .venv\Scripts\activate
+   venv\Scripts\activate
    ```
    
    On macOS/Linux:
    ```bash
-   source .venv/bin/activate
+   source venv/bin/activate
    ```
 
 4. **Install dependencies**:
