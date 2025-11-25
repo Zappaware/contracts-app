@@ -1,9 +1,9 @@
-FROM registry.arubabank.com/container/python:base-latest
-
+#FROM registry.arubabank.com/container/python:base-latest
+FROM python:3.12-slim
 WORKDIR /app
 
-# Install moreutils for ts command
-RUN apt-get update && apt-get install -y moreutils && rm -rf /var/lib/apt/lists/*
+# Install moreutils for ts command and libmagic1 for python-magic
+RUN apt-get update && apt-get install -y moreutils libmagic1 && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements first (better layer caching)
 COPY requirements.txt .

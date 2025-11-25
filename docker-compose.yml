@@ -31,6 +31,7 @@ services:
       DATABASE_URL: "postgresql://postgres:postgres123@db:5432/aruba_bank"
       DEBUG: "true"
       SECRET_KEY: "your-development-secret-key-change-in-production"
+      API_BASE_URL: "http://127.0.0.1:8000"
     ports:
       - "8000:8000"
     depends_on:
