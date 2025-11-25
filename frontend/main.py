@@ -9,6 +9,7 @@ from pages.active_contracts import active_contracts
 from pages.pending_contracts import pending_contracts
 from pages.expired_contracts import expired_contracts
 from pages.vendor_info import vendor_info
+from pages.vendors_list import vendors_list
 from pages.contract_managers import contract_managers
 from pages.manager import manager
 from pages.pending_reviews import pending_reviews
@@ -66,6 +67,14 @@ def expired_contracts_page():
 def vendor_info_page():
     header()
     vendor_info()
+
+@ui.page("/vendors")
+def vendors_list_page():
+    if not app.storage.user.get('logged_in'):
+        ui.navigate('/login')
+        return
+    header()
+    vendors_list()
 
 @ui.page("/contract-managers")
 def contract_managers_page():
