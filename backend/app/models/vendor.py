@@ -30,6 +30,11 @@ class AlertFrequencyType(str, enum.Enum):
     ONE_TWENTY_DAYS = "120 days"
 
 
+class VendorStatusType(str, enum.Enum):
+    ACTIVE = "Active"
+    INACTIVE = "Inactive"
+
+
 class Vendor(Base):
     __tablename__ = "vendors"
 
@@ -42,17 +47,24 @@ class Vendor(Base):
     vendor_country = Column(String(100), nullable=False)
     
     # Material Outsourcing
-    material_outsourcing_arrangement = Column(Enum(MaterialOutsourcingType), nullable=False)
+    material_outsourcing_arrangement = Column(Enum(MaterialOutsourcingType, values_callable=lambda x: [e.value for e in x]), nullable=False)
     
     # Bank Customer Information
-    bank_customer = Column(Enum(BankCustomerType), nullable=False)
+    bank_customer = Column(Enum(BankCustomerType, values_callable=lambda x: [e.value for e in x]), nullable=False)
     cif = Column(String(6), nullable=True)  # Only if bank customer is Aruba Bank or Orco Bank
     
     # Due Diligence Information
-    due_diligence_required = Column(Enum(DueDiligenceRequiredType), nullable=False)
+    due_diligence_required = Column(Enum(DueDiligenceRequiredType, values_callable=lambda x: [e.value for e in x]), nullable=False)
     last_due_diligence_date = Column(DateTime, nullable=True)
     next_required_due_diligence_date = Column(DateTime, nullable=True)
-    next_required_due_diligence_alert_frequency = Column(Enum(AlertFrequencyType), nullable=True)
+    next_required_due_diligence_alert_frequency = Column(Enum(AlertFrequencyType, values_callable=lambda x: [e.value for e in x]), nullable=True)
+    
+    # Status
+    status = Column(Enum(VendorStatusType, values_callable=lambda x: [e.value for e in x]), nullable=False, default=VendorStatusType.ACTIVE)
+    
+    # Audit Trail
+    last_modified_by = Column(String(255), nullable=True)
+    last_modified_date = Column(DateTime, nullable=True)
     
     # Timestamps
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -63,6 +75,7 @@ class Vendor(Base):
     emails = relationship("VendorEmail", back_populates="vendor", cascade="all, delete-orphan")
     phones = relationship("VendorPhone", back_populates="vendor", cascade="all, delete-orphan")
     documents = relationship("VendorDocument", back_populates="vendor", cascade="all, delete-orphan")
+    contracts = relationship("Contract", back_populates="vendor", cascade="all, delete-orphan")
 
 
 class VendorAddress(Base):
@@ -130,7 +143,7 @@ class VendorDocument(Base):
     id = Column(Integer, primary_key=True, index=True)
     vendor_id = Column(Integer, ForeignKey("vendors.id"), nullable=False)
     
-    document_type = Column(Enum(DocumentType), nullable=False)
+    document_type = Column(Enum(DocumentType, values_callable=lambda x: [e.value for e in x]), nullable=False)
     file_name = Column(String(255), nullable=False)
     custom_document_name = Column(String(255), nullable=False)  # User-defined document name
     document_signed_date = Column(DateTime, nullable=False)  # Date when document was signed

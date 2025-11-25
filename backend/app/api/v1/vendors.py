@@ -8,8 +8,12 @@ from pydantic import ValidationError
 from app.db.database import get_db
 from app.services.vendor_service import VendorService
 from app.schemas.vendor import (
-    VendorCreate, VendorResponse, VendorDetailResponse,
-    DocumentType, VendorDocumentResponse
+    VendorCreate, VendorUpdate, VendorResponse, VendorDetailResponse,
+    DocumentType, VendorDocumentResponse, VendorListResponse,
+    VendorListItemResponse, VendorProfileDetailResponse,
+    VendorProfileBasicInfo, VendorProfileMoreInfo,
+    VendorDocumentsResponse, VendorDocumentsSummaryResponse,
+    VendorAddressResponse, VendorEmailResponse, VendorPhoneResponse
 )
 from app.models.vendor import DueDiligenceRequiredType, MaterialOutsourcingType, BankCustomerType
 
@@ -226,21 +230,55 @@ async def create_vendor(
         )
 
 
-@router.get("/{vendor_id}", response_model=VendorDetailResponse)
+@router.put("/{vendor_id}", response_model=VendorResponse)
+def update_vendor(
+    vendor_id: int,
+    vendor_data: VendorUpdate,
+    modified_by: str = Form("SYSTEM", description="User making the modification"),
+    db: Session = Depends(get_db)
+):
+    """
+    Update existing vendor with audit trail.
+    """
+    vendor_service = VendorService(db)
+    
+    try:
+        vendor = vendor_service.update_vendor(vendor_id, vendor_data, modified_by)
+        return vendor
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error updating vendor: {str(e)}"
+        )
+
+
+@router.get("/{vendor_id}", response_model=VendorProfileDetailResponse)
 def get_vendor(vendor_id: int, db: Session = Depends(get_db)):
     """
     Get vendor by ID with all related information.
+    DSA-64: View Vendor Profile Details
+    
+    Includes:
+    - Basic information at first glance
+    - "More" section with additional details
+    - Highlighting for overdue due diligence (red)
+    - Color coding for status (Active=green, Inactive=black)
     """
     vendor_service = VendorService(db)
-    vendor = vendor_service.get_vendor_by_id(vendor_id)
     
-    if not vendor:
+    # Use service method to get vendor with highlighting
+    vendor_data = vendor_service.get_vendor_profile_with_details(vendor_id)
+    
+    if not vendor_data:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Vendor not found"
         )
     
-    return vendor
+    # Return using Pydantic schema
+    return vendor_data
 
 
 @router.get("/vendor-id/{vendor_id}", response_model=VendorDetailResponse)
@@ -260,18 +298,85 @@ def get_vendor_by_vendor_id(vendor_id: str, db: Session = Depends(get_db)):
     return vendor
 
 
-@router.get("/", response_model=List[VendorResponse])
+@router.get("/", response_model=VendorListResponse)
 def get_vendors(
-    skip: int = 0, 
-    limit: int = 100, 
+    skip: int = 0,
+    limit: int = 100,
+    page_size: Optional[int] = None,
+    status_filter: Optional[str] = None,
+    search: Optional[str] = None,
     db: Session = Depends(get_db)
 ):
     """
-    Get list of vendors with pagination.
+    Get list of vendors with advanced search, filtering, and pagination.
+    DSA-59: View Vendor List
+    DSA-60: Search and Filter Vendors
+    
+    Supports:
+    - Pagination with customizable page_size (10, 25, 50, 100)
+    - Status filtering (All, Active, Inactive)
+    - Search by vendor name, ID, contact person, email
+    - Color coding for status (Active=green, Inactive=black)
     """
+    from app.models.vendor import VendorStatusType
+    from datetime import date
+    
+    # Use page_size if provided, otherwise use limit
+    effective_limit = page_size if page_size else limit
+    
+    # Validate page_size
+    if page_size and page_size not in [10, 25, 50, 100]:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="page_size must be one of: 10, 25, 50, 100"
+        )
+    
     vendor_service = VendorService(db)
-    vendors = vendor_service.get_vendors(skip=skip, limit=limit)
-    return vendors
+    
+    # Use service method for filtering and search
+    vendors, total_count = vendor_service.get_vendors_with_filters(
+        skip=skip,
+        limit=effective_limit,
+        status_filter=status_filter,
+        search=search
+    )
+    
+    # Build response using Pydantic schema
+    vendor_items = []
+    for vendor in vendors:
+        # Determine if due diligence is overdue
+        is_overdue = False
+        if vendor.next_required_due_diligence_date:
+            is_overdue = vendor.next_required_due_diligence_date.date() < date.today()
+        
+        # Get primary email
+        primary_email = next(
+            (e.email for e in vendor.emails if e.is_primary),
+            vendor.emails[0].email if vendor.emails else None
+        )
+        
+        vendor_items.append(VendorListItemResponse(
+            id=vendor.id,
+            vendor_id=vendor.vendor_id,
+            vendor_name=vendor.vendor_name,
+            vendor_contact_person=vendor.vendor_contact_person,
+            email=primary_email,
+            next_required_due_diligence_date=vendor.next_required_due_diligence_date,
+            status=vendor.status,
+            status_color="green" if vendor.status == VendorStatusType.ACTIVE else "black",
+            is_due_diligence_overdue=is_overdue
+        ))
+    
+    # Return with pagination metadata using Pydantic schema
+    return VendorListResponse(
+        vendors=vendor_items,
+        total_count=total_count,
+        page=skip // effective_limit + 1 if effective_limit > 0 else 1,
+        page_size=effective_limit,
+        total_pages=(total_count + effective_limit - 1) // effective_limit if effective_limit > 0 else 1,
+        has_results=len(vendor_items) > 0,
+        message="No results found" if len(vendor_items) == 0 else None
+    )
 
 
 @router.post("/{vendor_id}/documents", response_model=VendorDocumentResponse)
@@ -394,3 +499,143 @@ def get_validation_enums():
             "Insurance Policy"
         ]
     }
+
+
+@router.get("/{vendor_id}/documents", response_model=VendorDocumentsResponse)
+def get_vendor_documents(
+    vendor_id: int,
+    db: Session = Depends(get_db)
+):
+    """
+    Get all documents for a specific vendor, grouped by document type.
+    DSA-62: View Additional Documents
+    """
+    vendor_service = VendorService(db)
+    
+    # Use service method to get documents grouped by type
+    documents_data = vendor_service.get_vendor_documents_grouped(vendor_id)
+    
+    if not documents_data:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Vendor not found"
+        )
+    
+    # Return using Pydantic schema
+    return documents_data
+
+
+@router.get(
+    "/{vendor_id}/documents/summary",
+    response_model=VendorDocumentsSummaryResponse
+)
+def get_vendor_documents_summary(
+    vendor_id: int,
+    db: Session = Depends(get_db)
+):
+    """
+    Get summary of documents for a vendor.
+    DSA-65: Documents Section
+    Shows count of Vendor Contracts and Supporting Documents.
+    """
+    vendor_service = VendorService(db)
+    
+    # Use service method to get documents summary
+    summary_data = vendor_service.get_vendor_documents_summary(vendor_id)
+    
+    if not summary_data:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Vendor not found"
+        )
+    
+    # Return using Pydantic schema
+    return summary_data
+
+
+@router.get("/{vendor_id}/contracts")
+def get_vendor_contracts(
+    vendor_id: int,
+    skip: int = 0,
+    limit: int = 10,
+    status_filter: Optional[str] = None,
+    contract_type: Optional[str] = None,
+    department: Optional[str] = None,
+    owner_id: Optional[int] = None,
+    search: Optional[str] = None,
+    sort_by: Optional[str] = "end_date",
+    sort_order: Optional[str] = "asc",
+    db: Session = Depends(get_db)
+):
+    """
+    Get all contracts for a specific vendor.
+    Supports pagination, filtering, search, and sorting.
+    """
+    from app.models.contract import Contract, User
+    from sqlalchemy import or_, desc, asc
+    
+    # Verify vendor exists
+    vendor_service = VendorService(db)
+    vendor = vendor_service.get_vendor_by_id(vendor_id)
+    if not vendor:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Vendor not found"
+        )
+    
+    # Base query
+    query = db.query(Contract).filter(Contract.vendor_id == vendor_id)
+    
+    # Apply filters
+    if status_filter:
+        query = query.filter(Contract.status == status_filter)
+    
+    if contract_type:
+        query = query.filter(Contract.contract_type == contract_type)
+    
+    if department:
+        query = query.filter(Contract.department == department)
+    
+    if owner_id:
+        query = query.filter(Contract.contract_owner_id == owner_id)
+    
+    # Apply search
+    if search:
+        search_filter = or_(
+            Contract.contract_id.ilike(f"%{search}%"),
+            Contract.contract_description.ilike(f"%{search}%"),
+            Contract.contract_type.ilike(f"%{search}%"),
+            Contract.department.ilike(f"%{search}%")
+        )
+        query = query.filter(search_filter)
+    
+    # Apply sorting
+    if sort_by and hasattr(Contract, sort_by):
+        order_func = desc if sort_order == "desc" else asc
+        query = query.order_by(order_func(getattr(Contract, sort_by)))
+    
+    # Apply pagination
+    contracts = query.offset(skip).limit(limit).all()
+    
+    # Format response
+    result = []
+    for contract in contracts:
+        owner = db.query(User).filter(
+            User.id == contract.contract_owner_id
+        ).first()
+        result.append({
+            "id": contract.id,
+            "contract_id": contract.contract_id,
+            "vendor_name": vendor.vendor_name,
+            "type": contract.contract_type.value if hasattr(contract.contract_type, 'value') else contract.contract_type,
+            "description": contract.contract_description,
+            "department": contract.department.value if hasattr(contract.department, 'value') else contract.department,
+            "owner": f"{owner.first_name} {owner.last_name}" if owner else "Unknown",
+            "start_date": contract.start_date.isoformat(),
+            "end_date": contract.end_date.isoformat(),
+            "status": contract.status.value if hasattr(contract.status, 'value') else contract.status,
+            "contract_amount": float(contract.contract_amount),
+            "contract_currency": contract.contract_currency.value if hasattr(contract.contract_currency, 'value') else contract.contract_currency
+        })
+    
+    return result

@@ -1,0 +1,54 @@
+include:
+  - project: 'container/python'
+    ref: main
+    file: 'app/gitlab-ci-base.yml'
+
+variables:
+  STORAGE_PVC: |
+    apiVersion: v1
+    kind: PersistentVolumeClaim
+    metadata:
+      name: ${CI_PROJECT_NAME}-storage
+      namespace: default
+    spec:
+      accessModes:
+        - ReadWriteOnce
+      storageClassName: local-path
+      resources:
+        requests:
+          storage: 1Gi
+
+  STORAGE_VOLUMES: |
+    - name: storage
+      persistentVolumeClaim:
+        claimName: ${CI_PROJECT_NAME}-storage
+
+  STORAGE_VOLUME_MOUNTS: |
+    - name: storage
+      mountPath: /app/log
+      subPath: log
+
+build_image:
+  extends: .build_base
+
+deploy_to_test:
+  extends: .deploy_web_app_t
+  variables:
+    CONTAINER_ENV: |
+      - name: SQL3_DSN
+        value: "SQLTEST"
+      - name: SQL3_UID
+        value: "${SQLTEST_UID}"
+      - name: SQL3_PWD
+        value: "${SQLTEST_PWD}"
+      
+deploy_to_prod:
+  extends: .deploy_web_app_p
+  variables:
+    CONTAINER_ENV: |
+      - name: SQL3_DSN
+        value: "SQL3"
+      - name: SQL3_UID
+        value: "${SQL3_UID}"
+      - name: SQL3_PWD
+        value: "${SQL3_PWD}"

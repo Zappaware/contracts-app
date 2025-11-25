@@ -1,0 +1,1514 @@
+{
+	"info": {
+		"_postman_id": "afce8461-bb84-4fac-8bae-f18731112f1a",
+		"name": "Aruba Bank - Vendor & Contract Management API",
+		"description": "Colección completa para probar todas las APIs del sistema de gestión de vendors y contratos de Aruba Bank",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "26855598"
+	},
+	"item": [
+		{
+			"name": "Health & Info",
+			"item": [
+				{
+					"name": "Root - Welcome",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								""
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Health Check",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/health",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"health"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Vendor Management",
+			"item": [
+				{
+					"name": "Create Vendor - Basic (No Due Diligence)",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "vendor_data",
+									"value": "{\n  \"vendor_name\": \"Tech Solutions Corp\",\n  \"vendor_contact_person\": \"John Smith\",\n  \"vendor_country\": \"United States\",\n  \"material_outsourcing_arrangement\": \"No\",\n  \"bank_customer\": \"None\",\n  \"addresses\": [\n    {\n      \"address\": \"123 Main Street, Suite 100\",\n      \"city\": \"New York\",\n      \"state\": \"New York\",\n      \"zip_code\": \"10001\"\n    }\n  ],\n  \"emails\": [\n    {\n      \"email\": \"contact@techsolutions.com\"\n    }\n  ],\n  \"phones\": [\n    {\n      \"area_code\": \"+1\",\n      \"phone_number\": \"555-123-4567\"\n    }\n  ],\n  \"due_diligence_required\": \"No\"\n}",
+									"type": "text"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/vendors/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"vendors",
+								""
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Create Vendor - With Due Diligence",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "vendor_data",
+									"value": "{\n  \"vendor_name\": \"Global Services Ltd\",\n  \"vendor_contact_person\": \"Maria Rodriguez\",\n  \"vendor_country\": \"Spain\",\n  \"material_outsourcing_arrangement\": \"Yes\",\n  \"bank_customer\": \"Aruba Bank\",\n  \"cif\": \"123456\",\n  \"addresses\": [\n    {\n      \"address\": \"Calle Mayor 45\",\n      \"city\": \"Madrid\",\n      \"zip_code\": \"28001\"\n    }\n  ],\n  \"emails\": [\n    {\n      \"email\": \"maria@globalservices.es\"\n    }\n  ],\n  \"phones\": [\n    {\n      \"area_code\": \"+34\",\n      \"phone_number\": \"91-123-4567\"\n    }\n  ],\n  \"due_diligence_required\": \"Yes\",\n  \"last_due_diligence_date\": \"2024-01-15T00:00:00\",\n  \"next_required_due_diligence_alert_frequency\": \"30 days\"\n}",
+									"type": "text"
+								},
+								{
+									"key": "due_diligence_doc",
+									"type": "file",
+									"src": []
+								},
+								{
+									"key": "due_diligence_name",
+									"value": "Due Diligence Report 2024",
+									"type": "text"
+								},
+								{
+									"key": "due_diligence_signed_date",
+									"value": "2024-01-15",
+									"type": "text"
+								},
+								{
+									"key": "non_disclosure_doc",
+									"type": "file",
+									"src": []
+								},
+								{
+									"key": "non_disclosure_name",
+									"value": "Non-Disclosure Agreement | Confidentiality",
+									"type": "text"
+								},
+								{
+									"key": "non_disclosure_signed_date",
+									"value": "2024-01-15",
+									"type": "text"
+								},
+								{
+									"key": "risk_assessment_doc",
+									"type": "file",
+									"src": []
+								},
+								{
+									"key": "risk_assessment_name",
+									"value": "Risk Assessment Form & Analysis",
+									"type": "text"
+								},
+								{
+									"key": "risk_assessment_signed_date",
+									"value": "2024-01-15",
+									"type": "text"
+								},
+								{
+									"key": "integrity_policy_doc",
+									"type": "file",
+									"src": []
+								},
+								{
+									"key": "integrity_policy_name",
+									"value": "Integrity Policy - Code of Conduct",
+									"type": "text"
+								},
+								{
+									"key": "integrity_policy_signed_date",
+									"value": "2024-01-15",
+									"type": "text"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/vendors/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"vendors",
+								""
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get All Vendors",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/vendors/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"vendors",
+								""
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Vendor by ID",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/vendors/1",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"vendors",
+								"1"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Vendor by Vendor ID (AB1, OB1, etc.)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/vendors/vendor-id/AB1",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"vendors",
+								"vendor-id",
+								"AB1"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Upload Document to Existing Vendor",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "document_type",
+									"value": "Due Diligence",
+									"type": "text"
+								},
+								{
+									"key": "custom_document_name",
+									"value": "Updated Due Diligence Report 2024",
+									"type": "text"
+								},
+								{
+									"key": "document_signed_date",
+									"value": "2024-08-31",
+									"type": "text"
+								},
+								{
+									"key": "file",
+									"type": "file",
+									"src": []
+								}
+							]
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/vendors/1/documents",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"vendors",
+								"1",
+								"documents"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Required Documents for Vendor",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/vendors/1/required-documents",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"vendors",
+								"1",
+								"required-documents"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Update Vendor",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"vendor_name\": \"Updated Tech Solutions Corp\",\n  \"vendor_contact_person\": \"Jane Smith\",\n  \"status\": \"Active\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/vendors/1?modified_by=admin@arubabank.com",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"vendors",
+								"1"
+							],
+							"query": [
+								{
+									"key": "modified_by",
+									"value": "admin@arubabank.com",
+									"description": "User making the modification"
+								}
+							]
+						},
+						"description": "DSA-69: Update vendor profile with audit trail"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Active Vendors Only",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/vendors/?active_only=true",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"vendors",
+								""
+							],
+							"query": [
+								{
+									"key": "active_only",
+									"value": "true",
+									"description": "Filter only active vendors"
+								}
+							]
+						},
+						"description": "DSA-72: Filter vendors by status"
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Contract Management",
+			"item": [
+				{
+					"name": "User Management",
+					"item": [
+						{
+							"name": "Create User",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"first_name\": \"John\",\n  \"last_name\": \"Doe\",\n  \"email\": \"john.doe@arubabank.com\",\n  \"department\": \"IT\",\n  \"position\": \"IT Manager\"\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/api/v1/contracts/users/",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"v1",
+										"contracts",
+										"users",
+										""
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Get All Users",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/api/v1/contracts/users/?active_only=true",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"v1",
+										"contracts",
+										"users",
+										""
+									],
+									"query": [
+										{
+											"key": "active_only",
+											"value": "true"
+										}
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Get User by ID",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/api/v1/contracts/users/1",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"v1",
+										"contracts",
+										"users",
+										"1"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Get User Email",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/api/v1/contracts/users/1/email",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"v1",
+										"contracts",
+										"users",
+										"1",
+										"email"
+									]
+								}
+							},
+							"response": []
+						}
+					]
+				},
+				{
+					"name": "Contract Operations",
+					"item": [
+						{
+							"name": "Create Contract",
+							"request": {
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "formdata",
+									"formdata": [
+										{
+											"key": "contract_data",
+											"value": "{\n  \"vendor_id\": 1,\n  \"contract_description\": \"IT Services Agreement - Annual Support\",\n  \"contract_type\": \"Service Agreement\",\n  \"start_date\": \"2025-01-01\",\n  \"end_date\": \"2026-12-31\",\n  \"automatic_renewal\": \"Yes\",\n  \"renewal_period\": \"1 Year\",\n  \"department\": \"IT\",\n  \"contract_amount\": 50000.00,\n  \"contract_currency\": \"AWG\",\n  \"payment_method\": \"Invoice\",\n  \"termination_notice_period\": \"30 days\",\n  \"expiration_notice_frequency\": \"60 days\",\n  \"contract_owner_id\": 1,\n  \"contract_owner_backup_id\": 2,\n  \"contract_owner_manager_id\": 3\n}",
+											"type": "text"
+										},
+										{
+											"key": "contract_document",
+											"type": "file",
+											"src": "/Users/kevynfranco/Downloads/Invoice-applica-sep.pdf"
+										},
+										{
+											"key": "document_name",
+											"value": "IT Services Contract 2024-2025",
+											"type": "text"
+										},
+										{
+											"key": "document_signed_date",
+											"value": "2024-01-01",
+											"type": "text"
+										}
+									]
+								},
+								"url": {
+									"raw": "{{base_url}}/api/v1/contracts/",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"v1",
+										"contracts",
+										""
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Get All Contracts",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/api/v1/contracts/?skip=0&limit=100",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"v1",
+										"contracts",
+										""
+									],
+									"query": [
+										{
+											"key": "skip",
+											"value": "0"
+										},
+										{
+											"key": "limit",
+											"value": "100"
+										}
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Get Contract by ID",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/api/v1/contracts/1",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"v1",
+										"contracts",
+										"1"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Get Contract by Contract ID (CT1, CT2, etc.)",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/api/v1/contracts/contract-id/CT1",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"v1",
+										"contracts",
+										"contract-id",
+										"CT1"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Get Contracts by Vendor",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/api/v1/contracts/?vendor_id=1",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"v1",
+										"contracts",
+										""
+									],
+									"query": [
+										{
+											"key": "vendor_id",
+											"value": "1"
+										}
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Get Contracts by Department",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/api/v1/contracts/?department=IT",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"v1",
+										"contracts",
+										""
+									],
+									"query": [
+										{
+											"key": "department",
+											"value": "IT"
+										}
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Get Expiring Contracts",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/api/v1/contracts/?expiring_soon=true",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"v1",
+										"contracts",
+										""
+									],
+									"query": [
+										{
+											"key": "expiring_soon",
+											"value": "true"
+										}
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Search Contracts - Keyword",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/api/v1/contracts/?search=Microsoft",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"v1",
+										"contracts",
+										""
+									],
+									"query": [
+										{
+											"key": "search",
+											"value": "Microsoft",
+											"description": "Search across contract ID, description, vendor name, owner name"
+										}
+									]
+								},
+								"description": "DSA-42: Advanced search by keyword across multiple fields"
+							},
+							"response": []
+						},
+						{
+							"name": "Search Contracts - Combined Filters",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/api/v1/contracts/?status=Active&department=IT&limit=25",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"v1",
+										"contracts",
+										""
+									],
+									"query": [
+										{
+											"key": "status",
+											"value": "Active",
+											"description": "Filter by contract status"
+										},
+										{
+											"key": "department",
+											"value": "IT",
+											"description": "Filter by department"
+										},
+										{
+											"key": "limit",
+											"value": "25",
+											"description": "Page size"
+										}
+									]
+								},
+								"description": "DSA-42: Combined filters with pagination"
+							},
+							"response": []
+						},
+						{
+							"name": "Search Contracts - Expiring Soon",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/api/v1/contracts/?expiring_soon=true&status=Active",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"v1",
+										"contracts",
+										""
+									],
+									"query": [
+										{
+											"key": "expiring_soon",
+											"value": "true",
+											"description": "Contracts expiring within 30 days"
+										},
+										{
+											"key": "status",
+											"value": "Active"
+										}
+									]
+								},
+								"description": "DSA-42: Filter contracts expiring within 30 days"
+							},
+							"response": []
+						},
+						{
+							"name": "Search Contracts - By Owner",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/api/v1/contracts/?owner_id=1",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"v1",
+										"contracts",
+										""
+									],
+									"query": [
+										{
+											"key": "owner_id",
+											"value": "1",
+											"description": "Filter by contract owner ID"
+										}
+									]
+								},
+								"description": "DSA-42: Filter contracts by owner"
+							},
+							"response": []
+						},
+						{
+							"name": "Update Contract",
+							"request": {
+								"method": "PUT",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"contract_description\": \"Updated IT Services Agreement\",\n  \"status\": \"Active\",\n  \"contract_termination\": \"No\",\n  \"end_date\": \"2026-12-31\"\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/api/v1/contracts/1?modified_by=admin@arubabank.com",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"v1",
+										"contracts",
+										"1"
+									],
+									"query": [
+										{
+											"key": "modified_by",
+											"value": "admin@arubabank.com",
+											"description": "User making the modification"
+										}
+									]
+								},
+								"description": "DSA-70: Update contract with audit trail"
+							},
+							"response": []
+						},
+						{
+							"name": "Upload Additional Contract Document",
+							"request": {
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "formdata",
+									"formdata": [
+										{
+											"key": "document_name",
+											"value": "Contract Amendment 2024",
+											"type": "text"
+										},
+										{
+											"key": "document_signed_date",
+											"value": "2024-06-15",
+											"type": "text"
+										},
+										{
+											"key": "file",
+											"type": "file",
+											"src": []
+										}
+									]
+								},
+								"url": {
+									"raw": "{{base_url}}/api/v1/contracts/1/documents",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"v1",
+										"contracts",
+										"1",
+										"documents"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Get Contract Summary Dashboard",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/api/v1/contracts/summary/dashboard",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"v1",
+										"contracts",
+										"summary",
+										"dashboard"
+									]
+								}
+							},
+							"response": []
+						}
+					]
+				},
+				{
+					"name": "Validation & Dropdowns",
+					"item": [
+						{
+							"name": "Get All Validation Enums",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/api/v1/contracts/validation/enums",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"v1",
+										"contracts",
+										"validation",
+										"enums"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Get Vendors for Dropdown",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/api/v1/contracts/validation/vendors",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"v1",
+										"contracts",
+										"validation",
+										"vendors"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Get Departments",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/api/v1/contracts/validation/departments",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"v1",
+										"contracts",
+										"validation",
+										"departments"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Get Contract Types",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/api/v1/contracts/validation/contract-types",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"v1",
+										"contracts",
+										"validation",
+										"contract-types"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Get Currencies",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/api/v1/contracts/validation/currencies",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"v1",
+										"contracts",
+										"validation",
+										"currencies"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Get Payment Methods",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/api/v1/contracts/validation/payment-methods",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"v1",
+										"contracts",
+										"validation",
+										"payment-methods"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Get Notice Periods",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/api/v1/contracts/validation/notice-periods",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"v1",
+										"contracts",
+										"validation",
+										"notice-periods"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Get Renewal Periods",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/api/v1/contracts/validation/renewal-periods",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"v1",
+										"contracts",
+										"validation",
+										"renewal-periods"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Get Expiration Notice Periods",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/api/v1/contracts/validation/expiration-notice-periods",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"v1",
+										"contracts",
+										"validation",
+										"expiration-notice-periods"
+									]
+								}
+							},
+							"response": []
+						}
+					]
+				}
+			]
+		},
+		{
+			"name": "Authentication",
+			"item": [
+				{
+					"name": "Register User",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"admin@arubabank.com\",\n  \"password\": \"admin123\",\n  \"first_name\": \"Admin\",\n  \"last_name\": \"User\",\n  \"department\": \"IT\",\n  \"position\": \"System Administrator\",\n  \"role\": \"Contract Admin\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/auth/register",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"auth",
+								"register"
+							]
+						},
+						"description": "DSA-80: Register new user with role"
+					},
+					"response": []
+				},
+				{
+					"name": "Login (OAuth2)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/x-www-form-urlencoded"
+							}
+						],
+						"body": {
+							"mode": "urlencoded",
+							"urlencoded": [
+								{
+									"key": "username",
+									"value": "admin@arubabank.com",
+									"type": "text"
+								},
+								{
+									"key": "password",
+									"value": "admin123",
+									"type": "text"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/auth/login",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"auth",
+								"login"
+							]
+						},
+						"description": "Login with OAuth2 form data"
+					},
+					"response": []
+				},
+				{
+					"name": "Login (JSON)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"admin@arubabank.com\",\n  \"password\": \"admin123\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/auth/login-json",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"auth",
+								"login-json"
+							]
+						},
+						"description": "Login with JSON body"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Current User",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/v1/auth/me",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"auth",
+								"me"
+							]
+						},
+						"description": "Get authenticated user info"
+					},
+					"response": []
+				},
+				{
+					"name": "Change Password",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"current_password\": \"admin123\",\n  \"new_password\": \"newpassword123\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/auth/change-password",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"auth",
+								"change-password"
+							]
+						},
+						"description": "Change current user password"
+					},
+					"response": []
+				},
+				{
+					"name": "Set User Password (Admin Only)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/v1/auth/set-password/1?new_password=temppass123",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"auth",
+								"set-password",
+								"1"
+							],
+							"query": [
+								{
+									"key": "new_password",
+									"value": "temppass123"
+								}
+							]
+						},
+						"description": "Admin sets password for user"
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Dashboards",
+			"item": [
+				{
+					"name": "Contract Manager Dashboard",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/v1/dashboards/manager",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"dashboards",
+								"manager"
+							]
+						},
+						"description": "DSA-90, DSA-91: Get manager dashboard with owned contracts"
+					},
+					"response": []
+				},
+				{
+					"name": "Contract Admin Dashboard",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/v1/dashboards/admin",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"dashboards",
+								"admin"
+							]
+						},
+						"description": "DSA-96, DSA-97: Get admin dashboard with all contracts overview"
+					},
+					"response": []
+				},
+				{
+					"name": "Pending Termination Documents",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/v1/dashboards/pending-documents",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"dashboards",
+								"pending-documents"
+							]
+						},
+						"description": "DSA-94: Get workbasket of contracts pending termination documents"
+					},
+					"response": []
+				},
+				{
+					"name": "Extend Contract",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"action\": \"extend\",\n  \"new_end_date\": \"2027-12-31\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/dashboards/contracts/1/actions",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"dashboards",
+								"contracts",
+								"1",
+								"actions"
+							]
+						},
+						"description": "DSA-92: Extend contract end date"
+					},
+					"response": []
+				},
+				{
+					"name": "Terminate Contract",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"action\": \"terminate\",\n  \"termination_reason\": \"Service no longer needed\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/dashboards/contracts/1/actions",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"dashboards",
+								"contracts",
+								"1",
+								"actions"
+							]
+						},
+						"description": "DSA-92: Terminate contract with reason"
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Vendor Validation & Enums",
+			"item": [
+				{
+					"name": "Get Validation Enums",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/vendors/validation/enums",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"vendors",
+								"validation",
+								"enums"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Supported Countries",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/vendors/validation/countries",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"vendors",
+								"validation",
+								"countries"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		}
+	],
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "http://localhost:8000",
+			"type": "string"
+		}
+	]
+}
