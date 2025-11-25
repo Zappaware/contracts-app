@@ -1,6 +1,8 @@
 from nicegui import ui
 import requests
 import json
+import os
+from app.core.config import settings
 
 def get_country_list():
     try:
@@ -669,7 +671,9 @@ def new_vendor():
                                 ],
                                 "due_diligence_required": "No"
                             }
-                            url = "http://localhost:8000/api/v1/vendors/"
+                            # Use environment variable or default to 127.0.0.1 (more reliable than localhost in Docker)
+                            api_host = os.getenv("API_BASE_URL", "http://127.0.0.1:8000")
+                            url = f"{api_host}{settings.api_v1_prefix}/vendors/"
                             files = {'vendor_data': (None, json.dumps(vendor_data))}
                             # Add files and metadata if present
                             if due_diligence_file['file']:

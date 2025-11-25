@@ -6,6 +6,8 @@ from app.core.config import settings
 from app.api.v1.api import api_router
 import traceback
 import logging
+import subprocess
+import sys
 from nicegui import app as nicegui_app, ui
 
 # Configure logging
@@ -37,6 +39,27 @@ async def lifespan(root_app: FastAPI):
     logger.info("=" * 60)
     logger.info("Starting Aruba Bank Contract Management Application")
     logger.info("=" * 60)
+    
+    # Run database migrations on startup
+    logger.info("Running database migrations...")
+    try:
+        result = subprocess.run(
+            [sys.executable, "-m", "alembic", "upgrade", "head"],
+            capture_output=True,
+            text=True,
+            check=True
+        )
+        logger.info("Database migrations completed successfully")
+        if result.stdout:
+            logger.info(result.stdout)
+    except subprocess.CalledProcessError as e:
+        logger.error(f"Migration failed: {e}")
+        logger.error(f"stdout: {e.stdout}")
+        logger.error(f"stderr: {e.stderr}")
+        # Don't exit - let the app start and show the error
+    except Exception as e:
+        logger.error(f"Error running migrations: {e}")
+    
     logger.info(f"Server: http://0.0.0.0:8000")
     logger.info(f"Web UI: http://0.0.0.0:8000/")
     logger.info(f"API Documentation: http://0.0.0.0:8000{settings.api_v1_prefix}/docs")
@@ -172,7 +195,7 @@ def vendors_list_page():
     if not nicegui_app.storage.user.get('logged_in'):
         ui.navigate.to('/login')
         return
-    header)
+    header()
     vendors_list()
 
 

@@ -1,6 +1,9 @@
 
-import requests
 from nicegui import ui
+from app.db.database import SessionLocal
+from app.services.vendor_service import VendorService
+from app.models.vendor import VendorStatusType
+from datetime import date
 
 
 def vendors_list():
@@ -9,56 +12,51 @@ def vendors_list():
         with ui.link(target='/').classes('no-underline'):
             ui.button("Back to Dashboard", icon="arrow_back").props('flat color=primary')
     
-    # Fetch vendors from API
+    # Fetch vendors directly from database service
     def fetch_vendors():
         """
-        Fetches vendors from the backend API.
+        Fetches vendors directly from the database service.
+        This avoids HTTP requests and circular dependencies.
         """
-        base_url = "http://localhost:8000/api/v1"
-        url = f"{base_url}/vendors/?limit=1000"
-        
+        db = SessionLocal()
         try:
-            response = requests.get(url, timeout=10)
-            response.raise_for_status()
-            data = response.json()
+            vendor_service = VendorService(db)
             
-            # Debug: Show what we received
-            print(f"API Response: {data}")
+            # Get all vendors (limit 1000 for display)
+            vendors, total_count = vendor_service.get_vendors_with_filters(
+                skip=0,
+                limit=1000,
+                status_filter=None,
+                search=None
+            )
             
-            # The API returns: {"vendors": [...], "total_count": ..., ...}
-            vendors = data.get("vendors", [])
-            
-            print(f"Found {len(vendors)} vendors in API response")
+            print(f"Found {len(vendors)} vendors from database")
             
             if not vendors:
-                ui.notify("No vendors found in API response", type="warning")
-                print(f"Vendors list is empty. Full response keys: {list(data.keys())}")
-                print(f"Full response: {data}")
+                print("No vendors found in database")
                 return []
             
-            # Map backend vendor data to table row format
+            # Map vendor data to table row format
             rows = []
-            for v in vendors:
+            for vendor in vendors:
                 # Format next_required_due_diligence_date
-                next_dd_date = v.get("next_required_due_diligence_date")
+                next_dd_date = vendor.next_required_due_diligence_date
                 if next_dd_date:
-                    # Handle ISO format date string
-                    if isinstance(next_dd_date, str):
-                        try:
-                            from datetime import datetime
-                            date_obj = datetime.fromisoformat(next_dd_date.replace('Z', '+00:00'))
-                            formatted_date = date_obj.strftime("%Y-%m-%d")
-                        except:
-                            formatted_date = next_dd_date.split('T')[0] if 'T' in next_dd_date else next_dd_date
+                    if isinstance(next_dd_date, date):
+                        formatted_date = next_dd_date.strftime("%Y-%m-%d")
                     else:
                         formatted_date = str(next_dd_date)
                 else:
                     formatted_date = "N/A"
                 
+                # Determine if due diligence is overdue
+                is_overdue = False
+                if vendor.next_required_due_diligence_date:
+                    is_overdue = vendor.next_required_due_diligence_date.date() < date.today()
+                
                 # Determine attention/status indicator
-                status = v.get("status", "Unknown")
-                status_color = v.get("status_color", "gray")
-                is_overdue = v.get("is_due_diligence_overdue", False)
+                status = vendor.status.value if hasattr(vendor.status, 'value') else str(vendor.status)
+                status_color = "green" if vendor.status == VendorStatusType.ACTIVE else "black"
                 
                 attention = ""
                 if is_overdue:
@@ -68,40 +66,38 @@ def vendors_list():
                 else:
                     attention = "○ Inactive"
                 
-                # Get ID - must be integer for row_key
-                vendor_id = v.get("id")
-                if vendor_id is None:
-                    continue  # Skip rows without ID
+                # Get primary email
+                primary_email = next(
+                    (e.email for e in vendor.emails if e.is_primary),
+                    vendor.emails[0].email if vendor.emails else None
+                )
                 
                 row_data = {
-                    "id": int(vendor_id),  # Must be integer for row_key
-                    "vendor_id": str(v.get("vendor_id") or ""),
-                    "vendor_name": str(v.get("vendor_name") or ""),
-                    "contact": str(v.get("vendor_contact_person") or ""),
-                    "email": str(v.get("email") or ""),
+                    "id": int(vendor.id),  # Must be integer for row_key
+                    "vendor_id": str(vendor.vendor_id or ""),
+                    "vendor_name": str(vendor.vendor_name or ""),
+                    "contact": str(vendor.vendor_contact_person or ""),
+                    "email": str(primary_email or ""),
                     "next_dd_date": str(formatted_date),
                     "status": str(status or "Unknown"),
                     "status_color": str(status_color or "gray"),
                     "attention": str(attention),
-                    "is_overdue": bool(is_overdue or False),
+                    "is_overdue": bool(is_overdue),
                 }
                 rows.append(row_data)
             
             print(f"Processed {len(rows)} vendor rows")
             return rows
             
-        except requests.exceptions.RequestException as e:
-            error_msg = f"Error fetching vendors: {str(e)}"
-            print(error_msg)
-            ui.notify(error_msg, type="negative")
-            return []
         except Exception as e:
-            error_msg = f"Unexpected error: {str(e)}"
+            error_msg = f"Error fetching vendors: {str(e)}"
             print(error_msg)
             import traceback
             traceback.print_exc()
             ui.notify(error_msg, type="negative")
             return []
+        finally:
+            db.close()
     
     # Define table columns
     vendor_columns = [
