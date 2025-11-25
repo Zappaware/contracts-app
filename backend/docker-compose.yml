@@ -5,7 +5,7 @@ services:
   db:
     image: postgres:15-alpine
     container_name: aruba_bank_db
-    platform: linux/arm64/v8  # Optimized for M1 Mac
+    #platform: linux/arm64/v8  # Optimized for M1 Mac
     environment:
       POSTGRES_DB: aruba_bank
       POSTGRES_USER: postgres
@@ -28,7 +28,7 @@ services:
   api:
     build: .
     container_name: aruba_bank_api
-    platform: linux/arm64/v8  # Optimized for M1 Mac
+    #platform: linux/arm64/v8  # Optimized for M1 Mac
     environment:
       DATABASE_URL: "postgresql://postgres:postgres123@db:5432/aruba_bank"
       DEBUG: "true"
@@ -40,6 +40,7 @@ services:
         condition: service_healthy
     volumes:
       - ./app:/app/app
+      - ./alembic:/app/alembic  # Mount alembic for live migration updates
       - ./uploads:/app/uploads  # For document uploads
     networks:
       - aruba_network
@@ -49,7 +50,7 @@ services:
   pgadmin:
     image: dpage/pgadmin4:latest
     container_name: aruba_bank_pgadmin
-    platform: linux/arm64/v8  # Optimized for M1 Mac
+    #platform: linux/arm64/v8  # Optimized for M1 Mac
     environment:
       PGADMIN_DEFAULT_EMAIL: admin@arubabank.com
       PGADMIN_DEFAULT_PASSWORD: admin123

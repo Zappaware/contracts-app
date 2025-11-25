@@ -1,7 +1,7 @@
 """add 365 days to notice period enums
 
 Revision ID: 003_add_365_days
-Revises: 002_fix_contract_enum_types
+Revises: 002
 Create Date: 2025-11-05 04:20:00.000000
 
 """
@@ -11,7 +11,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision = '003_add_365_days'
-down_revision = '002_fix_contract_enum_types'
+down_revision = '002'
 branch_labels = None
 depends_on = None
 
@@ -21,8 +21,8 @@ def upgrade():
     Add '365 days (1 year)' option to notice period enums
     
     This migration adds the new enum value to:
-    - termination_notice_period (NoticePeriodType)
-    - expiration_notice_frequency (ExpirationNoticePeriodType)
+    - termination_notice_period (noticeperiodtype)
+    - expiration_notice_frequency (expirationnoticeperiodtype)
     """
     
     # For PostgreSQL, we need to use ALTER TYPE to add new enum values
@@ -30,12 +30,12 @@ def upgrade():
     
     # Add to termination_notice_period enum
     op.execute("""
-        ALTER TYPE "NoticePeriodType" ADD VALUE IF NOT EXISTS '365 days (1 year)';
+        ALTER TYPE noticeperiodtype ADD VALUE IF NOT EXISTS '365 days (1 year)';
     """)
     
     # Add to expiration_notice_frequency enum  
     op.execute("""
-        ALTER TYPE "ExpirationNoticePeriodType" ADD VALUE IF NOT EXISTS '365 days (1 year)';
+        ALTER TYPE expirationnoticeperiodtype ADD VALUE IF NOT EXISTS '365 days (1 year)';
     """)
 
 
