@@ -6,7 +6,7 @@
 
 1. **Clone the repository and navigate to the directory:**
    ```bash
-   cd aruba-bank-backend
+   cd contracts/backend
    ```
 
 2. **Copy the configuration file:**
