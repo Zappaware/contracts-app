@@ -122,12 +122,8 @@ def new_contract():
             # Create a custom table-like layout using divs
             with ui.element("div").classes("w-full border-collapse flex flex-col"):
                 
-                # Row 1 - ID & Termination Notice
+                # Row 1 - Termination Notice & Contract Expiration Date
                 with ui.element('div').classes(f"{row_classes} {std_row_height}"):
-                    with ui.element('div').classes(label_cell_classes):
-                        ui.label("ID").classes(label_classes)
-                    with ui.element('div').classes(input_cell_classes):
-                        ui.label("ID").classes(input_classes)
                     with ui.element('div').classes(label_cell_classes):
                         ui.label("Termination Notice").classes(label_classes)
                     with ui.element('div').classes(input_cell_classes + " flex flex-col"):
@@ -147,6 +143,18 @@ def new_contract():
                                 termination_input.classes(remove='border border-red-600')
                                 return True
                         termination_input.on('blur', validate_termination)
+                    with ui.element('div').classes(label_cell_classes):
+                        ui.label("Contract End Date").classes(label_classes)
+                    with ui.element('div').classes(input_cell_classes):
+                        with ui.input('MM/DD/YYYY', value='08/24/2025').classes(input_classes).props("outlined") as end_date:
+                            with ui.menu().props('no-parent-event') as end_menu:
+                                with ui.date(value='2025-08-24').props('mask=MM/DD/YYYY').bind_value(end_date,
+                                    forward=lambda d: d.replace('-', '/') if d else '', 
+                                    backward=lambda d: d.replace('/', '-') if d else ''):
+                                    with ui.row().classes('justify-end'):
+                                        ui.button('Close', on_click=end_menu.close).props('flat')
+                            with end_date.add_slot('append'):
+                                ui.icon('edit_calendar').on('click', end_menu.open).classes('cursor-pointer')
                 
                 # Row 2 - Automatic Renewal & Expiration Reminder Notice
                 with ui.element('div').classes(f"{row_classes} items-stretch"):
@@ -332,40 +340,9 @@ def new_contract():
                                 return True
                         subcontractor_input.on('blur', validate_subcontractor)
                 
-                # Row 6 - Contract Expiration Date & Maintenance Fee
-                with ui.element('div').classes(f"{row_classes} {std_row_height}"):
-                    with ui.element('div').classes(label_cell_classes):
-                        ui.label("Contract End Date").classes(label_classes)
-                    with ui.element('div').classes(input_cell_classes):
-                        with ui.input('MM/DD/YYYY', value='08/24/2025').classes(input_classes).props("outlined") as end_date:
-                            with ui.menu().props('no-parent-event') as end_menu:
-                                with ui.date(value='2025-08-24').props('mask=MM/DD/YYYY').bind_value(end_date,
-                                    forward=lambda d: d.replace('-', '/') if d else '', 
-                                    backward=lambda d: d.replace('/', '-') if d else ''):
-                                    with ui.row().classes('justify-end'):
-                                        ui.button('Close', on_click=end_menu.close).props('flat')
-                            with end_date.add_slot('append'):
-                                ui.icon('edit_calendar').on('click', end_menu.open).classes('cursor-pointer')
-                    with ui.element('div').classes(label_cell_classes):
-                        ui.label("Maintenance Fee").classes(label_classes)
-                    with ui.element('div').classes(input_cell_classes + " flex flex-col"):
-                        maintenance_fee_input = ui.input(label="Do not Format it*", value="0.00").props("outlined disable maxlength=10").classes(input_classes)
-                        maintenance_fee_error = ui.label('').classes('text-red-600 text-xs mt-1 min-h-[18px]').style('display:none')
-                        def validate_maintenance_fee(e=None):
-                            value = maintenance_fee_input.value or ''
-                            if not value.strip():
-                                maintenance_fee_error.text = "Please enter the maintenance fee."
-                                maintenance_fee_error.style('display:block')
-                                maintenance_fee_input.classes('border border-red-600')
-                                return False
-                            else:
-                                maintenance_fee_error.text = ''
-                                maintenance_fee_error.style('display:none')
-                                maintenance_fee_input.classes(remove='border border-red-600')
-                                return True
-                        maintenance_fee_input.on('blur', validate_maintenance_fee)
+                
 
-                # Row 7 - Contract Termination & Payment Method
+                # Row 6 - Contract Termination & Payment Method
                 with ui.element('div').classes(f"{row_classes} {std_row_height}"):
                     with ui.element('div').classes(label_cell_classes):
                         ui.label("Contract Termination").classes(label_classes)
@@ -391,34 +368,12 @@ def new_contract():
                                 return True
                         payment_select.on('blur', validate_payment)
 
-                # Row 8 - Maintenance Terms & Comments
+                # Row 7 - Comments
                 with ui.element('div').classes(f"{row_classes} {std_row_height}"):
                     with ui.element('div').classes(label_cell_classes):
-                        ui.label("Maintenance Terms").classes(label_classes)
-                    with ui.element('div').classes(input_cell_classes + " flex flex-col"):
-                        maintenance_terms_options = [
-                            "Please Select",
-                            "Annual Service",
-                            "Monthly Checkup",
-                            "On Demand",
-                            "Full Coverage",
-                            "Limited Warranty"
-                        ]
-                        maintenance_terms_select = ui.select(options=maintenance_terms_options, label="Please Select*").classes(input_classes).props("outlined")
-                        maintenance_terms_error = ui.label('').classes('text-red-600 text-xs mt-1 min-h-[18px]').style('display:none')
-                        def validate_maintenance_terms(e=None):
-                            value = maintenance_terms_select.value or ''
-                            if not value.strip() or value == "Please Select":
-                                maintenance_terms_error.text = "Please select the maintenance terms."
-                                maintenance_terms_error.style('display:block')
-                                maintenance_terms_select.classes('border border-red-600')
-                                return False
-                            else:
-                                maintenance_terms_error.text = ''
-                                maintenance_terms_error.style('display:none')
-                                maintenance_terms_select.classes(remove='border border-red-600')
-                                return True
-                        maintenance_terms_select.on('blur', validate_maintenance_terms)
+                        ui.label("").classes(label_classes)
+                    with ui.element('div').classes(input_cell_classes):
+                        ui.label("").classes(input_classes)
                     with ui.element('div').classes(label_cell_classes):
                         ui.label("Comments").classes(label_classes)
                     with ui.element('div').classes(input_cell_classes + " flex flex-col"):
@@ -438,7 +393,7 @@ def new_contract():
                                 return True
                         comments_input.on('blur', validate_comments)
 
-                # Row 9 - Notify when Expired? & Attention
+                # Row 8 - Notify when Expired? & Attention
                 with ui.element('div').classes(f"{row_classes} {std_row_height}"):
                     with ui.element('div').classes(label_cell_classes):
                         ui.label("Notify when Expired?").classes(label_classes)
@@ -478,7 +433,7 @@ def new_contract():
                                 return True
                         attention_input.on('blur', validate_attention)
 
-                # Row 10 - Notification Email Address & Last Revision User
+                # Row 9 - Notification Email Address & Last Revision User
                 with ui.element('div').classes(f"{row_classes} {std_row_height}"):
                     with ui.element('div').classes(label_cell_classes):
                         ui.label("Notification Email Address").classes(label_classes).props("outlined")
@@ -774,7 +729,8 @@ def new_contract():
                         ui.label("").classes(label_classes)
                     with ui.element('div').classes(input_cell_classes):
                         ui.label("").classes(input_classes)
-                
+
+            
                 # Row 10.6 - File Attachments (right below Vendor Contract)
                 with ui.element('div').classes(f"{row_classes} {std_row_height}"):
                     with ui.element('div').classes(label_cell_classes):
@@ -797,7 +753,7 @@ def new_contract():
                     with ui.element('div').classes(input_cell_classes):
                         ui.input(label="Description", placeholder="Enter a description for these files").classes(input_classes).props("outlined")
                 
-                # Row 11 - Empty & Last Revision Date
+                # Row 10 - Empty & Last Revision Date
                 with ui.element('div').classes(f"{row_classes} {std_row_height}"):
                     with ui.element('div').classes(label_cell_classes):
                         ui.label("").classes(label_classes)
@@ -824,9 +780,7 @@ def new_contract():
                             validate_department(),
                             validate_contract_amount(),
                             validate_subcontractor(),
-                            validate_maintenance_fee(),
                             validate_payment(),
-                            validate_maintenance_terms(),
                             validate_comments(),
                             validate_notify(),
                             validate_attention(),
@@ -853,9 +807,7 @@ def new_contract():
                             'department': department_select.value,
                             'contract_amount': contract_amount_input.value,
                             'subcontractor': subcontractor_input.value,
-                            'maintenance_fee': maintenance_fee_input.value,
                             'payment_method': payment_select.value,
-                            'maintenance_terms': maintenance_terms_select.value,
                             'comments': comments_input.value,
                             'notify_when_expired': notify_select.value,
                             'attention': attention_input.value,
