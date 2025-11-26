@@ -1,5 +1,12 @@
 from datetime import datetime, timedelta
 from nicegui import ui
+import io
+import base64
+try:
+    import pandas as pd
+    PANDAS_AVAILABLE = True
+except ImportError:
+    PANDAS_AVAILABLE = False
 
 
 def terminated_contracts():
@@ -64,8 +71,13 @@ def terminated_contracts():
                 "vendor_name": "Acme Corp",
                 "contract_type": "Service Agreement",
                 "description": "IT Support Services",
+                "start_date": today - timedelta(days=730),  # 2 years ago
+                "end_date": today - timedelta(days=120),
                 "expiration_date": today - timedelta(days=120),
+                "date_terminated": today - timedelta(days=120),
                 "manager": "William Defoe",
+                "backup": "John Doe",
+                "department": "IT",
                 "role": "owned"
             },
             {
@@ -73,8 +85,13 @@ def terminated_contracts():
                 "vendor_name": "Beta Technologies",
                 "contract_type": "Software License",
                 "description": "Enterprise Software Licensing",
+                "start_date": today - timedelta(days=365),  # 1 year ago
+                "end_date": today - timedelta(days=90),
                 "expiration_date": today - timedelta(days=90),
+                "date_terminated": today - timedelta(days=90),
                 "manager": "John Doe",
+                "backup": "William Defoe",
+                "department": "Operations",
                 "role": "backup"
             },
             {
@@ -82,8 +99,13 @@ def terminated_contracts():
                 "vendor_name": "Gamma Consulting",
                 "contract_type": "Consulting",
                 "description": "Business Process Optimization",
+                "start_date": today - timedelta(days=600),  # ~1.6 years ago
+                "end_date": today - timedelta(days=200),
                 "expiration_date": today - timedelta(days=200),
+                "date_terminated": today - timedelta(days=200),
                 "manager": "William Defoe",
+                "backup": "John Doe",
+                "department": "Strategy",
                 "role": "owned"
             },
             {
@@ -91,8 +113,13 @@ def terminated_contracts():
                 "vendor_name": "Delta Logistics",
                 "contract_type": "Transportation",
                 "description": "Freight and Delivery Services",
+                "start_date": today - timedelta(days=180),  # 6 months ago
+                "end_date": today - timedelta(days=45),
                 "expiration_date": today - timedelta(days=45),
+                "date_terminated": today - timedelta(days=45),
                 "manager": "John Doe",
+                "backup": "William Defoe",
+                "department": "Logistics",
                 "role": "backup"
             },
             {
@@ -100,8 +127,13 @@ def terminated_contracts():
                 "vendor_name": "Epsilon Security",
                 "contract_type": "Security Services",
                 "description": "Building Security and Monitoring",
+                "start_date": today - timedelta(days=1095),  # 3 years ago
+                "end_date": today - timedelta(days=300),
                 "expiration_date": today - timedelta(days=300),
+                "date_terminated": today - timedelta(days=300),
                 "manager": "William Defoe",
+                "backup": "John Doe",
+                "department": "Security",
                 "role": "owned"
             },
             {
@@ -109,8 +141,13 @@ def terminated_contracts():
                 "vendor_name": "Zeta Solutions",
                 "contract_type": "Maintenance",
                 "description": "Equipment Maintenance Contract",
+                "start_date": today - timedelta(days=450),  # ~1.2 years ago
+                "end_date": today - timedelta(days=150),
                 "expiration_date": today - timedelta(days=150),
+                "date_terminated": today - timedelta(days=150),
                 "manager": "John Doe",
+                "backup": "William Defoe",
+                "department": "Facilities",
                 "role": "backup"
             },
             {
@@ -118,8 +155,13 @@ def terminated_contracts():
                 "vendor_name": "Eta Services",
                 "contract_type": "Cleaning Services",
                 "description": "Office Cleaning and Janitorial",
+                "start_date": today - timedelta(days=240),  # 8 months ago
+                "end_date": today - timedelta(days=60),
                 "expiration_date": today - timedelta(days=60),
+                "date_terminated": today - timedelta(days=60),
                 "manager": "William Defoe",
+                "backup": "John Doe",
+                "department": "Facilities",
                 "role": "owned"
             },
             {
@@ -127,8 +169,13 @@ def terminated_contracts():
                 "vendor_name": "Theta Communications",
                 "contract_type": "Telecommunications",
                 "description": "Internet and Phone Services",
+                "start_date": today - timedelta(days=540),  # ~1.5 years ago
+                "end_date": today - timedelta(days=180),
                 "expiration_date": today - timedelta(days=180),
+                "date_terminated": today - timedelta(days=180),
                 "manager": "John Doe",
+                "backup": "William Defoe",
+                "department": "IT",
                 "role": "backup"
             },
         ]
@@ -136,16 +183,25 @@ def terminated_contracts():
         rows = []
         for contract in mock_contracts:
             exp_date = contract["expiration_date"]
+            start_date = contract["start_date"]
+            end_date = contract["end_date"]
+            date_terminated = contract["date_terminated"]
             
             rows.append({
                 "contract_id": contract["contract_id"],
                 "vendor_name": contract["vendor_name"],
                 "contract_type": contract["contract_type"],
                 "description": contract["description"],
+                "start_date": start_date.strftime("%Y-%m-%d"),
+                "end_date": end_date.strftime("%Y-%m-%d"),
                 "expiration_date": exp_date.strftime("%Y-%m-%d"),
                 "expiration_timestamp": exp_date.timestamp(),  # For sorting
+                "date_terminated": date_terminated.strftime("%Y-%m-%d"),
+                "date_terminated_timestamp": date_terminated.timestamp(),  # For sorting
                 "status": "Terminated",
                 "manager": contract["manager"],
+                "backup": contract["backup"],
+                "department": contract["department"],
                 "role": contract["role"],
             })
         
@@ -211,18 +267,22 @@ def terminated_contracts():
     
     # Main container
     with ui.element("div").classes("max-w-6xl mt-8 mx-auto w-full"):
-        # Section header with toggle
+        # Section header with toggle and Generate button
         with ui.row().classes('items-center justify-between ml-4 mb-4 w-full'):
             with ui.row().classes('items-center gap-2'):
                 ui.icon('cancel', color='grey').style('font-size: 32px')
                 ui.label("Terminated Contracts").classes("text-h5 font-bold")
             
-            # Toggle for Owned/Backup
-            role_toggle = ui.toggle(
-                {'backup': 'Backup', 'owned': 'Owned'}, 
-                value='backup', 
-                on_change=on_role_toggle
-            ).props('toggle-color=primary text-color=primary').classes('role-toggle')
+            with ui.row().classes('items-center gap-3'):
+                # Generate Report button
+                ui.button("Generate", icon="description", on_click=lambda: open_generate_dialog()).props('color=primary')
+                
+                # Toggle for Owned/Backup
+                role_toggle = ui.toggle(
+                    {'backup': 'Backup', 'owned': 'Owned'}, 
+                    value='backup', 
+                    on_change=on_role_toggle
+                ).props('toggle-color=primary text-color=primary').classes('role-toggle')
         
         # Manager name and description row
         with ui.row().classes('items-center justify-between ml-4 mb-4 w-full'):
@@ -319,3 +379,134 @@ def terminated_contracts():
                 </div>
             </q-td>
         ''')
+        
+        # Function to generate Excel report
+        def open_generate_dialog():
+            """Open dialog for date range selection and report generation"""
+            with ui.dialog() as dialog, ui.card().classes('p-6 w-full max-w-md'):
+                ui.label("Generate Terminated Contracts Report").classes("text-h6 font-bold mb-4")
+                
+                with ui.column().classes('gap-4 w-full'):
+                    ui.label("Select date range for terminated contracts:").classes("text-sm text-gray-600")
+                    
+                    start_date_input = ui.input("Start Date", placeholder="YYYY-MM-DD").props('type=date').classes('w-full')
+                    end_date_input = ui.input("End Date", placeholder="YYYY-MM-DD").props('type=date').classes('w-full')
+                    
+                    # Set default dates (last 6 months)
+                    today = datetime.now()
+                    default_start = (today - timedelta(days=180)).strftime("%Y-%m-%d")
+                    default_end = today.strftime("%Y-%m-%d")
+                    start_date_input.value = default_start
+                    end_date_input.value = default_end
+                    
+                    ui.label("The report will include all contracts with status 'Terminated' within the selected date range.").classes("text-xs text-gray-500 italic")
+                    
+                    with ui.row().classes('gap-2 justify-end w-full mt-4'):
+                        ui.button("Cancel", on_click=dialog.close).props('flat')
+                        ui.button("Generate & Download", icon="download", 
+                                 on_click=lambda: generate_excel_report(start_date_input.value, end_date_input.value, dialog)).props('color=primary')
+                
+                dialog.open()
+        
+        def generate_excel_report(start_date_str, end_date_str, dialog):
+            """Generate Excel report for terminated contracts within date range"""
+            try:
+                # Parse dates
+                start_date = datetime.strptime(start_date_str, "%Y-%m-%d")
+                end_date = datetime.strptime(end_date_str, "%Y-%m-%d")
+                
+                if start_date > end_date:
+                    ui.notify("Start date must be before end date", type="negative")
+                    return
+                
+                # Filter contracts by date range and status
+                filtered_contracts = []
+                for row in contract_rows:
+                    if row.get('status') == 'Terminated':
+                        terminated_date_str = row.get('date_terminated', '')
+                        if terminated_date_str:
+                            try:
+                                terminated_date = datetime.strptime(terminated_date_str, "%Y-%m-%d")
+                                if start_date <= terminated_date <= end_date:
+                                    filtered_contracts.append(row)
+                            except ValueError:
+                                continue
+                
+                if not filtered_contracts:
+                    ui.notify("No terminated contracts found in the selected date range", type="warning")
+                    dialog.close()
+                    return
+                
+                if not PANDAS_AVAILABLE:
+                    ui.notify("Excel export requires pandas library. Please install it: pip install pandas openpyxl", type="negative")
+                    dialog.close()
+                    return
+                
+                # Prepare data for Excel
+                report_data = []
+                for contract in filtered_contracts:
+                    report_data.append({
+                        "Contract ID": contract.get('contract_id', ''),
+                        "Contract Type": contract.get('contract_type', ''),
+                        "Description": contract.get('description', ''),
+                        "Vendor": contract.get('vendor_name', ''),
+                        "Start Date": contract.get('start_date', ''),
+                        "End Date": contract.get('end_date', ''),
+                        "Department": contract.get('department', ''),
+                        "Contract Manager": contract.get('manager', ''),
+                        "Contract Backups": contract.get('backup', ''),
+                        "Date Terminated in system": contract.get('date_terminated', ''),
+                    })
+                
+                # Create DataFrame
+                df = pd.DataFrame(report_data)
+                
+                # Create Excel file in memory
+                output = io.BytesIO()
+                with pd.ExcelWriter(output, engine='openpyxl') as writer:
+                    df.to_excel(writer, index=False, sheet_name='Terminated Contracts')
+                    
+                    # Get the worksheet
+                    worksheet = writer.sheets['Terminated Contracts']
+                    
+                    # Auto-adjust column widths
+                    for column in worksheet.columns:
+                        max_length = 0
+                        column_letter = column[0].column_letter
+                        for cell in column:
+                            try:
+                                if len(str(cell.value)) > max_length:
+                                    max_length = len(str(cell.value))
+                            except (AttributeError, TypeError):
+                                pass
+                        adjusted_width = min(max_length + 2, 50)
+                        worksheet.column_dimensions[column_letter].width = adjusted_width
+                
+                output.seek(0)
+                
+                # Convert to base64 for download
+                excel_data = output.getvalue()
+                b64_data = base64.b64encode(excel_data).decode()
+                
+                # Generate filename
+                filename = f"Terminated_Contracts_Report_{start_date_str}_to_{end_date_str}.xlsx"
+                
+                # Trigger download using JavaScript
+                ui.run_javascript(f'''
+                    const link = document.createElement('a');
+                    link.href = 'data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64,{b64_data}';
+                    link.download = '{filename}';
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                ''')
+                
+                ui.notify(f"Report generated successfully! {len(filtered_contracts)} contract(s) exported.", type="positive")
+                dialog.close()
+                
+            except ValueError:
+                ui.notify("Invalid date format. Please use YYYY-MM-DD format.", type="negative")
+            except Exception as e:
+                ui.notify(f"Error generating report: {str(e)}", type="negative")
+                import traceback
+                traceback.print_exc()

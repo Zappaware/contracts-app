@@ -30,6 +30,7 @@ from app.pages.vendors_list import vendors_list
 from app.pages.contract_managers import contract_managers
 from app.pages.manager import manager
 from app.pages.pending_reviews import pending_reviews
+from app.pages.contract_updates import contract_updates
 
 
 # Define lifespan context manager for startup/shutdown
@@ -237,6 +238,16 @@ def pending_reviews_page():
         return
     header()
     pending_reviews()
+
+
+@ui.page("/contract-updates")
+def contract_updates_page():
+    """Contract updates page"""
+    if not nicegui_app.storage.user.get('logged_in'):
+        ui.navigate.to('/login')
+        return
+    header()
+    contract_updates()
 
 
 # ============================================================================

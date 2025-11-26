@@ -102,6 +102,13 @@ def home_page():
                 ui.label("Contracts Requiring Attention").classes("text-lg font-bold")
                 ui.label("Contracts approaching or past their expiration date").classes("text-sm text-gray-500")
                 ui.label("8").classes("text-2xl font-medium text-primary mt-2")
+            with ui.link(target='/contract-updates').classes('no-underline w-full').style('text-decoration: none !important;'):
+                with ui.card().classes("w-full cursor-pointer hover:bg-gray-50 transition-colors shadow-lg").props('flat'):
+                    with ui.row().classes('items-center gap-2'):
+                        ui.icon('update', color='primary').style('font-size: 28px')
+                    ui.label("Contract Updates").classes("text-lg font-bold")
+                    ui.label("Review manager responses and updates").classes("text-sm text-gray-500")
+                    ui.label("15").classes("text-2xl font-medium text-primary mt-2")
 
     # ===== COMMENTED OUT: Recent Activity Section =====
     # Container for the Recent Activity section
