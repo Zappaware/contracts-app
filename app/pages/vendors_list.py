@@ -12,6 +12,48 @@ def vendors_list():
         with ui.link(target='/').classes('no-underline'):
             ui.button("Back to Dashboard", icon="arrow_back").props('flat color=primary')
     
+    # Global variables
+    vendors_table = None
+    vendor_rows = []
+    manager_label = None
+    
+    # Function to handle owned/backup toggle
+    def on_role_toggle(e):
+        role = e.value  # Will be 'backup' or 'owned'
+        
+        # Filter vendors based on selected role
+        filtered = [row for row in vendor_rows if row['role'] == role]
+        
+        # Update manager name based on role
+        if role == 'backup':
+            manager_name = "John Doe"
+            ui.notify("Showing backup vendors (John Doe)", type="info")
+        else:  # owned
+            manager_name = "William Defoe"
+            ui.notify("Showing owned vendors (William Defoe)", type="info")
+        
+        # Update the manager label
+        manager_label.set_text(f"Manager: {manager_name}")
+        
+        # If there's an active search, reapply it to the new filtered set
+        try:
+            search_term = (search_input.value or "").lower()
+            if search_term:
+                filtered = [
+                    row for row in filtered
+                    if search_term in (row.get("vendor_id") or "").lower()
+                    or search_term in (row.get("vendor_name") or "").lower()
+                    or search_term in (row.get("contact") or "").lower()
+                    or search_term in (row.get("email") or "").lower()
+                    or search_term in (row.get("manager") or "").lower()
+                ]
+        except NameError:
+            pass  # search_input not yet defined
+        
+        # Update table with filtered results
+        vendors_table.rows = filtered
+        vendors_table.update()
+    
     # Fetch vendors directly from database service
     def fetch_vendors():
         """
@@ -54,23 +96,24 @@ def vendors_list():
                 if vendor.next_required_due_diligence_date:
                     is_overdue = vendor.next_required_due_diligence_date.date() < date.today()
                 
-                # Determine attention/status indicator
+                # Get status
                 status = vendor.status.value if hasattr(vendor.status, 'value') else str(vendor.status)
                 status_color = "green" if vendor.status == VendorStatusType.ACTIVE else "black"
-                
-                attention = ""
-                if is_overdue:
-                    attention = "⚠️ Due Diligence Overdue"
-                elif status == "Active":
-                    attention = "✓ Active"
-                else:
-                    attention = "○ Inactive"
                 
                 # Get primary email
                 primary_email = next(
                     (e.email for e in vendor.emails if e.is_primary),
                     vendor.emails[0].email if vendor.emails else None
                 )
+                
+                # Assign manager based on vendor ID (alternating pattern)
+                # Odd vendor IDs = William Defoe (owned), Even vendor IDs = John Doe (backup)
+                if vendor.id % 2 == 1:
+                    manager = "William Defoe"
+                    role = "owned"
+                else:
+                    manager = "John Doe"
+                    role = "backup"
                 
                 row_data = {
                     "id": int(vendor.id),  # Must be integer for row_key
@@ -81,7 +124,8 @@ def vendors_list():
                     "next_dd_date": str(formatted_date),
                     "status": str(status or "Unknown"),
                     "status_color": str(status_color or "gray"),
-                    "attention": str(attention),
+                    "manager": str(manager),
+                    "role": str(role),
                     "is_overdue": bool(is_overdue),
                 }
                 rows.append(row_data)
@@ -144,10 +188,11 @@ def vendors_list():
             "sortable": True,
         },
         {
-            "name": "attention",
-            "label": "Attention",
-            "field": "attention",
+            "name": "manager",
+            "label": "Manager",
+            "field": "manager",
             "align": "left",
+            "sortable": True,
         },
     ]
     
@@ -171,24 +216,48 @@ def vendors_list():
     
     # Page header
     with ui.element("div").classes("max-w-6xl mx-auto mt-8 w-full"):
+        # Section header with toggle
         with ui.row().classes('items-center justify-between ml-4 mb-4 w-full'):
-            ui.label("Vendor List").classes("text-h5 font-bold")
+            with ui.row().classes('items-center gap-2'):
+                ui.icon('business', color='primary').style('font-size: 32px')
+                ui.label("Vendor List").classes("text-h5 font-bold")
+            
+            # Toggle for Owned/Backup
+            role_toggle = ui.toggle(
+                {'backup': 'Backup', 'owned': 'Owned'}, 
+                value='backup', 
+                on_change=on_role_toggle
+            ).props('toggle-color=primary text-color=primary').classes('role-toggle')
+        
+        # Manager name and description row
+        with ui.row().classes('items-center justify-between ml-4 mb-4 w-full'):
+            ui.label("List of all vendors").classes("text-sm text-gray-500")
+            manager_label = ui.label("Manager: John Doe").classes("text-base font-semibold text-primary")
+        
+        # Count label row
+        with ui.row().classes('ml-4 mb-2'):
             count_label = ui.label(f"Total: {len(vendor_rows)} vendors").classes("text-sm text-gray-500")
         
         # Search functionality (defined before table so it can reference vendors_table)
         def filter_vendors():
             if not vendors_table:
                 return
+            
+            # Get base rows based on current toggle state
+            current_role = role_toggle.value
+            base_rows = [row for row in vendor_rows if row['role'] == current_role]
+            
             search_term = (search_input.value or "").lower()
             if not search_term:
-                vendors_table.rows = vendor_rows
+                vendors_table.rows = base_rows
             else:
                 filtered = [
-                    row for row in vendor_rows
+                    row for row in base_rows
                     if search_term in (row.get("vendor_id") or "").lower()
                     or search_term in (row.get("vendor_name") or "").lower()
                     or search_term in (row.get("contact") or "").lower()
                     or search_term in (row.get("email") or "").lower()
+                    or search_term in (row.get("manager") or "").lower()
                 ]
                 vendors_table.rows = filtered
             vendors_table.update()
@@ -213,14 +282,14 @@ def vendors_list():
                 ui.label("No vendors found").classes("text-lg font-bold text-gray-500")
                 ui.label("Please check that the backend API is running and has vendor data.").classes("text-sm text-gray-400 mt-2")
         
-        # Vendors table - ensure it's created with data
-        table_rows = vendor_rows if vendor_rows else []
-        print(f"Creating table with {len(table_rows)} rows")
+        # Create table after search bar (showing backup vendors by default - John Doe)
+        initial_rows = [row for row in vendor_rows if row.get('role') == 'backup']
+        print(f"Creating table with {len(initial_rows)} rows (filtered by role: backup)")
         
         vendors_table = ui.table(
             columns=vendor_columns,
             column_defaults=vendor_columns_defaults,
-            rows=table_rows,
+            rows=initial_rows,
             pagination=10,
             row_key="id"
         ).classes("w-full").props("flat bordered").classes(
@@ -228,16 +297,16 @@ def vendors_list():
         )
         
         # Force update if we have data
-        if table_rows:
+        if initial_rows:
             vendors_table.update()
         
         # Refresh function (defined after table is created)
         def refresh_vendors():
             nonlocal vendor_rows
             vendor_rows = fetch_vendors()
-            vendors_table.rows = vendor_rows if vendor_rows else []
-            vendors_table.update()
             count_label.set_text(f"Total: {len(vendor_rows)} vendors")
+            # Reapply current filters
+            filter_vendors()
             ui.notify(f"Refreshed: {len(vendor_rows)} vendors loaded", type="info")
         
         # Add refresh button to header
@@ -250,8 +319,18 @@ def vendors_list():
             .vendors-table thead tr {
                 background-color: #144c8e !important;
             }
-            .vendors-table tbody tr:has(td:contains("Overdue")) {
-                background-color: #fee2e2 !important;
+            .vendors-table tbody tr {
+                background-color: white !important;
+            }
+            
+            /* Toggle button styling - white background for selected button */
+            .role-toggle .q-btn--active {
+                background-color: white !important;
+                box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1) !important;
+            }
+            .role-toggle .q-btn {
+                font-weight: 500;
+                padding: 6px 16px;
             }
         """)
         
@@ -276,20 +355,4 @@ def vendors_list():
             </q-td>
         ''')
         
-        # Add slot for attention column with styling
-        vendors_table.add_slot('body-cell-attention', '''
-            <q-td :props="props">
-                <div v-if="props.value.includes('Overdue')" class="text-red-700 font-bold flex items-center gap-1">
-                    <q-icon name="error" color="red" size="sm" />
-                    {{ props.value }}
-                </div>
-                <div v-else-if="props.value.includes('Active')" class="text-green-700 font-semibold flex items-center gap-1">
-                    <q-icon name="check_circle" color="green" size="sm" />
-                    {{ props.value }}
-                </div>
-                <div v-else class="text-gray-600 font-semibold">
-                    {{ props.value }}
-                </div>
-            </q-td>
-        ''')
 
