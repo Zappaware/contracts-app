@@ -63,14 +63,22 @@ async def create_vendor(
     """
     try:
         # Parse vendor data from JSON string
+        print(f"\n{'='*60}")
+        print(f"BACKEND: Received vendor creation request")
+        print(f"{'='*60}")
+        print(f"Raw vendor_data: {vendor_data[:200]}...")
+        
         vendor_dict = json.loads(vendor_data)
         vendor_create = VendorCreate(**vendor_dict)
-    except json.JSONDecodeError:
+        print(f"✅ Vendor data parsed successfully")
+    except json.JSONDecodeError as e:
+        print(f"❌ JSON decode error: {e}")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid JSON format in vendor_data"
         )
     except ValidationError as e:
+        print(f"❌ Pydantic validation error: {e}")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Validation error: {e}"
@@ -155,15 +163,29 @@ async def create_vendor(
         else:  # BankCustomerType.NONE
             bank_type = "AB"  # Default to Aruba Bank for None customers
         
+        print(f"Creating vendor with bank_type: {bank_type}")
+        
         # Create vendor
         vendor = vendor_service.create_vendor(vendor_create, bank_type)
+        print(f"✅ Vendor created: ID={vendor.id}, vendor_id={vendor.vendor_id}")
         
         # Upload documents with custom names and signed dates
         uploaded_docs = []
+        from datetime import datetime
+        
+        print(f"\n📄 Processing document uploads...")
         
         if due_diligence_doc:
-            from datetime import datetime
-            signed_date = datetime.fromisoformat(due_diligence_signed_date)
+            print(f"  Due Diligence - Name: '{due_diligence_name}', Date: '{due_diligence_signed_date}'")
+            try:
+                signed_date = datetime.fromisoformat(due_diligence_signed_date)
+                print(f"    ✅ Date parsed: {signed_date}")
+            except Exception as e:
+                print(f"    ❌ Date parse error: {e}")
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Invalid date format for due_diligence_signed_date: {due_diligence_signed_date}"
+                )
             doc = await vendor_service.upload_vendor_document(
                 vendor.id, due_diligence_doc, DocumentType.DUE_DILIGENCE,
                 due_diligence_name, signed_date
@@ -171,7 +193,16 @@ async def create_vendor(
             uploaded_docs.append(doc)
         
         if non_disclosure_doc:
-            signed_date = datetime.fromisoformat(non_disclosure_signed_date)
+            print(f"  NDA - Name: '{non_disclosure_name}', Date: '{non_disclosure_signed_date}'")
+            try:
+                signed_date = datetime.fromisoformat(non_disclosure_signed_date)
+                print(f"    ✅ Date parsed: {signed_date}")
+            except Exception as e:
+                print(f"    ❌ Date parse error: {e}")
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Invalid date format for non_disclosure_signed_date: {non_disclosure_signed_date}"
+                )
             doc = await vendor_service.upload_vendor_document(
                 vendor.id, non_disclosure_doc, DocumentType.NON_DISCLOSURE_AGREEMENT,
                 non_disclosure_name, signed_date
@@ -179,7 +210,16 @@ async def create_vendor(
             uploaded_docs.append(doc)
         
         if integrity_policy_doc:
-            signed_date = datetime.fromisoformat(integrity_policy_signed_date)
+            print(f"  Integrity Policy - Name: '{integrity_policy_name}', Date: '{integrity_policy_signed_date}'")
+            try:
+                signed_date = datetime.fromisoformat(integrity_policy_signed_date)
+                print(f"    ✅ Date parsed: {signed_date}")
+            except Exception as e:
+                print(f"    ❌ Date parse error: {e}")
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Invalid date format for integrity_policy_signed_date: {integrity_policy_signed_date}"
+                )
             doc = await vendor_service.upload_vendor_document(
                 vendor.id, integrity_policy_doc, DocumentType.INTEGRITY_POLICY,
                 integrity_policy_name, signed_date
@@ -187,7 +227,16 @@ async def create_vendor(
             uploaded_docs.append(doc)
         
         if risk_assessment_doc:
-            signed_date = datetime.fromisoformat(risk_assessment_signed_date)
+            print(f"  Risk Assessment - Name: '{risk_assessment_name}', Date: '{risk_assessment_signed_date}'")
+            try:
+                signed_date = datetime.fromisoformat(risk_assessment_signed_date)
+                print(f"    ✅ Date parsed: {signed_date}")
+            except Exception as e:
+                print(f"    ❌ Date parse error: {e}")
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Invalid date format for risk_assessment_signed_date: {risk_assessment_signed_date}"
+                )
             doc = await vendor_service.upload_vendor_document(
                 vendor.id, risk_assessment_doc, DocumentType.RISK_ASSESSMENT_FORM,
                 risk_assessment_name, signed_date
@@ -195,7 +244,16 @@ async def create_vendor(
             uploaded_docs.append(doc)
         
         if business_continuity_doc:
-            signed_date = datetime.fromisoformat(business_continuity_signed_date)
+            print(f"  Business Continuity - Name: '{business_continuity_name}', Date: '{business_continuity_signed_date}'")
+            try:
+                signed_date = datetime.fromisoformat(business_continuity_signed_date)
+                print(f"    ✅ Date parsed: {signed_date}")
+            except Exception as e:
+                print(f"    ❌ Date parse error: {e}")
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Invalid date format for business_continuity_signed_date: {business_continuity_signed_date}"
+                )
             doc = await vendor_service.upload_vendor_document(
                 vendor.id, business_continuity_doc, DocumentType.BUSINESS_CONTINUITY_PLAN,
                 business_continuity_name, signed_date
@@ -203,7 +261,16 @@ async def create_vendor(
             uploaded_docs.append(doc)
         
         if disaster_recovery_doc:
-            signed_date = datetime.fromisoformat(disaster_recovery_signed_date)
+            print(f"  Disaster Recovery - Name: '{disaster_recovery_name}', Date: '{disaster_recovery_signed_date}'")
+            try:
+                signed_date = datetime.fromisoformat(disaster_recovery_signed_date)
+                print(f"    ✅ Date parsed: {signed_date}")
+            except Exception as e:
+                print(f"    ❌ Date parse error: {e}")
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Invalid date format for disaster_recovery_signed_date: {disaster_recovery_signed_date}"
+                )
             doc = await vendor_service.upload_vendor_document(
                 vendor.id, disaster_recovery_doc, DocumentType.DISASTER_RECOVERY_PLAN,
                 disaster_recovery_name, signed_date
@@ -211,7 +278,16 @@ async def create_vendor(
             uploaded_docs.append(doc)
         
         if insurance_policy_doc:
-            signed_date = datetime.fromisoformat(insurance_policy_signed_date)
+            print(f"  Insurance Policy - Name: '{insurance_policy_name}', Date: '{insurance_policy_signed_date}'")
+            try:
+                signed_date = datetime.fromisoformat(insurance_policy_signed_date)
+                print(f"    ✅ Date parsed: {signed_date}")
+            except Exception as e:
+                print(f"    ❌ Date parse error: {e}")
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Invalid date format for insurance_policy_signed_date: {insurance_policy_signed_date}"
+                )
             doc = await vendor_service.upload_vendor_document(
                 vendor.id, insurance_policy_doc, DocumentType.INSURANCE_POLICY,
                 insurance_policy_name, signed_date
@@ -219,11 +295,21 @@ async def create_vendor(
             uploaded_docs.append(doc)
         
         # Refresh vendor to get all related data
+        print(f"Refreshing vendor data...")
         db.refresh(vendor)
+        print(f"✅ Vendor creation completed successfully: {vendor.vendor_id}")
+        print(f"{'='*60}\n")
         
         return vendor
         
+    except HTTPException as e:
+        # Re-raise HTTP exceptions as-is
+        print(f"❌ HTTPException during vendor creation: {e.status_code} - {e.detail}")
+        raise
     except Exception as e:
+        print(f"❌ Unexpected error during vendor creation: {type(e).__name__}: {e}")
+        import traceback
+        traceback.print_exc()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error creating vendor: {str(e)}"
