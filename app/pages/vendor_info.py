@@ -1,59 +1,117 @@
-
-
 from nicegui import ui
 from datetime import datetime
 
-def vendor_info():
+def vendor_info(vendor_id: int):
+    """Display vendor information by ID"""
+    # Fetch vendor from database
+    from app.db.database import SessionLocal
+    from app.services.vendor_service import VendorService
+    from sqlalchemy.orm import joinedload
+    
+    vendor = None
+    db = SessionLocal()
+    try:
+        # Eagerly load all relationships to avoid DetachedInstanceError
+        from app.models.vendor import Vendor
+        vendor = db.query(Vendor).options(
+            joinedload(Vendor.emails),
+            joinedload(Vendor.addresses),
+            joinedload(Vendor.phones),
+            joinedload(Vendor.documents)
+        ).filter(Vendor.id == vendor_id).first()
+        
+        if not vendor:
+            print(f"Vendor with ID {vendor_id} not found")
+    except Exception as e:
+        print(f"Error loading vendor data: {e}")
+        import traceback
+        traceback.print_exc()
+    finally:
+        db.close()
+    
     # Navigation
     with ui.row().classes("max-w-3xl mx-auto mt-4"):
-        with ui.link(target='/').classes('no-underline'):
-            ui.button("Back to Dashboard", icon="arrow_back").props('flat color=primary')
+        with ui.link(target='/vendors').classes('no-underline'):
+            ui.button("Back to Vendors List", icon="arrow_back").props('flat color=primary')
     
     # Basic info
     with ui.card().classes("max-w-3xl mx-auto mt-4 p-6"):
         ui.label("Vendor Info").classes("text-h5 mb-4")
-        with ui.row().classes("mb-2"):
-            ui.label("Vendor ID: -").classes("font-bold")
-            ui.label("Vendor Name: -").classes("font-bold")
-        with ui.row().classes("mb-2 items-center gap-4"):
-            with ui.row().classes("items-center gap-2"):
-                ui.label("Status:").classes("text-lg font-bold")
-                ui.badge("Active", color="green").classes("text-sm font-semibold")
-            ui.label("Contact Person: -")
-            ui.label("Email: -")
-        with ui.row().classes("mb-2"):
-            ui.label("Next Required Due Diligence Date: -")
+        
+        if not vendor:
+            ui.label("No vendor selected. Please select a vendor from the vendors list.").classes("text-red-600")
+        else:
+            # Get primary email
+            primary_email = next((e.email for e in vendor.emails if e.is_primary), 
+                                vendor.emails[0].email if vendor.emails else "N/A")
+            
+            # Get primary address
+            primary_address = next((a for a in vendor.addresses if a.is_primary),
+                                  vendor.addresses[0] if vendor.addresses else None)
+            
+            # Get primary phone
+            primary_phone = next((p for p in vendor.phones if p.is_primary),
+                                vendor.phones[0] if vendor.phones else None)
+            
+            with ui.row().classes("mb-2 gap-4"):
+                ui.label(f"Vendor ID: {vendor.vendor_id}").classes("font-bold")
+                ui.label(f"Vendor Name: {vendor.vendor_name}").classes("font-bold")
+            with ui.row().classes("mb-2 items-center gap-4"):
+                with ui.row().classes("items-center gap-2"):
+                    ui.label("Status:").classes("text-lg font-bold")
+                    status_color = "green" if vendor.status.value == "Active" else "red"
+                    ui.badge(vendor.status.value, color=status_color).classes("text-sm font-semibold")
+                ui.label(f"Contact Person: {vendor.vendor_contact_person}")
+                ui.label(f"Email: {primary_email}")
+            with ui.row().classes("mb-2"):
+                next_dd_date = vendor.next_required_due_diligence_date.strftime("%Y-%m-%d") if vendor.next_required_due_diligence_date else "N/A"
+                ui.label(f"Next Required Due Diligence Date: {next_dd_date}")
 
-        more = ui.button("More", icon="expand_more").props("flat")
-        details_card = ui.card().classes("mt-4 hidden")
+            more = ui.button("More", icon="expand_more").props("flat")
+            details_card = ui.card().classes("mt-4 hidden")
 
-        def toggle_details():
-            if "hidden" in details_card._classes:
-                details_card.classes(remove="hidden")
-                more.props("icon=expand_less")
-                more.set_text("Less")
-            else:
-                details_card.classes(add="hidden")
-                more.props("icon=expand_more")
-                more.set_text("More")
-        more.on("click", toggle_details)
+            def toggle_details():
+                if "hidden" in details_card._classes:
+                    details_card.classes(remove="hidden")
+                    more.props("icon=expand_less")
+                    more.set_text("Less")
+                else:
+                    details_card.classes(add="hidden")
+                    more.props("icon=expand_more")
+                    more.set_text("More")
+            more.on("click", toggle_details)
 
-        with details_card:
-            ui.label("All Vendor Details").classes("text-h6 mb-2")
-            with ui.row():
-                ui.label("Address: -")
-                ui.label("City: -")
-                ui.label("Country: -")
-            with ui.row():
-                ui.label("Phone: -")
-                ui.label("Bank Customer: -")
-                ui.label("CIF: -")
-            with ui.row():
-                ui.label("Material Outsourcing Agreement: -")
-                ui.label("Last Due Diligence Date: -")
-                ui.label("Next Required Due Diligence Alert Frequency: -")
-            ui.label("Due Diligence Info:").classes("mt-2 font-bold")
-            ui.label("-")
+            with details_card:
+                ui.label("All Vendor Details").classes("text-h6 mb-2")
+                with ui.row().classes("gap-4"):
+                    if primary_address:
+                        ui.label(f"Address: {primary_address.address}")
+                        ui.label(f"City: {primary_address.city}")
+                        ui.label(f"State: {primary_address.state}")
+                        ui.label(f"Zip: {primary_address.zip_code}")
+                    else:
+                        ui.label("Address: N/A")
+                with ui.row().classes("gap-4 mt-2"):
+                    ui.label(f"Country: {vendor.vendor_country}")
+                with ui.row().classes("gap-4 mt-2"):
+                    phone_display = f"{primary_phone.area_code} {primary_phone.phone_number}" if primary_phone else "N/A"
+                    ui.label(f"Phone: {phone_display}")
+                    ui.label(f"Bank Customer: {vendor.bank_customer.value}")
+                    ui.label(f"CIF: {vendor.cif or 'N/A'}")
+                with ui.row().classes("gap-4 mt-2"):
+                    ui.label(f"Material Outsourcing: {vendor.material_outsourcing_arrangement.value}")
+                    last_dd_date = vendor.last_due_diligence_date.strftime("%Y-%m-%d") if vendor.last_due_diligence_date else "N/A"
+                    ui.label(f"Last Due Diligence: {last_dd_date}")
+                    ui.label(f"Alert Frequency: {vendor.next_required_due_diligence_alert_frequency or 'N/A'}")
+                with ui.column().classes("mt-4"):
+                    ui.label("Due Diligence Info:").classes("font-bold")
+                    ui.label(f"Required: {vendor.due_diligence_required.value}")
+                    if vendor.documents:
+                        ui.label(f"Documents uploaded: {len(vendor.documents)}")
+                        for doc in vendor.documents[:3]:  # Show first 3
+                            ui.label(f"  • {doc.document_type.value}: {doc.document_name}").classes("text-sm")
+                    else:
+                        ui.label("No documents uploaded").classes("text-gray-500")
 
 
     # Action Buttons Section

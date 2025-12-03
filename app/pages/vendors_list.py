@@ -337,7 +337,7 @@ def vendors_list():
         # Add slot for vendor name with clickable link
         vendors_table.add_slot('body-cell-vendor_name', '''
             <q-td :props="props">
-                <a :href="'/vendor-info'" class="text-blue-600 hover:text-blue-800 underline cursor-pointer">
+                <a :href="'/vendor-info/' + props.row.id" class="text-blue-600 hover:text-blue-800 underline cursor-pointer">
                     {{ props.value }}
                 </a>
             </q-td>

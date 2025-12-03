@@ -1,18 +1,13 @@
 from nicegui import ui
-import requests
+import httpx
 import json
 import os
 from app.core.config import settings
 
 def get_country_list():
-    try:
-        response = requests.get('https://restcountries.com/v3.1/all?fields=name', timeout=5)
-        response.raise_for_status()
-        countries = sorted([c['name']['common'] for c in response.json()])
-        return ["Please select"] + countries
-    except Exception:
-        # fallback in case of error
-        return ["Please select", "United States", "Canada", "Mexico"]
+    """Return a static list of countries to avoid blocking async call at module load time"""
+    # Fallback list to avoid blocking calls during page load
+    return ["Please select", "Aruba", "United States", "Canada", "Mexico", "Netherlands", "Curacao", "Bonaire", "Saint Martin"]
 
 
 def new_vendor():
@@ -38,12 +33,8 @@ def new_vendor():
             # Create a custom table-like layout using divs
             with ui.element("div").classes("w-full border-collapse flex flex-col"):
                 
-                # Row 1 - ID & AB Customer?
+                # Row 1 - AB Customer? & Material Outsourcing Arrangement?
                 with ui.element('div').classes(f"{row_classes} {std_row_height}"):
-                    with ui.element('div').classes(label_cell_classes):
-                        ui.label("ID").classes(label_classes)
-                    with ui.element('div').classes(input_cell_classes):
-                        ui.label("ID").classes(input_classes)
                     with ui.element('div').classes(label_cell_classes):
                         ui.label("AB Customer?").classes(label_classes)
                     with ui.element('div').classes(input_cell_classes + " flex flex-col min-h-[70px]"):
@@ -69,12 +60,9 @@ def new_vendor():
                                 return True
 
                         ab_select.on('blur', validate_ab_customer)
-                # Row X - Material Outsourcing Arrangement? and Bank Customer
-                with ui.element('div').classes(f"{row_classes} {std_row_height}"):
-                    # Blue column with label
+                    
                     with ui.element('div').classes(label_cell_classes):
                         ui.label("Material Outsourcing Arrangement?").classes(label_classes)
-                    # Column 2: Switch and validation
                     with ui.element('div').classes(input_cell_classes + " flex flex-col min-h-[70px]"):
                         moa_options = ["Please select", "Yes", "No"]
                         moa_select = ui.select(
@@ -98,7 +86,9 @@ def new_vendor():
                                 return True
 
                         moa_select.on('blur', validate_moa)
-                    # Column 3: Bank Customer dropdown and conditional CIF field
+                
+                # Row 2 - Bank Customer & CIF
+                with ui.element('div').classes(f"{row_classes} {std_row_height}"):
                     with ui.element('div').classes(label_cell_classes):
                         ui.label("Bank Customer").classes(label_classes)
                     with ui.element('div').classes(input_cell_classes + " flex flex-col min-h-[70px]"):
@@ -148,13 +138,14 @@ def new_vendor():
 
                         bank_select.on('blur', validate_bank)
                         cif_input.on('blur', validate_bank)
-                        bank_error
-                        cif_input
-                        cif_error
                     
-                    # ...existing code...
+                    # Empty columns to complete the 4-column row
+                    with ui.element('div').classes(label_cell_classes):
+                        ui.label("").classes(label_classes)
+                    with ui.element('div').classes(input_cell_classes):
+                        ui.label("").classes(input_classes)
 
-                # Row 2 - Name & Contact Person
+                # Row 3 - Name & Contact Person
                 with ui.element('div').classes(f"{row_classes} {std_row_height}"):
                     with ui.element('div').classes(label_cell_classes):
                         ui.label("Name").classes(label_classes)
@@ -198,7 +189,7 @@ def new_vendor():
                                 return True
                         contact_person_input.on('blur', validate_contact_person)
                 
-                # Row 3 - Address 1 & Address 2 (with validation)
+                # Row 4 - Address 1 & Address 2 (with validation)
                 with ui.element('div').classes(f"{row_classes} {std_row_height}"):
                     with ui.element('div').classes(label_cell_classes):
                         ui.label("Address 1").classes(label_classes)
@@ -237,7 +228,7 @@ def new_vendor():
                                 return True
                         address2_input.on('blur', validate_address2)
 
-                # Row 4 - City & State (with validation)
+                # Row 5 - City & State (with validation)
                 with ui.element('div').classes(f"{row_classes} {std_row_height}"):
                     with ui.element('div').classes(label_cell_classes):
                         ui.label("City").classes(label_classes)
@@ -276,7 +267,7 @@ def new_vendor():
                                 return True
                         state_input.on('blur', validate_state)
 
-                # Row 5 - Zip Code & Country (with validation)
+                # Row 6 - Zip Code & Country (with validation)
             with ui.element('div').classes("flex w-full h-16"):
                 with ui.element('div').classes("bg-[#144c8e] w-[16.6%] flex items-center"):
                     ui.label("Zip Code").classes("text-white font-[segoe ui] py-2 px-4 h-full flex items-center")
@@ -321,7 +312,7 @@ def new_vendor():
                             return True
                     country_select.on('blur', validate_country)
                 
-                # Row 6 - Telephone Number & Email
+                # Row 7 - Telephone Number & Email
                 with ui.element('div').classes(f"{row_classes} {std_row_height}"):
                     with ui.element('div').classes(label_cell_classes):
                         ui.label("Telephone Number").classes(label_classes)
@@ -365,17 +356,17 @@ def new_vendor():
                                 return True
                         email_input.on('blur', validate_email)
 
-                # Row 7 - Last Due Diligence Date & Next Required Due Diligence (days)
+                # Row 8 - Last Due Diligence Date & Next Required Due Diligence (days)
                 with ui.element('div').classes(f"{row_classes} {std_row_height}"):
                     with ui.element('div').classes(label_cell_classes):
                         ui.label("Last Due Diligence Date").classes(label_classes)
                     with ui.element('div').classes(input_cell_classes):
-                        with ui.input('MM/DD/YYYY', value='08/25/2025').classes(input_classes).props("outlined") as due_diligence_date:
+                        with ui.input('YYYY-MM-DD', value='2025-08-25').classes(input_classes).props("outlined") as due_diligence_date:
                             due_diligence_error = ui.label('').classes('text-red-600 text-xs mt-1 min-h-[18px]').style('display:none')
                             with ui.menu().props('no-parent-event') as due_diligence_menu:
-                                with ui.date(value='2025-08-25').props('mask=MM/DD/YYYY').bind_value(due_diligence_date, 
-                                    forward=lambda d: d.replace('-', '/') if d else '', 
-                                    backward=lambda d: d.replace('/', '-') if d else ''):
+                                with ui.date(value='2025-08-25').props('mask=YYYY-MM-DD').bind_value(due_diligence_date, 
+                                    forward=lambda d: d, 
+                                    backward=lambda d: d):
                                     with ui.row().classes('justify-end'):
                                         ui.button('Close', on_click=due_diligence_menu.close).props('flat')
                             with due_diligence_date.add_slot('append'):
@@ -413,7 +404,7 @@ def new_vendor():
                                 return True
                         next_due_input.on('blur', validate_next_due)
 
-                # Row 8 - Next Due Diligence Alert & Frequency (in days)
+                # Row 9 - Next Due Diligence Alert & Frequency (in days)
                 with ui.element('div').classes(f"{row_classes} {std_row_height}"):
                     with ui.element('div').classes(label_cell_classes):
                         ui.label("Next Required Due Diligence Alert").classes(label_classes)
@@ -453,8 +444,8 @@ def new_vendor():
                                 return True
                         freq_input.on('blur', validate_freq)
 
-                # Row 9 - Due Diligence Upload & Non-Disclosure Agreement Upload
-                with ui.element('div').classes(f"{row_classes} h-30"):
+                # Row 10 - Due Diligence Upload & Non-Disclosure Agreement Upload
+                with ui.element('div').classes(f"{row_classes} min-h-[200px]"):
                     # Due Diligence
                     with ui.element('div').classes(label_cell_classes):
                         ui.label("Due Diligence").classes(label_classes)
@@ -468,11 +459,12 @@ def new_vendor():
                                     ui.button('Close', on_click=dd_signed_menu.close).props('flat')
                         with due_diligence_signed_date.add_slot('append'):
                             ui.icon('edit_calendar').on('click', dd_signed_menu.open).classes('cursor-pointer')
-                        def handle_due_diligence_upload(e):
-                            if hasattr(e, 'files') and e.files:
-                                due_diligence_file['file'] = getattr(e.files[0], 'file', e.files[0])
-                                ui.notify(f'Due Diligence document uploaded.', type='positive')
-                        ui.upload(on_upload=handle_due_diligence_upload, multiple=True, label="Upload due diligence").props('accept=.pdf color=primary outlined').classes("w-full")
+                        async def handle_due_diligence_upload(e):
+                            if hasattr(e, 'file') and e.file:
+                                file_content = await e.file.read()
+                                due_diligence_file['file'] = file_content
+                                ui.notify(f'Due Diligence document uploaded: {e.file.name}', type='positive')
+                        due_diligence_upload = ui.upload(on_upload=handle_due_diligence_upload, auto_upload=True, multiple=False, label="Upload due diligence (PDF)").props('accept=.pdf color=primary outlined').classes("w-full")
 
                     # NDA
                     with ui.element('div').classes(label_cell_classes):
@@ -487,14 +479,15 @@ def new_vendor():
                                     ui.button('Close', on_click=nda_signed_menu.close).props('flat')
                         with nda_signed_date.add_slot('append'):
                             ui.icon('edit_calendar').on('click', nda_signed_menu.open).classes('cursor-pointer')
-                        def handle_nda_upload(e):
-                            if hasattr(e, 'files') and e.files:
-                                nda_file['file'] = getattr(e.files[0], 'file', e.files[0])
-                                ui.notify(f'NDA document uploaded.', type='positive')
-                        ui.upload(on_upload=handle_nda_upload, multiple=True, label="Upload NDA").props('accept=.pdf color=primary outlined').classes("w-full")
+                        async def handle_nda_upload(e):
+                            if hasattr(e, 'file') and e.file:
+                                file_content = await e.file.read()
+                                nda_file['file'] = file_content
+                                ui.notify(f'NDA document uploaded: {e.file.name}', type='positive')
+                        nda_upload = ui.upload(on_upload=handle_nda_upload, auto_upload=True, multiple=False, label="Upload NDA (PDF)").props('accept=.pdf color=primary outlined').classes("w-full")
 
-                # Row 10 - Integrity Policy Upload & Risk Assessment Form Upload
-                with ui.element('div').classes(f"{row_classes} h-30"):
+                # Row 11 - Integrity Policy Upload & Risk Assessment Form Upload
+                with ui.element('div').classes(f"{row_classes} min-h-[200px]"):
                     # Integrity Policy
                     with ui.element('div').classes(label_cell_classes):
                         ui.label("Integrity Policy").classes(label_classes)
@@ -508,11 +501,12 @@ def new_vendor():
                                     ui.button('Close', on_click=ip_signed_menu.close).props('flat')
                         with integrity_policy_signed_date.add_slot('append'):
                             ui.icon('edit_calendar').on('click', ip_signed_menu.open).classes('cursor-pointer')
-                        def handle_integrity_policy_upload(e):
-                            if hasattr(e, 'files') and e.files:
-                                integrity_policy_file['file'] = getattr(e.files[0], 'file', e.files[0])
-                                ui.notify(f'Integrity Policy document uploaded.', type='positive')
-                        ui.upload(on_upload=handle_integrity_policy_upload, multiple=True, label="Upload policy").props('accept=.pdf color=primary outlined').classes("w-full")
+                        async def handle_integrity_policy_upload(e):
+                            if hasattr(e, 'file') and e.file:
+                                file_content = await e.file.read()
+                                integrity_policy_file['file'] = file_content
+                                ui.notify(f'Integrity Policy document uploaded: {e.file.name}', type='positive')
+                        integrity_policy_upload = ui.upload(on_upload=handle_integrity_policy_upload, auto_upload=True, multiple=False, label="Upload policy (PDF)").props('accept=.pdf color=primary outlined').classes("w-full")
 
                     # Risk Assessment
                     with ui.element('div').classes(label_cell_classes):
@@ -527,13 +521,14 @@ def new_vendor():
                                     ui.button('Close', on_click=ra_signed_menu.close).props('flat')
                         with risk_assessment_signed_date.add_slot('append'):
                             ui.icon('edit_calendar').on('click', ra_signed_menu.open).classes('cursor-pointer')
-                        def handle_risk_assessment_upload(e):
-                            if hasattr(e, 'files') and e.files:
-                                risk_assessment_file['file'] = getattr(e.files[0], 'file', e.files[0])
-                                ui.notify(f'Risk Assessment document uploaded.', type='positive')
-                        ui.upload(on_upload=handle_risk_assessment_upload, multiple=True, label="Upload form").props('accept=.pdf color=primary outlined').classes("w-full")
+                        async def handle_risk_assessment_upload(e):
+                            if hasattr(e, 'file') and e.file:
+                                file_content = await e.file.read()
+                                risk_assessment_file['file'] = file_content
+                                ui.notify(f'Risk Assessment document uploaded: {e.file.name}', type='positive')
+                        risk_assessment_upload = ui.upload(on_upload=handle_risk_assessment_upload, auto_upload=True, multiple=False, label="Upload form (PDF)").props('accept=.pdf color=primary outlined').classes("w-full")
                 
-                # Row 11 - Attention (standard size row for description)
+                # Row 12 - Attention (standard size row for description)
                 with ui.element('div').classes(f"{row_classes} h-24"):
                     with ui.element('div').classes(label_cell_classes):
                         ui.label("Attention").classes(label_classes)
@@ -558,7 +553,7 @@ def new_vendor():
                     with ui.element('div').classes(input_cell_classes):
                         ui.label("").classes(input_classes)
                 
-                # Row 12 - Submit and Cancel buttons inside the table
+                # Row 13 - Submit and Cancel buttons inside the table
                 with ui.element('div').classes("flex w-full h-16"):
                     with ui.element('div').classes("bg-[#144c8e] w-[16.6%] flex items-center"):
                         ui.label("").classes("text-white font-[segoe ui] py-2 px-4 h-full flex items-center")
@@ -583,10 +578,12 @@ def new_vendor():
                             country_select.value = "Please select"
                             phone_input.value = ""
                             email_input.value = ""
-                            due_diligence_date.value = ""
+                            due_diligence_date.value = "2025-08-25"
                             next_due_input.value = "30"
                             next_alert_input.value = "15"
                             freq_input.value = "90"
+                            
+                            # Reset file data
                             due_diligence_file['file'] = None
                             due_diligence_name.value = ""
                             due_diligence_signed_date.value = ""
@@ -600,6 +597,13 @@ def new_vendor():
                             risk_assessment_name.value = ""
                             risk_assessment_signed_date.value = ""
                             attention_input.value = ""
+                            
+                            # Reset upload components UI
+                            due_diligence_upload.reset()
+                            nda_upload.reset()
+                            integrity_policy_upload.reset()
+                            risk_assessment_upload.reset()
+                            
                             # Hide all error labels
                             ab_error.text = moa_error.text = bank_error.text = cif_error.text = ""
                             vendor_name_error.text = contact_person_error.text = address1_error.text = address2_error.text = city_error.text = state_error.text = zip_error.text = country_error.text = phone_error.text = email_error.text = due_diligence_error.text = next_due_error.text = next_alert_error.text = freq_error.text = attention_error.text = ""
@@ -622,8 +626,10 @@ def new_vendor():
                             next_alert_error.style('display:none')
                             freq_error.style('display:none')
                             attention_error.style('display:none')
+                            
+                            ui.notify('✨ Vendor form cleared', type='info')
                         ui.button("Cancel", icon="close", on_click=clear_form).props("flat").classes("text-gray-700")
-                        def submit_form():
+                        async def submit_form():
                             validations = [
                                 validate_country(),
                                 validate_vendor_name(),
@@ -647,6 +653,23 @@ def new_vendor():
                             if not all(validations):
                                 ui.notify('Please fix all required fields before submitting.', type='negative')
                                 return
+                            # Determine if due diligence is required based on uploaded files
+                            has_due_diligence_docs = bool(due_diligence_file.get('file') or nda_file.get('file'))
+                            
+                            # Validate and return date (already in YYYY-MM-DD format)
+                            def validate_date_format(date_str):
+                                """All dates are now in YYYY-MM-DD format from the date pickers"""
+                                if not date_str:
+                                    return None
+                                date_str = date_str.strip()
+                                if not date_str:
+                                    return None
+                                # Date should already be in YYYY-MM-DD format
+                                if len(date_str) == 10 and date_str[4] == '-' and date_str[7] == '-':
+                                    return date_str
+                                print(f"Invalid date format: {date_str}, expected YYYY-MM-DD")
+                                return None
+                            
                             # Collect all field values in backend format
                             vendor_data = {
                                 "vendor_name": vendor_name_input.value,
@@ -654,7 +677,6 @@ def new_vendor():
                                 "vendor_country": country_select.value,
                                 "material_outsourcing_arrangement": moa_select.value,
                                 "bank_customer": bank_select.value,
-                                "cif": cif_input.value if bank_select.value in ["Aruba Bank", "Orco Bank"] else "",
                                 "addresses": [
                                     {
                                         "address": address1_input.value,
@@ -669,38 +691,227 @@ def new_vendor():
                                 "phones": [
                                     {"area_code": "+1", "phone_number": phone_input.value}
                                 ],
-                                "due_diligence_required": "No"
+                                "due_diligence_required": "Yes" if has_due_diligence_docs else "No"
                             }
+                            
+                            # Only add CIF if bank customer is Aruba Bank or Orco Bank
+                            if bank_select.value in ["Aruba Bank", "Orco Bank"]:
+                                vendor_data["cif"] = cif_input.value
+                            
+                            # Add due diligence fields if required
+                            if has_due_diligence_docs:
+                                last_dd_date = validate_date_format(due_diligence_date.value)
+                                if not last_dd_date:
+                                    ui.notify('Please select a valid Last Due Diligence Date (format: YYYY-MM-DD)', type='negative')
+                                    return
+                                vendor_data["last_due_diligence_date"] = last_dd_date
+                                vendor_data["next_required_due_diligence_days"] = f"{next_due_input.value} days"
+                                vendor_data["next_required_due_diligence_alert_days"] = int(next_alert_input.value)
+                                vendor_data["next_required_due_diligence_alert_frequency"] = f"{freq_input.value} days"
                             # Use environment variable or default to 127.0.0.1 (more reliable than localhost in Docker)
                             api_host = os.getenv("API_BASE_URL", "http://127.0.0.1:8000")
                             url = f"{api_host}{settings.api_v1_prefix}/vendors/"
+                            
+                            # Build files dict - only include vendor_data as form field
                             files = {'vendor_data': (None, json.dumps(vendor_data))}
-                            # Add files and metadata if present
-                            if due_diligence_file['file']:
+                            
+                            # Debug: Check what files we have
+                            print(f"\n📄 Files status:")
+                            print(f"  Due Diligence: {'✓' if due_diligence_file.get('file') else '✗'}")
+                            print(f"  NDA: {'✓' if nda_file.get('file') else '✗'}")
+                            print(f"  Risk Assessment: {'✓' if risk_assessment_file.get('file') else '✗'}")
+                            print(f"  Integrity Policy: {'✓' if integrity_policy_file.get('file') else '✗'}")
+                            print()
+                            
+                            # Add files and metadata ONLY if they exist and have content
+                            if due_diligence_file.get('file'):
+                                dd_name = due_diligence_name.value.strip() if due_diligence_name.value else ''
+                                dd_date = due_diligence_signed_date.value.strip() if due_diligence_signed_date.value else ''
+                                
+                                print(f"📋 Due Diligence fields:")
+                                print(f"  Name: '{dd_name}'")
+                                print(f"  Date: '{dd_date}'")
+                                
+                                if not dd_name or not dd_date:
+                                    ui.notify('⚠️ Please provide document name and signed date for Due Diligence', type='warning')
+                                    return
+                                
+                                # Validate date format (should be YYYY-MM-DD)
+                                if not validate_date_format(dd_date):
+                                    ui.notify(f'Invalid date format for Due Diligence signed date: {dd_date}. Expected YYYY-MM-DD', type='negative')
+                                    return
+                                
+                                print(f"Due Diligence doc - Name: {dd_name}, Date: {dd_date}")
                                 files['due_diligence_doc'] = ('due_diligence.pdf', due_diligence_file['file'], 'application/pdf')
-                                files['due_diligence_name'] = (None, due_diligence_name.value)
-                                files['due_diligence_signed_date'] = (None, due_diligence_signed_date.value)
-                            if nda_file['file']:
+                                files['due_diligence_name'] = (None, dd_name)
+                                files['due_diligence_signed_date'] = (None, dd_date)
+                            
+                            if nda_file.get('file'):
+                                nda_name_val = nda_name.value.strip() if nda_name.value else ''
+                                nda_date_val = nda_signed_date.value.strip() if nda_signed_date.value else ''
+                                
+                                print(f"📋 NDA fields:")
+                                print(f"  Name: '{nda_name_val}'")
+                                print(f"  Date: '{nda_date_val}'")
+                                
+                                if not nda_name_val or not nda_date_val:
+                                    ui.notify('⚠️ Please provide document name and signed date for NDA', type='warning')
+                                    return
+                                
+                                # Validate date format (should be YYYY-MM-DD)
+                                if not validate_date_format(nda_date_val):
+                                    ui.notify(f'Invalid date format for NDA signed date: {nda_date_val}. Expected YYYY-MM-DD', type='negative')
+                                    return
+                                
+                                print(f"NDA doc - Name: {nda_name_val}, Date: {nda_date_val}")
                                 files['non_disclosure_doc'] = ('nda.pdf', nda_file['file'], 'application/pdf')
-                                files['non_disclosure_name'] = (None, nda_name.value)
-                                files['non_disclosure_signed_date'] = (None, nda_signed_date.value)
-                            if risk_assessment_file['file']:
+                                files['non_disclosure_name'] = (None, nda_name_val)
+                                files['non_disclosure_signed_date'] = (None, nda_date_val)
+                            
+                            if risk_assessment_file.get('file'):
+                                ra_name_val = risk_assessment_name.value.strip() if risk_assessment_name.value else ''
+                                ra_date_val = risk_assessment_signed_date.value.strip() if risk_assessment_signed_date.value else ''
+                                
+                                print(f"📋 Risk Assessment fields:")
+                                print(f"  Name: '{ra_name_val}'")
+                                print(f"  Date: '{ra_date_val}'")
+                                
+                                if not ra_name_val or not ra_date_val:
+                                    ui.notify('⚠️ Please provide document name and signed date for Risk Assessment', type='warning')
+                                    return
+                                
+                                # Validate date format (should be YYYY-MM-DD)
+                                if not validate_date_format(ra_date_val):
+                                    ui.notify(f'Invalid date format for Risk Assessment signed date: {ra_date_val}. Expected YYYY-MM-DD', type='negative')
+                                    return
+                                
+                                print(f"Risk Assessment doc - Name: {ra_name_val}, Date: {ra_date_val}")
                                 files['risk_assessment_doc'] = ('risk_assessment.pdf', risk_assessment_file['file'], 'application/pdf')
-                                files['risk_assessment_name'] = (None, risk_assessment_name.value)
-                                files['risk_assessment_signed_date'] = (None, risk_assessment_signed_date.value)
-                            if integrity_policy_file['file']:
+                                files['risk_assessment_name'] = (None, ra_name_val)
+                                files['risk_assessment_signed_date'] = (None, ra_date_val)
+                            
+                            if integrity_policy_file.get('file'):
+                                ip_name_val = integrity_policy_name.value.strip() if integrity_policy_name.value else ''
+                                ip_date_val = integrity_policy_signed_date.value.strip() if integrity_policy_signed_date.value else ''
+                                
+                                print(f"📋 Integrity Policy fields:")
+                                print(f"  Name: '{ip_name_val}'")
+                                print(f"  Date: '{ip_date_val}'")
+                                
+                                if not ip_name_val or not ip_date_val:
+                                    ui.notify('⚠️ Please provide document name and signed date for Integrity Policy', type='warning')
+                                    return
+                                
+                                # Validate date format (should be YYYY-MM-DD)
+                                if not validate_date_format(ip_date_val):
+                                    ui.notify(f'Invalid date format for Integrity Policy signed date: {ip_date_val}. Expected YYYY-MM-DD', type='negative')
+                                    return
+                                
+                                print(f"Integrity Policy doc - Name: {ip_name_val}, Date: {ip_date_val}")
                                 files['integrity_policy_doc'] = ('integrity_policy.pdf', integrity_policy_file['file'], 'application/pdf')
-                                files['integrity_policy_name'] = (None, integrity_policy_name.value)
-                                files['integrity_policy_signed_date'] = (None, integrity_policy_signed_date.value)
+                                files['integrity_policy_name'] = (None, ip_name_val)
+                                files['integrity_policy_signed_date'] = (None, ip_date_val)
+                            
                             try:
-                                response = requests.post(url, files=files)
-                                if response.status_code == 201:
-                                    ui.notify('Vendor submitted successfully!', type='positive')
-                                    clear_form()
-                                else:
-                                    ui.notify(f'Error: {response.text}', type='negative')
+                                # Debug: Log the data being sent
+                                print(f"\n{'='*60}")
+                                print(f"SUBMITTING VENDOR TO API")
+                                print(f"{'='*60}")
+                                print(f"Sending vendor data: {json.dumps(vendor_data, indent=2)}")
+                                if has_due_diligence_docs:
+                                    print(f"Due diligence date: {vendor_data.get('last_due_diligence_date')}")
+                                
+                                # Print all form fields being sent
+                                print(f"\n📤 Form fields being sent:")
+                                for key, value in files.items():
+                                    if isinstance(value, tuple):
+                                        if value[0] is None:  # Form field
+                                            print(f"  {key}: '{value[1]}'")
+                                        else:  # File upload
+                                            print(f"  {key}: <file: {value[0]}>")
+                                    else:
+                                        print(f"  {key}: {value}")
+                                
+                                print(f"\nURL: {url}")
+                                print(f"{'='*60}\n")
+                                
+                                async with httpx.AsyncClient(timeout=30.0) as client:
+                                    response = await client.post(url, files=files)
+                                    
+                                    print(f"\n{'='*60}")
+                                    print(f"API RESPONSE")
+                                    print(f"{'='*60}")
+                                    print(f"Status Code: {response.status_code}")
+                                    print(f"Response Body: {response.text[:500]}")  # First 500 chars
+                                    print(f"{'='*60}\n")
+                                    
+                                    if response.status_code == 201:
+                                        # SUCCESS!
+                                        try:
+                                            result = response.json()
+                                            vendor_id = result.get('vendor_id', 'N/A')
+                                            vendor_name = result.get('vendor_name', vendor_data.get('vendor_name'))
+                                            ui.notify(
+                                                f'✅ SUCCESS! Vendor "{vendor_name}" (ID: {vendor_id}) created successfully!',
+                                                type='positive',
+                                                position='top',
+                                                close_button=True,
+                                                timeout=5000
+                                            )
+                                            print(f"✅ Vendor created successfully: {vendor_id}")
+                                            clear_form()
+                                        except Exception as parse_error:
+                                            print(f"Parse error (but vendor created): {parse_error}")
+                                            ui.notify('✅ Vendor created successfully!', type='positive')
+                                            clear_form()
+                                    else:
+                                        # ERROR
+                                        error_text = ""
+                                        try:
+                                            error_json = response.json()
+                                            if 'detail' in error_json:
+                                                detail = error_json['detail']
+                                                
+                                                # Check for duplicate vendor error
+                                                if 'duplicate key' in str(detail).lower() and 'vendor_id' in str(detail).lower():
+                                                    # Extract vendor ID from error
+                                                    import re
+                                                    match = re.search(r'\(([A-Z]+\d+)\)', str(detail))
+                                                    vendor_id = match.group(1) if match else 'unknown'
+                                                    error_text = f"⚠️ Vendor ID {vendor_id} already exists. The previous vendor was created successfully!"
+                                                    ui.notify(error_text, type='warning', close_button=True, timeout=8000)
+                                                    print(f"ℹ️ {error_text}")
+                                                    return  # Exit early for duplicate
+                                                
+                                                # Check for validation errors
+                                                if isinstance(detail, dict) and 'errors' in detail:
+                                                    errors = detail['errors']
+                                                    error_text = '\n'.join(errors) if isinstance(errors, list) else str(errors)
+                                                elif 'validation error' in str(detail).lower():
+                                                    # Extract the key error message
+                                                    error_lines = str(detail).split('\n')
+                                                    error_text = '\n'.join([line for line in error_lines if line.strip() and 'For further information' not in line])
+                                                else:
+                                                    error_text = str(detail)
+                                            else:
+                                                error_text = str(error_json)
+                                        except:
+                                            error_text = response.text[:300]
+                                        
+                                        print(f"❌ Error creating vendor: {error_text}")
+                                        ui.notify(f'❌ Error: {error_text}', type='negative', close_button=True, timeout=15000)
+                                        
+                            except httpx.TimeoutException:
+                                print(f"❌ Request timeout")
+                                ui.notify('⏱️ Request timed out. Please try again.', type='negative')
+                            except httpx.ConnectError as e:
+                                print(f"❌ Connection error: {e}")
+                                ui.notify('🔌 Cannot connect to server. Make sure it is running.', type='negative')
                             except Exception as e:
-                                ui.notify(f'Connection error: {e}', type='negative')
+                                print(f"❌ Unexpected error: {type(e).__name__}: {e}")
+                                import traceback
+                                traceback.print_exc()
+                                ui.notify(f'❌ Unexpected error: {str(e)}', type='negative')
                         ui.button("Submit", icon="check", on_click=submit_form).classes("bg-[#144c8e] text-white")
             
            
