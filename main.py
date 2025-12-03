@@ -200,14 +200,14 @@ def vendors_list_page():
     vendors_list()
 
 
-@ui.page("/vendor-info")
-def vendor_info_page():
+@ui.page("/vendor-info/{vendor_id}")
+def vendor_info_page(vendor_id: int):
     """Vendor information page"""
     if not nicegui_app.storage.user.get('logged_in'):
         ui.navigate.to('/login')
         return
     header()
-    vendor_info()
+    vendor_info(vendor_id)
 
 
 @ui.page("/contract-managers")
@@ -256,7 +256,10 @@ def contract_updates_page():
 
 ui.run_with(
     root_app,
-    mount_path='/',  # Mount at root for seamless integration
-    storage_secret='jhdshd-d287y487f-ISUd-jsd92-287yds',
-    title="Aruba Bank - Contract Management"
+    mount_path='/',
+    storage_secret='jhdshd-d287y487f-ISUd-jsd92-287yds'
 )
+
+if __name__ == '__main__':
+    import uvicorn
+    uvicorn.run('main:root_app', host='0.0.0.0', port=8000, log_level='info', reload=True)

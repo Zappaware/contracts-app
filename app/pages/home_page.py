@@ -11,6 +11,21 @@ def home_page():
     contract_rows = []
     manager_label = None
     
+    # Fetch vendor count from database
+    vendor_count = 0
+    try:
+        from app.db.database import SessionLocal
+        from app.services.vendor_service import VendorService
+        db = SessionLocal()
+        try:
+            vendor_service = VendorService(db)
+            _, vendor_count = vendor_service.get_vendors_with_filters(skip=0, limit=1, status_filter=None, search=None)
+        finally:
+            db.close()
+    except Exception as e:
+        print(f"Error fetching vendor count: {e}")
+        vendor_count = 0
+    
     # Function to show the contracts table
     def show_contracts_table():
         contracts_table_container.visible = True
@@ -89,13 +104,13 @@ def home_page():
                 ui.label("Pending Reviews").classes("text-lg font-bold")
                 ui.label("Contracts awaiting review").classes("text-sm text-gray-500")
                 ui.label("23").classes("text-2xl font-medium text-primary mt-2")
-            with ui.link(target='/active-contracts').classes('no-underline w-full').style('text-decoration: none !important;'):
+            with ui.link(target='/vendors').classes('no-underline w-full').style('text-decoration: none !important;'):
                 with ui.card().classes("w-full cursor-pointer hover:bg-gray-50 transition-colors shadow-lg").props('flat'):
                     with ui.row().classes('items-center gap-2'):
-                        ui.icon('search', color='primary').style('font-size: 28px')
-                ui.label("Total Vendors").classes("text-lg font-bold")
-                ui.label("Registered vendors").classes("text-sm text-gray-500")
-                ui.label("89").classes("text-2xl font-medium text-primary mt-2")
+                        ui.icon('business', color='primary').style('font-size: 28px')
+                ui.label("Vendors List").classes("text-lg font-bold")
+                ui.label("View all registered vendors").classes("text-sm text-gray-500")
+                ui.label(str(vendor_count)).classes("text-2xl font-medium text-primary mt-2")
             with ui.card().classes("w-full cursor-pointer hover:bg-gray-50 transition-colors shadow-lg").props('flat').on('click', show_contracts_table):
                 with ui.row().classes('items-center gap-2'):
                     ui.icon('warning', color='primary').style('font-size: 28px')
