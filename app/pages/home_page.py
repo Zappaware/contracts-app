@@ -26,6 +26,31 @@ def home_page():
         print(f"Error fetching vendor count: {e}")
         vendor_count = 0
     
+    # Fetch active contracts count from database
+    active_contracts_count = 0
+    try:
+        from app.services.contract_service import ContractService
+        from app.models.contract import ContractStatusType
+        db = SessionLocal()
+        try:
+            contract_service = ContractService(db)
+            _, active_contracts_count = contract_service.search_and_filter_contracts(
+                skip=0,
+                limit=1,
+                status=ContractStatusType.ACTIVE,
+                search=None,
+                contract_type=None,
+                department=None,
+                owner_id=None,
+                vendor_id=None,
+                expiring_soon=None
+            )
+        finally:
+            db.close()
+    except Exception as e:
+        print(f"Error fetching active contracts count: {e}")
+        active_contracts_count = 0
+    
     # Function to show the contracts table
     def show_contracts_table():
         contracts_table_container.visible = True
@@ -80,7 +105,7 @@ def home_page():
                         ui.icon('article', color='primary').style('font-size: 28px')
                 ui.label("Active Contracts").classes("text-lg font-bold")
                 ui.label("Currently active contracts").classes("text-sm text-gray-500")
-                ui.label("1,247").classes("text-2xl font-medium text-primary mt-2")
+                ui.label(str(active_contracts_count)).classes("text-2xl font-medium text-primary mt-2")
             with ui.link(target='/pending-contracts').classes('no-underline w-full').style('text-decoration: none !important;'):
                 with ui.card().classes("w-full cursor-pointer hover:bg-gray-50 transition-colors shadow-lg").props('flat'):
                     with ui.row().classes('items-center gap-2'):

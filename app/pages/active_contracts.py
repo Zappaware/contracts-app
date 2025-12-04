@@ -1,5 +1,8 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 from nicegui import ui
+from app.db.database import SessionLocal
+from app.services.contract_service import ContractService
+from app.models.contract import ContractStatusType
 
 
 def active_contracts():
@@ -50,106 +53,102 @@ def active_contracts():
         contracts_table.rows = filtered
         contracts_table.update()
     
-    # Mock data for active contracts
-    def get_mock_active_contracts():
+    # Fetch active contracts from database
+    def fetch_active_contracts():
         """
-        Simulates active contracts.
-        This will be replaced with actual API call when available.
+        Fetches active contracts directly from the database service.
+        This avoids HTTP requests and circular dependencies.
         """
-        today = datetime.now()
-        
-        mock_contracts = [
-            {
-                "contract_id": "CTR-2024-001",
-                "vendor_name": "Acme Corp",
-                "contract_type": "Service Agreement",
-                "description": "IT Support Services",
-                "expiration_date": today + timedelta(days=180),
-                "manager": "William Defoe",
-                "role": "owned"
-            },
-            {
-                "contract_id": "CTR-2024-012",
-                "vendor_name": "Beta Technologies",
-                "contract_type": "Software License",
-                "description": "Enterprise Software Licensing",
-                "expiration_date": today + timedelta(days=240),
-                "manager": "John Doe",
-                "role": "backup"
-            },
-            {
-                "contract_id": "CTR-2024-023",
-                "vendor_name": "Gamma Consulting",
-                "contract_type": "Consulting",
-                "description": "Business Process Optimization",
-                "expiration_date": today + timedelta(days=150),
-                "manager": "William Defoe",
-                "role": "owned"
-            },
-            {
-                "contract_id": "CTR-2024-034",
-                "vendor_name": "Delta Logistics",
-                "contract_type": "Transportation",
-                "description": "Freight and Delivery Services",
-                "expiration_date": today + timedelta(days=200),
-                "manager": "John Doe",
-                "role": "backup"
-            },
-            {
-                "contract_id": "CTR-2023-089",
-                "vendor_name": "Epsilon Security",
-                "contract_type": "Security Services",
-                "description": "Building Security and Monitoring",
-                "expiration_date": today + timedelta(days=365),
-                "manager": "William Defoe",
-                "role": "owned"
-            },
-            {
-                "contract_id": "CTR-2024-045",
-                "vendor_name": "Zeta Solutions",
-                "contract_type": "Maintenance",
-                "description": "Equipment Maintenance Contract",
-                "expiration_date": today + timedelta(days=120),
-                "manager": "John Doe",
-                "role": "backup"
-            },
-            {
-                "contract_id": "CTR-2024-056",
-                "vendor_name": "Eta Services",
-                "contract_type": "Cleaning Services",
-                "description": "Office Cleaning and Janitorial",
-                "expiration_date": today + timedelta(days=275),
-                "manager": "William Defoe",
-                "role": "owned"
-            },
-            {
-                "contract_id": "CTR-2024-067",
-                "vendor_name": "Theta Communications",
-                "contract_type": "Telecommunications",
-                "description": "Internet and Phone Services",
-                "expiration_date": today + timedelta(days=300),
-                "manager": "John Doe",
-                "role": "backup"
-            },
-        ]
-        
-        rows = []
-        for contract in mock_contracts:
-            exp_date = contract["expiration_date"]
+        db = SessionLocal()
+        try:
+            contract_service = ContractService(db)
             
-            rows.append({
-                "contract_id": contract["contract_id"],
-                "vendor_name": contract["vendor_name"],
-                "contract_type": contract["contract_type"],
-                "description": contract["description"],
-                "expiration_date": exp_date.strftime("%Y-%m-%d"),
-                "expiration_timestamp": exp_date.timestamp(),  # For sorting
-                "status": "Active",
-                "manager": contract["manager"],
-                "role": contract["role"],
-            })
-        
-        return rows
+            # Get active contracts only (limit 1000 for display)
+            contracts, _ = contract_service.search_and_filter_contracts(
+                skip=0,
+                limit=1000,
+                status=ContractStatusType.ACTIVE,
+                search=None,
+                contract_type=None,
+                department=None,
+                owner_id=None,
+                vendor_id=None,
+                expiring_soon=None
+            )
+            
+            print(f"Found {len(contracts)} active contracts from database")
+            
+            if not contracts:
+                print("No active contracts found in database")
+                return []
+            
+            # Map contract data to table row format
+            rows = []
+            for contract in contracts:
+                # Get contract owner name
+                owner_name = f"{contract.contract_owner.first_name} {contract.contract_owner.last_name}"
+                backup_name = f"{contract.contract_owner_backup.first_name} {contract.contract_owner_backup.last_name}"
+                
+                # Get vendor info
+                vendor_name = contract.vendor.vendor_name if contract.vendor else "Unknown"
+                vendor_id = contract.vendor.id if contract.vendor else None
+                
+                # Get contract type value
+                contract_type = contract.contract_type.value if hasattr(contract.contract_type, 'value') else str(contract.contract_type)
+                
+                # Get status value
+                status = contract.status.value if hasattr(contract.status, 'value') else str(contract.status)
+                
+                # Format expiration date (end_date)
+                if contract.end_date:
+                    if isinstance(contract.end_date, date):
+                        exp_date = contract.end_date
+                        formatted_date = exp_date.strftime("%Y-%m-%d")
+                        exp_timestamp = datetime.combine(exp_date, datetime.min.time()).timestamp()
+                    else:
+                        formatted_date = str(contract.end_date)
+                        exp_timestamp = 0
+                else:
+                    formatted_date = "N/A"
+                    exp_timestamp = 0
+                
+                # Determine role based on user (for demo, using contract owner ID)
+                # Odd IDs = William Defoe (owned), Even IDs = John Doe (backup)
+                # In real app, you'd check against current logged-in user
+                if contract.contract_owner_id % 2 == 1:
+                    manager = owner_name
+                    role = "owned"
+                else:
+                    manager = backup_name
+                    role = "backup"
+                
+                row_data = {
+                    "id": int(contract.id),
+                    "contract_id": str(contract.contract_id or ""),
+                    "vendor_id": int(vendor_id) if vendor_id else 0,
+                    "vendor_name": str(vendor_name or ""),
+                    "contract_type": str(contract_type or ""),
+                    "description": str(contract.contract_description or ""),
+                    "expiration_date": str(formatted_date),
+                    "expiration_timestamp": float(exp_timestamp),
+                    "status": str(status or "Unknown"),
+                    "manager": str(manager),
+                    "role": str(role),
+                }
+                rows.append(row_data)
+            
+            print(f"Processed {len(rows)} contract rows")
+            return rows
+            
+        except Exception as e:
+            error_msg = f"Error fetching contracts: {str(e)}"
+            print(error_msg)
+            import traceback
+            traceback.print_exc()
+            ui.notify(error_msg, type="negative")
+            return []
+        finally:
+            db.close()
 
     contract_columns = [
         {
@@ -207,7 +206,18 @@ def active_contracts():
         "headerClasses": "bg-[#144c8e] text-white",
     }
 
-    contract_rows = get_mock_active_contracts()
+    # Fetch contracts data
+    contract_rows = []
+    
+    # Initial fetch
+    contract_rows = fetch_active_contracts()
+    
+    # Debug: Check if we have data
+    print(f"Total contract rows fetched: {len(contract_rows)}")
+    if contract_rows:
+        print(f"First row sample: {contract_rows[0]}")
+    else:
+        ui.notify("No active contracts available. Please check the database.", type="warning")
     
     # Main container
     with ui.element("div").classes("max-w-6xl mt-8 mx-auto w-full"):
@@ -232,6 +242,10 @@ def active_contracts():
             manager_label = ui.label("Manager: John Doe").classes(
                 "text-base font-semibold text-primary"
             )
+        
+        # Count label row
+        with ui.row().classes('ml-4 mb-2'):
+            count_label = ui.label(f"Total: {len(contract_rows)} contracts").classes("text-sm text-gray-500")
         
         # Define search functions first
         def filter_contracts():
@@ -268,17 +282,41 @@ def active_contracts():
             ui.button(icon='search', on_click=filter_contracts).props('color=primary')
             ui.button(icon='clear', on_click=clear_search).props('color=secondary')
         
+        # Show message if no data
+        if not contract_rows:
+            with ui.card().classes("w-full p-6"):
+                ui.label("No active contracts found").classes("text-lg font-bold text-gray-500")
+                ui.label("Please check that the backend has contract data.").classes("text-sm text-gray-400 mt-2")
+        
         # Create table after search bar (showing backup contracts by default - John Doe)
-        initial_rows = [row for row in contract_rows if row['role'] == 'backup']
+        initial_rows = [row for row in contract_rows if row.get('role') == 'backup']
+        print(f"Creating table with {len(initial_rows)} rows (filtered by role: backup)")
+        
         contracts_table = ui.table(
             columns=contract_columns,
             column_defaults=contract_columns_defaults,
             rows=initial_rows,
             pagination=10,
-            row_key="contract_id"
+            row_key="id"
         ).classes("w-full").props("flat bordered").classes(
             "contracts-table shadow-lg rounded-lg overflow-hidden"
         )
+        
+        # Force update if we have data
+        if initial_rows:
+            contracts_table.update()
+        
+        # Refresh function (defined after table is created)
+        def refresh_contracts():
+            nonlocal contract_rows
+            contract_rows = fetch_active_contracts()
+            count_label.set_text(f"Total: {len(contract_rows)} contracts")
+            # Reapply current filters
+            filter_contracts()
+            ui.notify(f"Refreshed: {len(contract_rows)} active contracts loaded", type="info")
+        
+        # Add refresh button
+        ui.button("Refresh", icon="refresh", on_click=refresh_contracts).props('color=primary flat').classes('ml-4')
         
         search_input.on_value_change(filter_contracts)
         
@@ -302,10 +340,10 @@ def active_contracts():
             }
         """)
         
-        # Add slot for vendor name with clickable link
+        # Add slot for vendor name with clickable link (links to vendor details)
         contracts_table.add_slot('body-cell-vendor_name', '''
             <q-td :props="props">
-                <a :href="'/vendor-info'" class="text-blue-600 hover:text-blue-800 underline cursor-pointer">
+                <a :href="'/vendor-info/' + props.row.vendor_id" class="text-blue-600 hover:text-blue-800 underline cursor-pointer">
                     {{ props.value }}
                 </a>
             </q-td>
