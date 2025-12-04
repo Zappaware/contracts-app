@@ -66,6 +66,16 @@ Once running:
 - **API Documentation**: http://localhost:8000/api/v1/docs
 - **API Health Check**: http://localhost:8000/api/v1/health
 
+**Default Users** (automatically seeded on first run):
+
+| Email | Password | Role | Department |
+|-------|----------|------|------------|
+| william.defoe@arubabank.com | password123 | Contract Admin | IT |
+| john.doe@arubabank.com | password123 | Contract Manager | Operations |
+| jane.smith@arubabank.com | password123 | Contract Manager Backup | Finance |
+
+> ⚠️ **Important**: Change these passwords in production!
+
 ### 5. Stop the application
 
 ```bash
@@ -114,13 +124,21 @@ DATABASE_URL=postgresql://user:password@localhost:5432/aruba_bank
 alembic upgrade head
 ```
 
-5. **Start the monolithic application**
+5. **Seed initial users** (first time only)
+
+```bash
+python seed_users.py
+```
+
+This creates 3 default users (see table above). The script is safe to run multiple times - it will skip if users already exist.
+
+6. **Start the monolithic application**
 
 ```bash
 uvicorn main:root_app --reload --host 0.0.0.0 --port 8000
 ```
 
-6. **Access the application**
+7. **Access the application**
 
 - Web UI: http://localhost:8000/
 - API Docs: http://localhost:8000/api/v1/docs
@@ -280,6 +298,54 @@ alembic upgrade head
 
 ```bash
 alembic downgrade -1
+```
+
+## Database Initialization
+
+### First Time Setup
+
+When setting up a fresh database, you need to:
+
+1. **Run migrations** (creates all tables):
+```bash
+alembic upgrade head
+```
+
+2. **Seed initial users** (creates 3 default users):
+```bash
+python seed_users.py
+```
+
+The seed script creates:
+- **Contract Admin** (william.defoe@arubabank.com) - Full permissions
+- **Contract Manager** (john.doe@arubabank.com) - Manage contracts
+- **Contract Manager Backup** (jane.smith@arubabank.com) - View-only backup role
+
+All default passwords are `password123` - **change these in production!**
+
+### Docker Automatic Initialization
+
+When using Docker (`docker-compose up`), the initialization happens automatically:
+- Database migrations run on container startup
+- Users are seeded if the database is empty
+- No manual intervention needed
+
+### Manual User Creation
+
+To create additional users via API:
+
+```bash
+curl -X POST "http://localhost:8000/api/v1/auth/register" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "user@arubabank.com",
+    "password": "securepassword",
+    "first_name": "John",
+    "last_name": "Doe",
+    "department": "IT",
+    "position": "Developer",
+    "role": "Contract Manager"
+  }'
 ```
 
 ## Useful Commands
