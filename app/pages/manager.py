@@ -1,6 +1,4 @@
-
 from datetime import datetime, timedelta
-
 import requests
 from nicegui import ui
 
@@ -10,6 +8,32 @@ def manager():
     contracts_table = None
     contract_rows = []
     manager_label = None
+    
+    # Fetch active contracts count from database
+    active_contracts_count = 0
+    try:
+        from app.db.database import SessionLocal
+        from app.services.contract_service import ContractService
+        from app.models.contract import ContractStatusType
+        db = SessionLocal()
+        try:
+            contract_service = ContractService(db)
+            _, active_contracts_count = contract_service.search_and_filter_contracts(
+                skip=0,
+                limit=1,
+                status=ContractStatusType.ACTIVE,
+                search=None,
+                contract_type=None,
+                department=None,
+                owner_id=None,
+                vendor_id=None,
+                expiring_soon=None
+            )
+        finally:
+            db.close()
+    except Exception as e:
+        print(f"Error fetching active contracts count: {e}")
+        active_contracts_count = 0
     
     # Function to handle owned/backup toggle
     def on_role_toggle(e):
@@ -60,7 +84,7 @@ def manager():
                         ui.icon('article', color='primary').style('font-size: 28px')
                         ui.label("Active Contracts").classes("text-lg font-bold")
                     ui.label("Currently active contracts").classes("text-sm text-gray-500 mt-2")
-                    ui.label("1,247").classes("text-2xl font-medium text-primary mt-2")
+                    ui.label(str(active_contracts_count)).classes("text-2xl font-medium text-primary mt-2")
             
             # Card 2: Pending Documents
             with ui.link(target='/pending-contracts').classes('no-underline w-full').style('text-decoration: none !important;'):
@@ -71,14 +95,14 @@ def manager():
                     ui.label("Contracts missing documents").classes("text-sm text-gray-500 mt-2")
                     ui.label("12").classes("text-2xl font-medium text-primary mt-2")
             
-            # Card 3: Pending Reviews
-            with ui.link(target='/pending-reviews').classes('no-underline w-full').style('text-decoration: none !important;'):
+            # Card 3: Contract Updates
+            with ui.link(target='/contract-updates').classes('no-underline w-full').style('text-decoration: none !important;'):
                 with ui.card().classes("w-full cursor-pointer hover:bg-gray-50 transition-colors shadow-lg").props('flat'):
                     with ui.row().classes('items-center gap-2'):
-                        ui.icon('pending', color='primary').style('font-size: 28px')
-                        ui.label("Pending Reviews").classes("text-lg font-bold")
-                    ui.label("Contracts awaiting review").classes("text-sm text-gray-500 mt-2")
-                    ui.label("23").classes("text-2xl font-medium text-primary mt-2")
+                        ui.icon('update', color='primary').style('font-size: 28px')
+                        ui.label("Contract Updates").classes("text-lg font-bold")
+                    ui.label("Review manager responses and updates").classes("text-sm text-gray-500 mt-2")
+                    ui.label("15").classes("text-2xl font-medium text-primary mt-2")
 
     # ===== COMMENTED OUT: Vendor List Section =====
     # with ui.element("div").classes("max-w-6xl mt-8 mx-auto w-full"):
