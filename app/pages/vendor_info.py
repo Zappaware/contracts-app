@@ -109,7 +109,7 @@ def vendor_info(vendor_id: int):
                     if vendor.documents:
                         ui.label(f"Documents uploaded: {len(vendor.documents)}")
                         for doc in vendor.documents[:3]:  # Show first 3
-                            ui.label(f"  • {doc.document_type.value}: {doc.document_name}").classes("text-sm")
+                            ui.label(f"  • {doc.document_type.value}: {doc.custom_document_name}").classes("text-sm")
                     else:
                         ui.label("No documents uploaded").classes("text-gray-500")
 
