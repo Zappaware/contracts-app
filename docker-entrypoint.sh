@@ -15,6 +15,10 @@ alembic upgrade head
 echo "🌱 Checking if users need to be seeded..."
 python seed_users.py
 
+# Seed vendors and contracts if database is empty
+echo "🌱 Checking if vendors and contracts need to be seeded..."
+python seed_vendors_contracts.py
+
 echo "✅ Initialization complete!"
 echo "🌐 Starting application server..."
 

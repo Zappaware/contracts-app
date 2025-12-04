@@ -132,13 +132,21 @@ python seed_users.py
 
 This creates 3 default users (see table above). The script is safe to run multiple times - it will skip if users already exist.
 
-6. **Start the monolithic application**
+6. **Seed vendors and contracts** (optional, for testing)
+
+```bash
+python seed_vendors_contracts.py
+```
+
+This creates 10 vendors with documents and 10 contracts. The script is safe to run multiple times - it will skip if data already exists. All documents are automatically generated as dummy PDFs.
+
+7. **Start the monolithic application**
 
 ```bash
 uvicorn main:root_app --reload --host 0.0.0.0 --port 8000
 ```
 
-7. **Access the application**
+8. **Access the application**
 
 - Web UI: http://localhost:8000/
 - API Docs: http://localhost:8000/api/v1/docs

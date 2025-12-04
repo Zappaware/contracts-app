@@ -15,8 +15,8 @@ COPY . .
 # Convert line endings and make executable (safe for both Windows and Linux)
 RUN sed -i 's/\r$//' docker-entrypoint.sh && chmod +x docker-entrypoint.sh
 
-# Make entrypoint script executable
-RUN chmod +x docker-entrypoint.sh
+# Convert line endings and make executable (safe for both Windows and Linux)
+RUN sed -i 's/\r$//' docker-entrypoint.sh && chmod +x docker-entrypoint.sh
 
 # Use entrypoint script to run migrations and seed data before starting app
 ENTRYPOINT ["./docker-entrypoint.sh"]
