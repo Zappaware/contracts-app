@@ -1,5 +1,12 @@
 from datetime import datetime, timedelta
 from nicegui import ui
+import io
+import base64
+try:
+    import pandas as pd
+    PANDAS_AVAILABLE = True
+except ImportError:
+    PANDAS_AVAILABLE = False
 
 
 def pending_reviews():
@@ -211,18 +218,22 @@ def pending_reviews():
     
     # Main container
     with ui.element("div").classes("max-w-6xl mt-8 mx-auto w-full"):
-        # Section header with toggle
+        # Section header with toggle and Generate button
         with ui.row().classes('items-center justify-between ml-4 mb-4 w-full'):
             with ui.row().classes('items-center gap-2'):
                 ui.icon('edit', color='orange').style('font-size: 32px')
                 ui.label("Pending Reviews").classes("text-h5 font-bold")
             
-            # Toggle for Owned/Backup
-            role_toggle = ui.toggle(
-                {'backup': 'Backup', 'owned': 'Owned'}, 
-                value='backup', 
-                on_change=on_role_toggle
-            ).props('toggle-color=primary text-color=primary').classes('role-toggle')
+            with ui.row().classes('items-center gap-3'):
+                # Generate Report button
+                ui.button("Generate", icon="description", on_click=lambda: open_generate_dialog()).props('color=primary')
+                
+                # Toggle for Owned/Backup
+                role_toggle = ui.toggle(
+                    {'backup': 'Backup', 'owned': 'Owned'}, 
+                    value='backup', 
+                    on_change=on_role_toggle
+                ).props('toggle-color=primary text-color=primary').classes('role-toggle')
         
         # Manager name and description row
         with ui.row().classes('items-center justify-between ml-4 mb-4 w-full'):
@@ -324,3 +335,108 @@ def pending_reviews():
                 </a>
             </q-td>
         ''')
+        
+        # Function to generate Excel report
+        def open_generate_dialog():
+            """Open dialog for date range selection and report generation"""
+            with ui.dialog() as dialog, ui.card().classes('p-6 w-full max-w-md'):
+                ui.label("Generate Pending Reviews Report").classes("text-h6 font-bold mb-4")
+                
+                with ui.column().classes('gap-4 w-full'):
+                    ui.label("Select date range for pending reviews:").classes("text-sm text-gray-600")
+                    
+                    start_date_input = ui.input("Start Date", placeholder="YYYY-MM-DD").props('type=date').classes('w-full')
+                    end_date_input = ui.input("End Date", placeholder="YYYY-MM-DD").props('type=date').classes('w-full')
+                    
+                    # Set default dates (last 6 months)
+                    today = datetime.now()
+                    default_start = (today - timedelta(days=180)).strftime("%Y-%m-%d")
+                    default_end = today.strftime("%Y-%m-%d")
+                    start_date_input.value = default_start
+                    end_date_input.value = default_end
+                    
+                    ui.label("The report will include all contracts pending reviews.").classes("text-xs text-gray-500 italic")
+                    
+                    with ui.row().classes('gap-2 justify-end w-full mt-4'):
+                        ui.button("Cancel", on_click=dialog.close).props('flat')
+                        ui.button("Generate & Download", icon="download", 
+                                 on_click=lambda: generate_excel_report(start_date_input.value, end_date_input.value, dialog)).props('color=primary')
+                
+                dialog.open()
+        
+        def generate_excel_report(start_date_str, end_date_str, dialog):
+            """Generate Excel report for pending reviews"""
+            try:
+                if not PANDAS_AVAILABLE:
+                    ui.notify("Excel export requires pandas library. Please install it: pip install pandas openpyxl", type="negative")
+                    dialog.close()
+                    return
+                
+                if not contract_rows:
+                    ui.notify("No pending reviews available for export", type="warning")
+                    dialog.close()
+                    return
+                
+                # Prepare data for Excel
+                report_data = []
+                for contract in contract_rows:
+                    report_data.append({
+                        "Contract ID": contract.get('contract_id', ''),
+                        "Contract Type": contract.get('contract_type', ''),
+                        "Description": contract.get('description', ''),
+                        "Vendor": contract.get('vendor_name', ''),
+                        "Expiration Date": contract.get('expiration_date', ''),
+                        "Status": contract.get('status', ''),
+                        "Manager": contract.get('manager', ''),
+                    })
+                
+                # Create DataFrame
+                df = pd.DataFrame(report_data)
+                
+                # Create Excel file in memory
+                output = io.BytesIO()
+                with pd.ExcelWriter(output, engine='openpyxl') as writer:
+                    df.to_excel(writer, index=False, sheet_name='Pending Reviews')
+                    
+                    # Get the worksheet
+                    worksheet = writer.sheets['Pending Reviews']
+                    
+                    # Auto-adjust column widths
+                    for column in worksheet.columns:
+                        max_length = 0
+                        column_letter = column[0].column_letter
+                        for cell in column:
+                            try:
+                                if len(str(cell.value)) > max_length:
+                                    max_length = len(str(cell.value))
+                            except (AttributeError, TypeError):
+                                pass
+                        adjusted_width = min(max_length + 2, 50)
+                        worksheet.column_dimensions[column_letter].width = adjusted_width
+                
+                output.seek(0)
+                
+                # Convert to base64 for download
+                excel_data = output.getvalue()
+                b64_data = base64.b64encode(excel_data).decode()
+                
+                # Generate filename
+                filename = f"Pending_Reviews_Report_{start_date_str}_to_{end_date_str}.xlsx"
+                
+                # Trigger download using JavaScript
+                ui.run_javascript(f'''
+                    const link = document.createElement('a');
+                    link.href = 'data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64,{b64_data}';
+                    link.download = '{filename}';
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                ''')
+                
+                ui.notify(f"Report generated successfully! {len(contract_rows)} contract(s) exported.", type="positive")
+                dialog.close()
+                
+            except Exception as e:
+                ui.notify(f"Error generating report: {str(e)}", type="negative")
+                import traceback
+                traceback.print_exc()
