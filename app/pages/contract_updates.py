@@ -52,8 +52,8 @@ def contract_updates():
                 "response_provided_by": "William Defoe",
                 "response_date": today - timedelta(days=2),
                 "has_document": True,
-                "status": "pending_approval",  # New response awaiting approval
-                "previous_response": None,  # No previous response
+                "status": "returned",
+                "previous_response": None,
                 "returned_reason": None
             },
             {
@@ -67,7 +67,7 @@ def contract_updates():
                 "response_provided_by": "John Doe",
                 "response_date": today - timedelta(days=1),
                 "has_document": True,
-                "status": "returned",  # Returned after corrections
+                "status": "updated",
                 "previous_response": {
                     "date": today - timedelta(days=10),
                     "response": "Initial response provided with all required documents.",
@@ -88,7 +88,7 @@ def contract_updates():
                 "response_provided_by": "William Defoe",
                 "response_date": today - timedelta(days=3),
                 "has_document": False,
-                "status": "pending_approval",
+                "status": "updated",
                 "previous_response": None,
                 "returned_reason": None
             },
@@ -124,7 +124,7 @@ def contract_updates():
                 "response_provided_by": "William Defoe",
                 "response_date": today - timedelta(days=4),
                 "has_document": True,
-                "status": "pending_approval",
+                "status": "returned",
                 "previous_response": None,
                 "returned_reason": None
             },
@@ -139,7 +139,7 @@ def contract_updates():
                 "response_provided_by": "John Doe",
                 "response_date": today - timedelta(days=2),
                 "has_document": False,
-                "status": "returned",
+                "status": "updated",
                 "previous_response": {
                     "date": today - timedelta(days=15),
                     "response": "First response with maintenance schedule.",
@@ -160,7 +160,7 @@ def contract_updates():
                 "response_provided_by": "William Defoe",
                 "response_date": today - timedelta(days=1),
                 "has_document": True,
-                "status": "pending_approval",
+                "status": "returned",
                 "previous_response": None,
                 "returned_reason": None
             },
@@ -175,14 +175,14 @@ def contract_updates():
                 "response_provided_by": "John Doe",
                 "response_date": today - timedelta(days=3),
                 "has_document": True,
-                "status": "returned",
+                "status": "updated",
                 "previous_response": {
                     "date": today - timedelta(days=14),
                     "response": "Initial telecommunications contract response.",
                     "has_document": True
                 },
-                "returned_reason": "Service level agreement details need clarification",
-                "returned_date": today - timedelta(days=11),
+                "returned_reason": None,
+                "returned_date": None,
                 "correction_date": today - timedelta(days=3)
             },
             {
@@ -196,7 +196,7 @@ def contract_updates():
                 "response_provided_by": "William Defoe",
                 "response_date": today - timedelta(days=2),
                 "has_document": True,
-                "status": "pending_approval",
+                "status": "returned",
                 "previous_response": None,
                 "returned_reason": None
             },
@@ -211,14 +211,14 @@ def contract_updates():
                 "response_provided_by": "John Doe",
                 "response_date": today - timedelta(days=4),
                 "has_document": False,
-                "status": "returned",
+                "status": "updated",
                 "previous_response": {
                     "date": today - timedelta(days=16),
                     "response": "HVAC maintenance contract response.",
                     "has_document": False
                 },
-                "returned_reason": "Missing warranty information",
-                "returned_date": today - timedelta(days=13),
+                "returned_reason": None,
+                "returned_date": None,
                 "correction_date": today - timedelta(days=4)
             },
         ]
@@ -299,12 +299,6 @@ def contract_updates():
             "align": "center",
             "sortable": True,
         },
-        {
-            "name": "actions",
-            "label": "Actions",
-            "field": "actions",
-            "align": "center",
-        },
     ]
 
     contract_columns_defaults = {
@@ -380,7 +374,7 @@ def contract_updates():
             with ui.column().classes('flex-1 min-w-[200px]'):
                 ui.label("Filter by Status:").classes("text-sm font-medium mb-1")
                 status_filter = ui.select(
-                    options=['All', 'Pending Approval', 'Returned'],
+                    options=['All', 'Returned', 'Updated'],
                     value='All',
                     on_change=lambda e: apply_filters()
                 ).classes('w-full').props('outlined dense')
@@ -405,10 +399,10 @@ def contract_updates():
             
             # Apply status filter
             if status_filter.value and status_filter.value != 'All':
-                if status_filter.value == 'Pending Approval':
-                    base_rows = [row for row in base_rows if row.get('status') == 'pending_approval']
-                elif status_filter.value == 'Returned':
+                if status_filter.value == 'Returned':
                     base_rows = [row for row in base_rows if row.get('status') == 'returned']
+                elif status_filter.value == 'Updated':
+                    base_rows = [row for row in base_rows if row.get('status') == 'updated']
             
             # Apply search filter (including status)
             search_term = (search_input.value or "").lower()
@@ -422,7 +416,7 @@ def contract_updates():
                     or search_term in (row['manager'] or "").lower()
                     or search_term in (row.get('status', '') or "").lower()
                     or (search_term == 'returned' and row.get('status') == 'returned')
-                    or (search_term == 'pending' and row.get('status') == 'pending_approval')
+                    or (search_term == 'updated' and row.get('status') == 'updated')
                 ]
             
             contracts_table.rows = base_rows
@@ -507,10 +501,20 @@ def contract_updates():
                         class="font-semibold"
                     />
                 </div>
+                <div v-else-if="props.row.status === 'updated'" class="flex items-center justify-center">
+                    <q-btn 
+                        label="Updated" 
+                        color="positive" 
+                        size="sm" 
+                        icon="check_circle"
+                        dense
+                        class="font-semibold"
+                    />
+                </div>
                 <div v-else class="flex items-center justify-center">
                     <q-badge 
-                        color="primary" 
-                        label="Pending Approval"
+                        color="grey" 
+                        :label="props.row.status"
                         class="font-semibold"
                     />
                 </div>
