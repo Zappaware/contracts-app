@@ -2,6 +2,7 @@ from datetime import datetime, timedelta
 from nicegui import ui
 import io
 import base64
+from app.utils.vendor_lookup import get_vendor_id_by_name
 try:
     import pandas as pd
     PANDAS_AVAILABLE = True
@@ -144,9 +145,13 @@ def pending_reviews():
         for contract in mock_contracts:
             exp_date = contract["expiration_date"]
             
+            # Look up vendor_id from vendor_name
+            vendor_id = get_vendor_id_by_name(contract["vendor_name"])
+            
             rows.append({
                 "contract_id": contract["contract_id"],
                 "vendor_name": contract["vendor_name"],
+                "vendor_id": vendor_id,  # Add vendor_id for routing
                 "contract_type": contract["contract_type"],
                 "description": contract["description"],
                 "expiration_date": exp_date.strftime("%Y-%m-%d"),
@@ -316,16 +321,17 @@ def pending_reviews():
         # Add slot for vendor name with clickable link
         contracts_table.add_slot('body-cell-vendor_name', '''
             <q-td :props="props">
-                <a :href="'/vendor-info'" class="text-blue-600 hover:text-blue-800 underline cursor-pointer">
+                <a v-if="props.row.vendor_id" :href="'/vendor-info/' + props.row.vendor_id" class="text-blue-600 hover:text-blue-800 underline cursor-pointer">
                     {{ props.value }}
                 </a>
+                <span v-else class="text-gray-600">{{ props.value }}</span>
             </q-td>
         ''')
         
         # Add slot for custom styling of status column with review button
         contracts_table.add_slot('body-cell-status', '''
             <q-td :props="props">
-                <a href="/vendor-info" style="text-decoration: none;">
+                <a v-if="props.row.vendor_id" :href="'/vendor-info/' + props.row.vendor_id" style="text-decoration: none;">
                     <q-btn 
                         label="Review" 
                         color="primary" 
@@ -333,6 +339,14 @@ def pending_reviews():
                         icon="visibility"
                     />
                 </a>
+                <q-btn 
+                    v-else
+                    label="Review" 
+                    color="grey" 
+                    size="sm" 
+                    icon="visibility"
+                    disabled
+                />
             </q-td>
         ''')
         

@@ -2,6 +2,7 @@ from datetime import datetime, timedelta
 from nicegui import ui
 import io
 import base64
+from app.utils.vendor_lookup import get_vendor_id_by_name
 try:
     import pandas as pd
     PANDAS_AVAILABLE = True
@@ -187,9 +188,13 @@ def terminated_contracts():
             end_date = contract["end_date"]
             date_terminated = contract["date_terminated"]
             
+            # Look up vendor_id from vendor_name
+            vendor_id = get_vendor_id_by_name(contract["vendor_name"])
+            
             rows.append({
                 "contract_id": contract["contract_id"],
                 "vendor_name": contract["vendor_name"],
+                "vendor_id": vendor_id,  # Add vendor_id for routing
                 "contract_type": contract["contract_type"],
                 "description": contract["description"],
                 "start_date": start_date.strftime("%Y-%m-%d"),
@@ -365,9 +370,10 @@ def terminated_contracts():
         # Add slot for vendor name with clickable link
         contracts_table.add_slot('body-cell-vendor_name', '''
             <q-td :props="props">
-                <a :href="'/vendor-info'" class="text-blue-600 hover:text-blue-800 underline cursor-pointer">
+                <a v-if="props.row.vendor_id" :href="'/vendor-info/' + props.row.vendor_id" class="text-blue-600 hover:text-blue-800 underline cursor-pointer">
                     {{ props.value }}
                 </a>
+                <span v-else class="text-gray-600">{{ props.value }}</span>
             </q-td>
         ''')
         

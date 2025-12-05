@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta
 import requests
 from nicegui import ui
+from app.utils.vendor_lookup import get_vendor_id_by_name
 
 
 def manager():
@@ -299,9 +300,13 @@ def manager():
                 status_class = "warning"
                 row_class = "bg-yellow-50"
             
+            # Look up vendor_id from vendor_name
+            vendor_id = get_vendor_id_by_name(contract["vendor_name"])
+            
             rows.append({
                 "contract_id": contract["contract_id"],
                 "vendor_name": contract["vendor_name"],
+                "vendor_id": vendor_id,  # Add vendor_id for routing
                 "contract_type": contract["contract_type"],
                 "description": contract["description"],
                 "expiration_date": exp_date.strftime("%Y-%m-%d"),
@@ -484,9 +489,10 @@ def manager():
         # Add slot for vendor name with clickable link
         contracts_table.add_slot('body-cell-vendor_name', '''
             <q-td :props="props">
-                <a :href="'/vendor-info'" class="text-blue-600 hover:text-blue-800 underline cursor-pointer">
+                <a v-if="props.row.vendor_id" :href="'/vendor-info/' + props.row.vendor_id" class="text-blue-600 hover:text-blue-800 underline cursor-pointer">
                     {{ props.value }}
                 </a>
+                <span v-else class="text-gray-600">{{ props.value }}</span>
             </q-td>
         ''')
         
