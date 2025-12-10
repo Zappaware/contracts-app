@@ -10,16 +10,29 @@ def vendor_info(vendor_id: int):
     from sqlalchemy.orm import joinedload
     
     vendor = None
+    contracts = []
+    contract_documents_count = 0
     db = SessionLocal()
     try:
         # Eagerly load all relationships to avoid DetachedInstanceError
         from app.models.vendor import Vendor
+        from app.models.contract import Contract, ContractDocument
         vendor = db.query(Vendor).options(
             joinedload(Vendor.emails),
             joinedload(Vendor.addresses),
             joinedload(Vendor.phones),
             joinedload(Vendor.documents)
         ).filter(Vendor.id == vendor_id).first()
+        
+        if vendor:
+            # Load contracts with their documents
+            contracts = db.query(Contract).options(
+                joinedload(Contract.documents)
+            ).filter(Contract.vendor_id == vendor.id).all()
+            
+            # Count all contract documents across all contracts
+            for contract in contracts:
+                contract_documents_count += len(contract.documents)
         
         if not vendor:
             print(f"Vendor with ID {vendor_id} not found")
@@ -147,6 +160,203 @@ def vendor_info(vendor_id: int):
                             ui.label(f"  • {doc.document_type.value}: {doc.custom_document_name}").classes("text-sm")
                     else:
                         ui.label("No documents uploaded").classes("text-gray-500")
+    
+    # Documents Section - Two Categories
+    if vendor:
+        with ui.card().classes("w-full max-w-3xl mx-auto mt-6 p-6"):
+            ui.label("Documents").classes("text-h5 mb-4 text-blue-600 font-bold")
+            
+            # Calculate document counts
+            supporting_docs_count = len(vendor.documents) if vendor.documents else 0
+            
+            with ui.row().classes("gap-6 w-full"):
+                # Vendor Contracts Category
+                with ui.card().classes("flex-1 p-6 border-2 border-blue-300 hover:border-blue-500 cursor-pointer transition-all") as contracts_card:
+                    with ui.column().classes("items-center text-center gap-3"):
+                        ui.icon("description", size="48px", color="blue").classes("mb-2")
+                        ui.label("Vendor Contracts").classes("text-lg font-bold text-blue-700")
+                        
+                        if contract_documents_count > 0:
+                            ui.badge(f"{contract_documents_count} document(s)", color="green").classes("text-sm font-semibold")
+                        else:
+                            ui.label("No documents available").classes("text-gray-500 italic text-sm")
+                
+                # Click handler for contracts
+                def open_contracts_documents():
+                    contracts_dialog.open()
+                
+                contracts_card.on("click", open_contracts_documents)
+                
+                # Supporting Documents Category
+                with ui.card().classes("flex-1 p-6 border-2 border-green-300 hover:border-green-500 cursor-pointer transition-all") as supporting_card:
+                    with ui.column().classes("items-center text-center gap-3"):
+                        ui.icon("folder", size="48px", color="green").classes("mb-2")
+                        ui.label("Supporting Documents").classes("text-lg font-bold text-green-700")
+                        
+                        if supporting_docs_count > 0:
+                            ui.badge(f"{supporting_docs_count} document(s)", color="green").classes("text-sm font-semibold")
+                        else:
+                            ui.label("No documents available").classes("text-gray-500 italic text-sm")
+                
+                # Click handler for supporting documents
+                def open_supporting_documents():
+                    supporting_docs_dialog.open()
+                
+                supporting_card.on("click", open_supporting_documents)
+            
+            # Vendor Contracts Dialog
+            with ui.dialog() as contracts_dialog, ui.card().classes("min-w-[800px] max-w-4xl max-h-[80vh] overflow-y-auto"):
+                ui.label("Vendor Contracts").classes("text-h5 mb-4 text-blue-600 font-bold")
+                
+                if contract_documents_count > 0:
+                    # Group contracts by contract
+                    for contract in contracts:
+                        if contract.documents:
+                            with ui.card().classes("w-full mb-4 p-4 border-l-4 border-blue-400"):
+                                with ui.row().classes("items-center justify-between w-full mb-2"):
+                                    ui.label(f"{contract.contract_description} ({contract.contract_id})").classes("text-lg font-bold text-gray-800")
+                                    ui.badge(f"{len(contract.documents)} document(s)", color="blue").classes("text-sm")
+                                
+                                # Display each contract document
+                                for doc in contract.documents:
+                                    with ui.row().classes("items-center gap-4 p-3 bg-gray-50 rounded-lg mb-2 w-full"):
+                                        with ui.column().classes("flex-1"):
+                                            ui.label(doc.custom_document_name).classes("font-medium text-gray-800")
+                                            issue_date = doc.document_signed_date.strftime("%Y-%m-%d") if doc.document_signed_date else "N/A"
+                                            ui.label(f"Issue Date: {issue_date}").classes("text-sm text-gray-600")
+                                        
+                                        # View/Download buttons
+                                        with ui.row().classes("gap-2"):
+                                            view_btn = ui.button("View", icon="visibility").props('color=primary flat size=sm')
+                                            download_btn = ui.button("Download", icon="download").props('color=secondary flat size=sm')
+                                            
+                                            def make_view_handler(doc_path, doc_name, file_name):
+                                                def view_document():
+                                                    ui.notify(f"Opening {doc_name}...", type="info")
+                                                    make_download_handler(doc_path, doc_name, file_name)()
+                                                return view_document
+                                            
+                                            def make_download_handler(doc_path, doc_name, file_name):
+                                                def download_document():
+                                                    import os
+                                                    if os.path.exists(doc_path):
+                                                        with open(doc_path, 'rb') as f:
+                                                            file_content = f.read()
+                                                        import base64
+                                                        b64_content = base64.b64encode(file_content).decode()
+                                                        ui.run_javascript(f'''
+                                                            const link = document.createElement('a');
+                                                            link.href = 'data:application/pdf;base64,{b64_content}';
+                                                            link.download = '{file_name}';
+                                                            document.body.appendChild(link);
+                                                            link.click();
+                                                            document.body.removeChild(link);
+                                                        ''')
+                                                        ui.notify(f"Downloaded {doc_name}", type="positive")
+                                                    else:
+                                                        ui.notify(f"File not found: {doc_name}", type="negative")
+                                                return download_document
+                                            
+                                            view_btn.on_click(make_view_handler(doc.file_path, doc.custom_document_name, doc.file_name))
+                                            download_btn.on_click(make_download_handler(doc.file_path, doc.custom_document_name, doc.file_name))
+                else:
+                    with ui.row().classes("p-6 w-full justify-center"):
+                        ui.label("No contract documents available").classes("text-gray-500 italic text-lg")
+                
+                # Close button
+                with ui.row().classes("justify-end mt-4 w-full"):
+                    ui.button("Close", icon="close", on_click=contracts_dialog.close).props('color=primary')
+            
+            # Supporting Documents Dialog
+            with ui.dialog() as supporting_docs_dialog, ui.card().classes("min-w-[800px] max-w-4xl max-h-[80vh] overflow-y-auto"):
+                ui.label("Supporting Documents").classes("text-h5 mb-4 text-green-600 font-bold")
+                
+                if supporting_docs_count > 0:
+                    # Organize documents by type
+                    documents_by_type = {}
+                    for doc in vendor.documents:
+                        doc_type = doc.document_type.value
+                        if doc_type not in documents_by_type:
+                            documents_by_type[doc_type] = []
+                        documents_by_type[doc_type].append(doc)
+                    
+                    # Define the document types to display (in order)
+                    document_types_to_show = [
+                        DocumentType.DUE_DILIGENCE.value,
+                        DocumentType.NON_DISCLOSURE_AGREEMENT.value,
+                        DocumentType.RISK_ASSESSMENT_FORM.value,
+                        DocumentType.BUSINESS_CONTINUITY_PLAN.value,
+                        DocumentType.DISASTER_RECOVERY_PLAN.value,
+                        DocumentType.INSURANCE_POLICY.value,
+                        DocumentType.INTEGRITY_POLICY.value,
+                    ]
+                    
+                    # Display each document type section
+                    for doc_type in document_types_to_show:
+                        with ui.card().classes("w-full mb-4 p-4 border-l-4 border-green-400"):
+                            with ui.row().classes("items-center justify-between w-full mb-2"):
+                                ui.label(doc_type).classes("text-lg font-bold text-gray-800")
+                                
+                                docs_for_type = documents_by_type.get(doc_type, [])
+                                if docs_for_type:
+                                    ui.badge(f"{len(docs_for_type)} document(s)", color="green").classes("text-sm")
+                                else:
+                                    ui.badge("No document available", color="gray").classes("text-sm")
+                            
+                            docs_for_type = documents_by_type.get(doc_type, [])
+                            if docs_for_type:
+                                for doc in docs_for_type:
+                                    with ui.row().classes("items-center gap-4 p-3 bg-gray-50 rounded-lg mb-2 w-full"):
+                                        with ui.column().classes("flex-1"):
+                                            ui.label(doc.custom_document_name).classes("font-medium text-gray-800")
+                                            issue_date = doc.document_signed_date.strftime("%Y-%m-%d") if doc.document_signed_date else "N/A"
+                                            ui.label(f"Issue Date: {issue_date}").classes("text-sm text-gray-600")
+                                        
+                                        # View/Download buttons
+                                        with ui.row().classes("gap-2"):
+                                            view_btn = ui.button("View", icon="visibility").props('color=primary flat size=sm')
+                                            download_btn = ui.button("Download", icon="download").props('color=secondary flat size=sm')
+                                            
+                                            def make_view_handler(doc_path, doc_name, file_name):
+                                                def view_document():
+                                                    ui.notify(f"Opening {doc_name}...", type="info")
+                                                    make_download_handler(doc_path, doc_name, file_name)()
+                                                return view_document
+                                            
+                                            def make_download_handler(doc_path, doc_name, file_name):
+                                                def download_document():
+                                                    import os
+                                                    if os.path.exists(doc_path):
+                                                        with open(doc_path, 'rb') as f:
+                                                            file_content = f.read()
+                                                        import base64
+                                                        b64_content = base64.b64encode(file_content).decode()
+                                                        ui.run_javascript(f'''
+                                                            const link = document.createElement('a');
+                                                            link.href = 'data:application/pdf;base64,{b64_content}';
+                                                            link.download = '{file_name}';
+                                                            document.body.appendChild(link);
+                                                            link.click();
+                                                            document.body.removeChild(link);
+                                                        ''')
+                                                        ui.notify(f"Downloaded {doc_name}", type="positive")
+                                                    else:
+                                                        ui.notify(f"File not found: {doc_name}", type="negative")
+                                                return download_document
+                                            
+                                            view_btn.on_click(make_view_handler(doc.file_path, doc.custom_document_name, doc.file_name))
+                                            download_btn.on_click(make_download_handler(doc.file_path, doc.custom_document_name, doc.file_name))
+                            else:
+                                with ui.row().classes("p-3 bg-gray-50 rounded-lg w-full"):
+                                    ui.label("No document available").classes("text-gray-500 italic")
+                
+                else:
+                    with ui.row().classes("p-6 w-full justify-center"):
+                        ui.label("No supporting documents available").classes("text-gray-500 italic text-lg")
+                
+                # Close button
+                with ui.row().classes("justify-end mt-4 w-full"):
+                    ui.button("Close", icon="close", on_click=supporting_docs_dialog.close).props('color=primary')
     
     # Additional Documents Section
     if vendor:
