@@ -144,43 +144,35 @@ def vendor_contracts(vendor_id: int):
             # Filter row
             with ui.row().classes('w-full gap-4 flex-wrap'):
                 # Status filter
+                status_options = ["All Statuses", "Active", "Expired", "Terminated", "Pending Termination"]
                 status_filter = ui.select(
-                    options=[
-                        {"label": "All Statuses", "value": None},
-                        {"label": "Active", "value": "Active"},
-                        {"label": "Expired", "value": "Expired"},
-                        {"label": "Terminated", "value": "Terminated"},
-                        {"label": "Pending Termination", "value": "Pending Termination"},
-                    ],
-                    value=None,
+                    options=status_options,
+                    value="All Statuses",
                     label="Status"
                 ).classes('flex-1 min-w-[150px]').props('outlined dense')
                 
                 # Type filter
-                type_options = [{"label": "All Types", "value": None}]
-                type_options.extend([{"label": ct.value, "value": ct.value} for ct in ContractType])
+                type_options = ["All Types"] + [ct.value for ct in ContractType]
                 type_filter = ui.select(
                     options=type_options,
-                    value=None,
+                    value="All Types",
                     label="Type"
                 ).classes('flex-1 min-w-[150px]').props('outlined dense')
                 
                 # Department filter
-                dept_options = [{"label": "All Departments", "value": None}]
-                dept_options.extend([{"label": dept.value, "value": dept.value} for dept in DepartmentType])
+                dept_options = ["All Departments"] + [dept.value for dept in DepartmentType]
                 department_filter = ui.select(
                     options=dept_options,
-                    value=None,
+                    value="All Departments",
                     label="Department"
                 ).classes('flex-1 min-w-[150px]').props('outlined dense')
                 
                 # Owner filter (get unique owners from contracts)
-                owner_options = [{"label": "All Owners", "value": None}]
                 unique_owners = sorted(set([row["owner"] for row in contract_rows if row["owner"] != "N/A"]))
-                owner_options.extend([{"label": owner, "value": owner} for owner in unique_owners])
+                owner_options = ["All Owners"] + unique_owners
                 owner_filter = ui.select(
                     options=owner_options,
-                    value=None,
+                    value="All Owners",
                     label="Owner"
                 ).classes('flex-1 min-w-[150px]').props('outlined dense')
             
@@ -207,19 +199,19 @@ def vendor_contracts(vendor_id: int):
             filtered_rows = contract_rows.copy()
             
             # Apply status filter
-            if status_filter.value:
+            if status_filter.value and status_filter.value != "All Statuses":
                 filtered_rows = [r for r in filtered_rows if r["status"] == status_filter.value]
             
             # Apply type filter
-            if type_filter.value:
+            if type_filter.value and type_filter.value != "All Types":
                 filtered_rows = [r for r in filtered_rows if r["contract_type"] == type_filter.value]
             
             # Apply department filter
-            if department_filter.value:
+            if department_filter.value and department_filter.value != "All Departments":
                 filtered_rows = [r for r in filtered_rows if r["department"] == department_filter.value]
             
             # Apply owner filter
-            if owner_filter.value:
+            if owner_filter.value and owner_filter.value != "All Owners":
                 filtered_rows = [r for r in filtered_rows if r["owner"] == owner_filter.value]
             
             # Apply search
@@ -245,10 +237,10 @@ def vendor_contracts(vendor_id: int):
             contracts_table.update()
         
         def clear_filters():
-            status_filter.value = None
-            type_filter.value = None
-            department_filter.value = None
-            owner_filter.value = None
+            status_filter.value = "All Statuses"
+            type_filter.value = "All Types"
+            department_filter.value = "All Departments"
+            owner_filter.value = "All Owners"
             search_input.value = ""
             apply_filters()
         
