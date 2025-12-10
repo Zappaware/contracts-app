@@ -1,5 +1,5 @@
 from nicegui import ui
-from datetime import datetime
+from datetime import datetime, date
 from app.models.vendor import DocumentType
 
 def vendor_info(vendor_id: int):
@@ -60,16 +60,33 @@ def vendor_info(vendor_id: int):
             with ui.row().classes("mb-2 items-center gap-4"):
                 with ui.row().classes("items-center gap-2"):
                     ui.label("Status:").classes("text-lg font-bold")
-                    status_color = "green" if vendor.status.value == "Active" else "red"
+                    # Status coloring: Active = green, Inactive = black (per requirements)
+                    status_color = "green" if vendor.status.value == "Active" else "black"
                     ui.badge(vendor.status.value, color=status_color).classes("text-sm font-semibold")
                 ui.label(f"Contact Person: {vendor.vendor_contact_person}")
                 ui.label(f"Email: {primary_email}")
-            with ui.row().classes("mb-2"):
-                next_dd_date = vendor.next_required_due_diligence_date.strftime("%Y-%m-%d") if vendor.next_required_due_diligence_date else "N/A"
-                ui.label(f"Next Required Due Diligence Date: {next_dd_date}")
+            with ui.row().classes("mb-2 items-center gap-2"):
+                ui.label("Next Required Due Diligence Date:").classes("font-medium")
+                if vendor.next_required_due_diligence_date:
+                    next_dd_date = vendor.next_required_due_diligence_date.strftime("%Y-%m-%d")
+                    # Check if due diligence date has passed
+                    if isinstance(vendor.next_required_due_diligence_date, datetime):
+                        dd_date = vendor.next_required_due_diligence_date.date()
+                    else:
+                        dd_date = vendor.next_required_due_diligence_date
+                    
+                    if dd_date < date.today():
+                        # Date has passed - display in red with attention icon
+                        with ui.row().classes("items-center gap-2"):
+                            ui.icon("warning", color="red").classes("text-xl")
+                            ui.label(next_dd_date).classes("text-red-600 font-bold")
+                    else:
+                        ui.label(next_dd_date)
+                else:
+                    ui.label("N/A")
 
             more = ui.button("More", icon="expand_more").props("flat")
-            details_card = ui.card().classes("mt-4 hidden")
+            details_card = ui.card().classes("mt-4 hidden w-full")
 
             def toggle_details():
                 if "hidden" in details_card._classes:
@@ -84,7 +101,7 @@ def vendor_info(vendor_id: int):
 
             with details_card:
                 ui.label("All Vendor Details").classes("text-h6 mb-2")
-                with ui.row().classes("gap-4"):
+                with ui.row().classes("gap-4 w-full"):
                     if primary_address:
                         ui.label(f"Address: {primary_address.address}")
                         ui.label(f"City: {primary_address.city}")
@@ -92,18 +109,35 @@ def vendor_info(vendor_id: int):
                         ui.label(f"Zip: {primary_address.zip_code}")
                     else:
                         ui.label("Address: N/A")
-                with ui.row().classes("gap-4 mt-2"):
+                with ui.row().classes("gap-4 mt-2 w-full"):
                     ui.label(f"Country: {vendor.vendor_country}")
-                with ui.row().classes("gap-4 mt-2"):
+                with ui.row().classes("gap-4 mt-2 w-full"):
                     phone_display = f"{primary_phone.area_code} {primary_phone.phone_number}" if primary_phone else "N/A"
                     ui.label(f"Phone: {phone_display}")
                     ui.label(f"Bank Customer: {vendor.bank_customer.value}")
                     ui.label(f"CIF: {vendor.cif or 'N/A'}")
-                with ui.row().classes("gap-4 mt-2"):
+                with ui.row().classes("gap-4 mt-2 w-full"):
                     ui.label(f"Material Outsourcing: {vendor.material_outsourcing_arrangement.value}")
-                    last_dd_date = vendor.last_due_diligence_date.strftime("%Y-%m-%d") if vendor.last_due_diligence_date else "N/A"
-                    ui.label(f"Last Due Diligence: {last_dd_date}")
-                    ui.label(f"Alert Frequency: {vendor.next_required_due_diligence_alert_frequency or 'N/A'}")
+                    if vendor.last_due_diligence_date:
+                        last_dd_date = vendor.last_due_diligence_date.strftime("%Y-%m-%d")
+                        # Check if last due diligence date has passed
+                        if isinstance(vendor.last_due_diligence_date, datetime):
+                            last_dd_date_obj = vendor.last_due_diligence_date.date()
+                        else:
+                            last_dd_date_obj = vendor.last_due_diligence_date
+                        
+                        if last_dd_date_obj < date.today():
+                            # Date has passed - display in red with attention icon
+                            with ui.row().classes("items-center gap-2"):
+                                ui.icon("warning", color="red").classes("text-xl")
+                                ui.label(f"Last Due Diligence: {last_dd_date}").classes("text-red-600 font-bold")
+                        else:
+                            ui.label(f"Last Due Diligence: {last_dd_date}")
+                    else:
+                        ui.label("Last Due Diligence: N/A")
+                    # Display alert frequency value (e.g., "30 days" instead of enum)
+                    alert_freq = vendor.next_required_due_diligence_alert_frequency.value if vendor.next_required_due_diligence_alert_frequency else 'N/A'
+                    ui.label(f"Alert Frequency: {alert_freq}")
                 with ui.column().classes("mt-4"):
                     ui.label("Due Diligence Info:").classes("font-bold")
                     ui.label(f"Required: {vendor.due_diligence_required.value}")
