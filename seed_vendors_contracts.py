@@ -15,7 +15,7 @@ from app.models.contract import (
     NoticePeriodType, ExpirationNoticePeriodType, CurrencyType,
     PaymentMethodType, ContractStatusType
 )
-from datetime import datetime, date, timedelta
+from datetime import datetime, date, timedelta, timezone
 from dateutil.relativedelta import relativedelta
 import os
 import uuid
@@ -26,7 +26,32 @@ def create_dummy_pdf(output_path):
     """
     Create a minimal valid PDF file for testing
     """
-    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+    # Ensure directory exists with proper permissions
+    dir_path = os.path.dirname(output_path)
+    if dir_path:
+        # Create directory and all parent directories
+        try:
+            os.makedirs(dir_path, exist_ok=True, mode=0o755)
+        except (OSError, PermissionError):
+            # Directory might already exist, that's okay
+            pass
+        
+        # Try to fix permissions on existing directories (but don't fail if we can't)
+        try:
+            os.chmod(dir_path, 0o755)
+            # Also try to fix parent directories
+            parent = os.path.dirname(dir_path)
+            while parent and parent != dir_path and os.path.exists(parent):
+                try:
+                    os.chmod(parent, 0o755)
+                except (OSError, PermissionError):
+                    pass
+                parent = os.path.dirname(parent)
+                if not parent or parent == '/':
+                    break
+        except (OSError, PermissionError):
+            # Can't change permissions, but directory might still be writable
+            pass
     
     # Minimal PDF content
     pdf_content = b"""%PDF-1.4
@@ -89,8 +114,44 @@ startxref
 %%EOF
 """
     
-    with open(output_path, 'wb') as f:
-        f.write(pdf_content)
+    # Verify directory is writable - if not, try to fix permissions (but don't fail if we can't)
+    if not os.access(dir_path, os.W_OK):
+        # Try to fix directory permissions, but don't fail if we can't
+        try:
+            os.chmod(dir_path, 0o755)
+        except (OSError, PermissionError):
+            # If we can't change permissions, check if we can still write
+            # (directory might be writable even if we can't chmod it)
+            if not os.access(dir_path, os.W_OK):
+                raise PermissionError(f"Cannot write to directory {dir_path}. Please run: chmod -R 755 {dir_path} or fix ownership with: chown -R $USER:$USER {dir_path}")
+    
+    # Remove file if it exists and is read-only
+    if os.path.exists(output_path):
+        try:
+            # Try to make it writable, but don't fail if we can't
+            try:
+                os.chmod(output_path, 0o644)
+            except (OSError, PermissionError):
+                pass
+            os.remove(output_path)
+        except (OSError, PermissionError):
+            pass
+    
+    # Try to write the file
+    try:
+        with open(output_path, 'wb') as f:
+            f.write(pdf_content)
+    except PermissionError as e:
+        raise PermissionError(f"Cannot write to file {output_path}. Please check directory permissions. Try: chmod -R 755 {dir_path} or chown -R $USER:$USER {dir_path}. Error: {e}")
+    
+    # Try to set file permissions, but don't fail if we can't
+    try:
+        os.chmod(output_path, 0o644)
+    except (OSError, PermissionError):
+        pass  # File was created successfully, permissions are less critical
+    
+    # Ensure file has proper permissions
+    os.chmod(output_path, 0o644)
     
     return output_path
 
@@ -100,7 +161,23 @@ def save_vendor_document(vendor, document_type, doc_name, signed_date):
     Save a vendor document by creating a dummy PDF
     """
     upload_dir = os.path.join("uploads", "vendors", vendor.vendor_id)
-    os.makedirs(upload_dir, exist_ok=True)
+    # Create directory and all parent directories with proper permissions
+    os.makedirs(upload_dir, exist_ok=True, mode=0o755)
+    # Fix permissions on existing directories
+    try:
+        os.chmod(upload_dir, 0o755)
+        # Also ensure parent directories have proper permissions
+        parent = os.path.dirname(upload_dir)
+        while parent and parent != upload_dir and os.path.exists(parent):
+            try:
+                os.chmod(parent, 0o755)
+            except (OSError, PermissionError):
+                pass
+            parent = os.path.dirname(parent)
+            if not parent or parent == '/':
+                break
+    except (OSError, PermissionError):
+        pass
     
     # Generate unique filename
     unique_filename = f"{document_type.value}_{uuid.uuid4()}.pdf"
@@ -120,7 +197,23 @@ def save_contract_document(contract, doc_name, signed_date):
     Save a contract document by creating a dummy PDF
     """
     upload_dir = os.path.join("uploads", "contracts", contract.contract_id)
-    os.makedirs(upload_dir, exist_ok=True)
+    # Create directory and all parent directories with proper permissions
+    os.makedirs(upload_dir, exist_ok=True, mode=0o755)
+    # Fix permissions on existing directories
+    try:
+        os.chmod(upload_dir, 0o755)
+        # Also ensure parent directories have proper permissions
+        parent = os.path.dirname(upload_dir)
+        while parent and parent != upload_dir and os.path.exists(parent):
+            try:
+                os.chmod(parent, 0o755)
+            except (OSError, PermissionError):
+                pass
+            parent = os.path.dirname(parent)
+            if not parent or parent == '/':
+                break
+    except (OSError, PermissionError):
+        pass
     
     # Generate unique filename
     unique_filename = f"contract_{uuid.uuid4()}.pdf"
@@ -135,10 +228,30 @@ def save_contract_document(contract, doc_name, signed_date):
     return file_path, file_size
 
 
+def ensure_uploads_permissions():
+    """
+    Ensure uploads directory structure exists with proper permissions
+    """
+    uploads_base = "uploads"
+    uploads_vendors = os.path.join(uploads_base, "vendors")
+    uploads_contracts = os.path.join(uploads_base, "contracts")
+    
+    for directory in [uploads_base, uploads_vendors, uploads_contracts]:
+        if not os.path.exists(directory):
+            os.makedirs(directory, exist_ok=True, mode=0o755)
+        else:
+            try:
+                os.chmod(directory, 0o755)
+            except (OSError, PermissionError):
+                pass  # If we can't change permissions, continue anyway
+
+
 def seed_vendors_and_contracts():
     db = SessionLocal()
     
     try:
+        # Ensure uploads directory structure has proper permissions
+        ensure_uploads_permissions()
         # Check if vendors already exist
         existing_vendor_count = db.query(Vendor).count()
         if existing_vendor_count > 0:
@@ -320,7 +433,7 @@ def seed_vendors_and_contracts():
                     vendor_id = f"AB{i}"  # Default
                 
                 # Calculate due diligence dates
-                last_dd_date = datetime.utcnow() - timedelta(days=180)  # 6 months ago
+                last_dd_date = datetime.now(timezone.utc) - timedelta(days=180)  # 6 months ago
                 if vendor_data["material_outsourcing_arrangement"] == MaterialOutsourcingType.YES:
                     next_dd_date = last_dd_date + relativedelta(years=1)
                 else:
@@ -347,8 +460,8 @@ def seed_vendors_and_contracts():
                     next_required_due_diligence_date=next_dd_date,
                     next_required_due_diligence_alert_frequency=AlertFrequencyType.THIRTY_DAYS,
                     status=vendor_status,
-                    created_at=datetime.utcnow(),
-                    updated_at=datetime.utcnow()
+                    created_at=datetime.now(timezone.utc),
+                    updated_at=datetime.now(timezone.utc)
                 )
                 
                 db.add(vendor)
@@ -362,7 +475,7 @@ def seed_vendors_and_contracts():
                     state=vendor_data.get("state"),
                     zip_code=vendor_data.get("zip_code"),
                     is_primary=True,
-                    created_at=datetime.utcnow()
+                    created_at=datetime.now(timezone.utc)
                 )
                 db.add(address)
                 
@@ -371,7 +484,7 @@ def seed_vendors_and_contracts():
                     vendor_id=vendor.id,
                     email=vendor_data["email"],
                     is_primary=True,
-                    created_at=datetime.utcnow()
+                    created_at=datetime.now(timezone.utc)
                 )
                 db.add(email)
                 
@@ -381,7 +494,7 @@ def seed_vendors_and_contracts():
                     area_code="+1",
                     phone_number=vendor_data["phone"],
                     is_primary=True,
-                    created_at=datetime.utcnow()
+                    created_at=datetime.now(timezone.utc)
                 )
                 db.add(phone)
                 
@@ -402,7 +515,7 @@ def seed_vendors_and_contracts():
                     file_path=dd_path,
                     file_size=dd_size,
                     content_type="application/pdf",
-                    created_at=datetime.utcnow()
+                    created_at=datetime.now(timezone.utc)
                 )
                 db.add(dd_doc)
                 
@@ -422,7 +535,7 @@ def seed_vendors_and_contracts():
                     file_path=nda_path,
                     file_size=nda_size,
                     content_type="application/pdf",
-                    created_at=datetime.utcnow()
+                    created_at=datetime.now(timezone.utc)
                 )
                 db.add(nda_doc)
                 
@@ -568,8 +681,8 @@ def seed_vendors_and_contracts():
                 contract_owner_backup_id=users[(i+1) % len(users)].id,
                 contract_owner_manager_id=users[(i+2) % len(users)].id,
                 status=status,
-                created_at=datetime.utcnow(),
-                updated_at=datetime.utcnow()
+                created_at=datetime.now(timezone.utc),
+                updated_at=datetime.now(timezone.utc)
             )
             
             db.add(contract)
@@ -590,7 +703,7 @@ def seed_vendors_and_contracts():
                 file_path=doc_path,
                 file_size=doc_size,
                 content_type="application/pdf",
-                created_at=datetime.utcnow()
+                created_at=datetime.now(timezone.utc)
             )
             db.add(contract_doc)
             
