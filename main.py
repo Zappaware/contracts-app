@@ -27,6 +27,7 @@ from app.pages.pending_contracts import pending_contracts
 from app.pages.expired_contracts import expired_contracts
 from app.pages.vendor_info import vendor_info
 from app.pages.vendors_list import vendors_list
+from app.pages.vendor_contracts import vendor_contracts
 from app.pages.contract_managers import contract_managers
 from app.pages.manager import manager
 from app.pages.pending_reviews import pending_reviews
@@ -208,6 +209,16 @@ def vendor_info_page(vendor_id: int):
         return
     header()
     vendor_info(vendor_id)
+
+
+@ui.page("/vendor-contracts/{vendor_id}")
+def vendor_contracts_page(vendor_id: int):
+    """Vendor contracts page"""
+    if not nicegui_app.storage.user.get('logged_in'):
+        ui.navigate.to('/login')
+        return
+    header()
+    vendor_contracts(vendor_id)
 
 
 @ui.page("/contract-managers")

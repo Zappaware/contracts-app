@@ -50,7 +50,11 @@ def vendor_info(vendor_id: int):
     
     # Basic info
     with ui.card().classes("w-full max-w-3xl mx-auto mt-4 p-6"):
-        ui.label("Vendor Info").classes("text-h5 mb-4")
+        with ui.row().classes("items-center justify-between mb-4 w-full"):
+            ui.label("Vendor Info").classes("text-h5")
+            if vendor:
+                with ui.link(target=f'/vendor-contracts/{vendor.id}').classes('no-underline'):
+                    ui.button("View Contracts", icon="description").props('flat color=primary')
         
         if not vendor:
             ui.label("No vendor selected. Please select a vendor from the vendors list.").classes("text-red-600")
@@ -171,7 +175,8 @@ def vendor_info(vendor_id: int):
             
             with ui.row().classes("gap-6 w-full"):
                 # Vendor Contracts Category
-                with ui.card().classes("flex-1 p-6 border-2 border-blue-300 hover:border-blue-500 cursor-pointer transition-all") as contracts_card:
+                contracts_card = ui.card().classes("flex-1 p-6 border-2 border-blue-300 hover:border-blue-500 cursor-pointer transition-all")
+                with contracts_card:
                     with ui.column().classes("items-center text-center gap-3"):
                         ui.icon("description", size="48px", color="blue").classes("mb-2")
                         ui.label("Vendor Contracts").classes("text-lg font-bold text-blue-700")
@@ -181,9 +186,9 @@ def vendor_info(vendor_id: int):
                         else:
                             ui.label("No documents available").classes("text-gray-500 italic text-sm")
                 
-                # Click handler for contracts
+                # Click handler for contracts - navigate to vendor contracts page
                 def open_contracts_documents():
-                    contracts_dialog.open()
+                    ui.navigate.to(f'/vendor-contracts/{vendor.id}')
                 
                 contracts_card.on("click", open_contracts_documents)
                 
