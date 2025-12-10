@@ -186,9 +186,9 @@ def vendor_info(vendor_id: int):
                         else:
                             ui.label("No documents available").classes("text-gray-500 italic text-sm")
                 
-                # Click handler for contracts - navigate to vendor contracts page
+                # Click handler for contracts - open contracts dialog popup
                 def open_contracts_documents():
-                    ui.navigate.to(f'/vendor-contracts/{vendor.id}')
+                    contracts_dialog.open()
                 
                 contracts_card.on("click", open_contracts_documents)
                 
