@@ -129,6 +129,9 @@ def active_contracts():
                     manager = backup_name
                     role = "backup"
                 
+                # Determine status color (Active = green, others = black/gray)
+                status_color = "green" if contract.status == ContractStatusType.ACTIVE else "black"
+                
                 row_data = {
                     "id": int(contract.id),
                     "contract_id": str(contract.contract_id or ""),
@@ -139,6 +142,7 @@ def active_contracts():
                     "expiration_date": str(formatted_date),
                     "expiration_timestamp": float(exp_timestamp),
                     "status": str(status or "Unknown"),
+                    "status_color": str(status_color),
                     "manager": str(manager),
                     "role": str(role),
                 }
@@ -360,10 +364,13 @@ def active_contracts():
             </q-td>
         ''')
         
-        # Add slot for status column with normal text
+        # Add slot for status column with color coding (Active = green, others = black)
         contracts_table.add_slot('body-cell-status', '''
             <q-td :props="props">
-                <div class="text-gray-700">
+                <div v-if="props.row.status_color === 'green'" class="text-green-700 font-semibold">
+                    {{ props.value }}
+                </div>
+                <div v-else class="text-black font-semibold">
                     {{ props.value }}
                 </div>
             </q-td>

@@ -19,6 +19,7 @@ from datetime import datetime, date, timedelta
 from dateutil.relativedelta import relativedelta
 import os
 import uuid
+import random
 
 
 def create_dummy_pdf(output_path):
@@ -325,6 +326,13 @@ def seed_vendors_and_contracts():
                 else:
                     next_dd_date = last_dd_date + relativedelta(years=3)
                 
+                # Randomly assign status (60% Active, 40% Inactive for realistic distribution)
+                vendor_status = random.choices(
+                    [VendorStatusType.ACTIVE, VendorStatusType.INACTIVE],
+                    weights=[60, 40],
+                    k=1
+                )[0]
+                
                 # Create vendor
                 vendor = Vendor(
                     vendor_id=vendor_id,
@@ -338,7 +346,7 @@ def seed_vendors_and_contracts():
                     last_due_diligence_date=last_dd_date,
                     next_required_due_diligence_date=next_dd_date,
                     next_required_due_diligence_alert_frequency=AlertFrequencyType.THIRTY_DAYS,
-                    status=VendorStatusType.ACTIVE,
+                    status=vendor_status,
                     created_at=datetime.utcnow(),
                     updated_at=datetime.utcnow()
                 )

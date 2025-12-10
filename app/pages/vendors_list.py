@@ -16,6 +16,7 @@ def vendors_list():
     vendors_table = None
     vendor_rows = []
     manager_label = None
+    status_filter = None  # None = All, 'active' = Active, 'inactive' = Inactive
     
     # Function to handle owned/backup toggle
     def on_role_toggle(e):
@@ -65,10 +66,11 @@ def vendors_list():
             vendor_service = VendorService(db)
             
             # Get all vendors (limit 1000 for display)
+            # status_filter is applied at the service level
             vendors, total_count = vendor_service.get_vendors_with_filters(
                 skip=0,
                 limit=1000,
-                status_filter=None,
+                status_filter=status_filter,
                 search=None
             )
             
@@ -98,6 +100,7 @@ def vendors_list():
                 
                 # Get status
                 status = vendor.status.value if hasattr(vendor.status, 'value') else str(vendor.status)
+                # Active = green, Inactive = black (per requirements)
                 status_color = "green" if vendor.status == VendorStatusType.ACTIVE else "black"
                 
                 # Get primary email
@@ -234,18 +237,60 @@ def vendors_list():
             ui.label("List of all vendors").classes("text-sm text-gray-500")
             manager_label = ui.label("Manager: John Doe").classes("text-base font-semibold text-primary")
         
+        # Status filter controls
+        with ui.row().classes('items-center gap-4 ml-4 mb-4 w-full'):
+            # Status filter buttons
+            with ui.row().classes('items-center gap-2'):
+                ui.label("Status:").classes("text-sm font-medium")
+                status_all_btn = ui.button("All", on_click=lambda: set_status_filter(None)).props('flat color=primary')
+                status_active_btn = ui.button("Active", on_click=lambda: set_status_filter('active')).props('flat color=primary')
+                status_inactive_btn = ui.button("Inactive", on_click=lambda: set_status_filter('inactive')).props('flat color=primary')
+        
         # Count label row
         with ui.row().classes('ml-4 mb-2'):
             count_label = ui.label(f"Total: {len(vendor_rows)} vendors").classes("text-sm text-gray-500")
+        
+        # Status filter function
+        def set_status_filter(filter_value):
+            nonlocal status_filter, vendor_rows
+            status_filter = filter_value
+            
+            # Reset all buttons to default style
+            status_all_btn.props('flat color=primary')
+            status_active_btn.props('flat color=primary')
+            status_inactive_btn.props('flat color=primary')
+            
+            # Highlight the selected button
+            if filter_value is None:
+                status_all_btn.props('flat color=primary').style('background-color: #e3f2fd; font-weight: bold;')
+            elif filter_value == 'active':
+                status_active_btn.props('flat color=primary').style('background-color: #e3f2fd; font-weight: bold;')
+            else:
+                status_inactive_btn.props('flat color=primary').style('background-color: #e3f2fd; font-weight: bold;')
+            
+            # Refresh vendors with new filter
+            vendor_rows = fetch_vendors()
+            count_label.set_text(f"Total: {len(vendor_rows)} vendors")
+            filter_vendors()
+            
+            filter_name = "All" if filter_value is None else filter_value.capitalize()
+            ui.notify(f"Showing {filter_name} vendors", type="info")
         
         # Search functionality (defined before table so it can reference vendors_table)
         def filter_vendors():
             if not vendors_table:
                 return
             
-            # Get base rows based on current toggle state
+            # Get base rows based on current toggle state and status filter
             current_role = role_toggle.value
             base_rows = [row for row in vendor_rows if row['role'] == current_role]
+            
+            # Apply status filter if set (status is already filtered at fetch level, but double-check here)
+            if status_filter:
+                if status_filter == 'active':
+                    base_rows = [row for row in base_rows if row.get('status', '').lower() == 'active']
+                elif status_filter == 'inactive':
+                    base_rows = [row for row in base_rows if row.get('status', '').lower() == 'inactive']
             
             search_term = (search_input.value or "").lower()
             if not search_term:
@@ -283,8 +328,14 @@ def vendors_list():
                 ui.label("Please check that the backend API is running and has vendor data.").classes("text-sm text-gray-400 mt-2")
         
         # Create table after search bar (showing backup vendors by default - John Doe)
+        # Apply both role and status filters
         initial_rows = [row for row in vendor_rows if row.get('role') == 'backup']
-        print(f"Creating table with {len(initial_rows)} rows (filtered by role: backup)")
+        if status_filter:
+            if status_filter == 'active':
+                initial_rows = [row for row in initial_rows if row.get('status', '').lower() == 'active']
+            elif status_filter == 'inactive':
+                initial_rows = [row for row in initial_rows if row.get('status', '').lower() == 'inactive']
+        print(f"Creating table with {len(initial_rows)} rows (filtered by role: backup, status: {status_filter or 'all'})")
         
         vendors_table = ui.table(
             columns=vendor_columns,
@@ -308,6 +359,9 @@ def vendors_list():
             # Reapply current filters
             filter_vendors()
             ui.notify(f"Refreshed: {len(vendor_rows)} vendors loaded", type="info")
+        
+        # Initialize status filter button styles (All selected by default)
+        status_all_btn.props('flat color=primary').style('background-color: #e3f2fd; font-weight: bold;')
         
         # Add refresh button to header
         refresh_btn = ui.button("Refresh", icon="refresh", on_click=refresh_vendors).props('color=primary flat').classes('ml-4')
@@ -343,13 +397,13 @@ def vendors_list():
             </q-td>
         ''')
         
-        # Add slot for status column with color coding
+        # Add slot for status column with color coding (Active=green, Inactive=black per requirements)
         vendors_table.add_slot('body-cell-status', '''
             <q-td :props="props">
                 <div v-if="props.row.status_color === 'green'" class="text-green-700 font-semibold">
                     {{ props.value }}
                 </div>
-                <div v-else class="text-gray-700 font-semibold">
+                <div v-else class="text-black font-semibold">
                     {{ props.value }}
                 </div>
             </q-td>
