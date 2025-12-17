@@ -53,8 +53,10 @@ def vendor_info(vendor_id: int):
         with ui.row().classes("items-center justify-between mb-4 w-full"):
             ui.label("Vendor Info").classes("text-h5")
             if vendor:
-                with ui.link(target=f'/vendor-contracts/{vendor.id}').classes('no-underline'):
-                    ui.button("View Contracts", icon="description").props('flat color=primary')
+                with ui.row().classes("items-center gap-2"):
+                    edit_btn = ui.button(icon="edit").props('flat round color=primary size=sm').tooltip('Edit Vendor Info')
+                    with ui.link(target=f'/vendor-contracts/{vendor.id}').classes('no-underline'):
+                        ui.button("View Contracts", icon="description").props('flat color=primary')
         
         if not vendor:
             ui.label("No vendor selected. Please select a vendor from the vendors list.").classes("text-red-600")
@@ -164,6 +166,238 @@ def vendor_info(vendor_id: int):
                             ui.label(f"  • {doc.document_type.value}: {doc.custom_document_name}").classes("text-sm")
                     else:
                         ui.label("No documents uploaded").classes("text-gray-500")
+    
+    # Edit Vendor Dialog
+    if vendor:
+        from app.models.vendor import MaterialOutsourcingType, BankCustomerType, DueDiligenceRequiredType, AlertFrequencyType, VendorStatusType
+        
+        with ui.dialog() as edit_dialog, ui.card().classes("min-w-[900px] max-w-5xl max-h-[90vh] overflow-y-auto"):
+            ui.label("Edit Vendor Information").classes("text-h5 mb-4 text-blue-600 font-bold")
+            
+            # Store original values for change tracking
+            original_values = {}
+            edited_fields = {}
+            
+            # Track if any changes were made
+            has_changes_ref = {'value': False}
+            
+            with ui.column().classes("w-full gap-4"):
+                # Vendor ID (Read-only)
+                with ui.row().classes("gap-4 items-center"):
+                    ui.label(f"Vendor ID: {vendor.vendor_id}").classes("font-bold text-lg")
+                
+                # Vendor Name
+                with ui.column().classes("w-full"):
+                    ui.label("Vendor Name *").classes("font-medium text-sm")
+                    vendor_name_input = ui.input(
+                        value=vendor.vendor_name,
+                        placeholder="Enter vendor name"
+                    ).classes("w-full").props('outlined dense')
+                    original_values['vendor_name'] = vendor.vendor_name
+                
+                # Contact Person
+                with ui.column().classes("w-full"):
+                    ui.label("Contact Person *").classes("font-medium text-sm")
+                    contact_person_input = ui.input(
+                        value=vendor.vendor_contact_person,
+                        placeholder="Enter contact person"
+                    ).classes("w-full").props('outlined dense')
+                    original_values['vendor_contact_person'] = vendor.vendor_contact_person
+                
+                # Country
+                with ui.column().classes("w-full"):
+                    ui.label("Country *").classes("font-medium text-sm")
+                    country_input = ui.input(
+                        value=vendor.vendor_country,
+                        placeholder="Enter country"
+                    ).classes("w-full").props('outlined dense')
+                    original_values['vendor_country'] = vendor.vendor_country
+                
+                # Status
+                with ui.column().classes("w-full"):
+                    ui.label("Status *").classes("font-medium text-sm")
+                    status_select = ui.select(
+                        options=[status.value for status in VendorStatusType],
+                        value=vendor.status.value
+                    ).classes("w-full").props('outlined dense')
+                    original_values['status'] = vendor.status.value
+                
+                # Bank Customer
+                with ui.column().classes("w-full"):
+                    ui.label("Bank Customer *").classes("font-medium text-sm")
+                    bank_customer_select = ui.select(
+                        options=[bc.value for bc in BankCustomerType],
+                        value=vendor.bank_customer.value
+                    ).classes("w-full").props('outlined dense')
+                    original_values['bank_customer'] = vendor.bank_customer.value
+                
+                # CIF (conditionally required)
+                with ui.column().classes("w-full"):
+                    ui.label("CIF (6 digits, required for Aruba/Orco Bank)").classes("font-medium text-sm")
+                    cif_input = ui.input(
+                        value=vendor.cif or "",
+                        placeholder="Enter CIF"
+                    ).classes("w-full").props('outlined dense maxlength=6')
+                    original_values['cif'] = vendor.cif or ""
+                
+                # Material Outsourcing
+                with ui.column().classes("w-full"):
+                    ui.label("Material Outsourcing Arrangement *").classes("font-medium text-sm")
+                    material_outsourcing_select = ui.select(
+                        options=[mo.value for mo in MaterialOutsourcingType],
+                        value=vendor.material_outsourcing_arrangement.value
+                    ).classes("w-full").props('outlined dense')
+                    original_values['material_outsourcing_arrangement'] = vendor.material_outsourcing_arrangement.value
+                
+                # Due Diligence Required
+                with ui.column().classes("w-full"):
+                    ui.label("Due Diligence Required *").classes("font-medium text-sm")
+                    due_diligence_select = ui.select(
+                        options=[dd.value for dd in DueDiligenceRequiredType],
+                        value=vendor.due_diligence_required.value
+                    ).classes("w-full").props('outlined dense')
+                    original_values['due_diligence_required'] = vendor.due_diligence_required.value
+                
+                # Last Due Diligence Date
+                with ui.column().classes("w-full"):
+                    ui.label("Last Due Diligence Date").classes("font-medium text-sm")
+                    last_dd_date_value = vendor.last_due_diligence_date.strftime("%Y-%m-%d") if vendor.last_due_diligence_date else ""
+                    last_dd_date_input = ui.input(
+                        value=last_dd_date_value,
+                        placeholder="YYYY-MM-DD"
+                    ).classes("w-full").props('outlined dense type=date')
+                    original_values['last_due_diligence_date'] = last_dd_date_value
+                
+                # Next Required Due Diligence Date
+                with ui.column().classes("w-full"):
+                    ui.label("Next Required Due Diligence Date").classes("font-medium text-sm")
+                    next_dd_date_value = vendor.next_required_due_diligence_date.strftime("%Y-%m-%d") if vendor.next_required_due_diligence_date else ""
+                    next_dd_date_input = ui.input(
+                        value=next_dd_date_value,
+                        placeholder="YYYY-MM-DD"
+                    ).classes("w-full").props('outlined dense type=date')
+                    original_values['next_required_due_diligence_date'] = next_dd_date_value
+                
+                # Alert Frequency
+                with ui.column().classes("w-full"):
+                    ui.label("Next Required Due Diligence Alert Frequency").classes("font-medium text-sm")
+                    alert_freq_options = [af.value for af in AlertFrequencyType]
+                    alert_freq_value = vendor.next_required_due_diligence_alert_frequency.value if vendor.next_required_due_diligence_alert_frequency else alert_freq_options[0]
+                    alert_freq_select = ui.select(
+                        options=alert_freq_options,
+                        value=alert_freq_value
+                    ).classes("w-full").props('outlined dense')
+                    original_values['next_required_due_diligence_alert_frequency'] = alert_freq_value
+                
+                # Track changes
+                def track_change(field_name):
+                    def on_change(e):
+                        current_value = e.value if hasattr(e, 'value') else e
+                        if str(current_value) != str(original_values.get(field_name, '')):
+                            edited_fields[field_name] = current_value
+                            has_changes_ref['value'] = True
+                        elif field_name in edited_fields:
+                            del edited_fields[field_name]
+                            has_changes_ref['value'] = len(edited_fields) > 0
+                    return on_change
+                
+                vendor_name_input.on('change', track_change('vendor_name'))
+                contact_person_input.on('change', track_change('vendor_contact_person'))
+                country_input.on('change', track_change('vendor_country'))
+                status_select.on('change', track_change('status'))
+                bank_customer_select.on('change', track_change('bank_customer'))
+                cif_input.on('change', track_change('cif'))
+                material_outsourcing_select.on('change', track_change('material_outsourcing_arrangement'))
+                due_diligence_select.on('change', track_change('due_diligence_required'))
+                last_dd_date_input.on('change', track_change('last_due_diligence_date'))
+                next_dd_date_input.on('change', track_change('next_required_due_diligence_date'))
+                alert_freq_select.on('change', track_change('next_required_due_diligence_alert_frequency'))
+                
+                # Buttons
+                with ui.row().classes("gap-4 mt-6 w-full justify-end"):
+                    ui.button("Cancel", icon="cancel", on_click=lambda: edit_dialog.close()).props('flat color=grey')
+                    save_btn = ui.button("Save Changes", icon="save", on_click=lambda: save_vendor_changes()).props('color=primary')
+        
+        # Save changes function
+        async def save_vendor_changes():
+            if not has_changes_ref['value']:
+                ui.notify("No changes to save", type="info")
+                return
+            
+            try:
+                # Build update payload
+                update_data = {}
+                
+                if 'vendor_name' in edited_fields:
+                    update_data['vendor_name'] = vendor_name_input.value
+                if 'vendor_contact_person' in edited_fields:
+                    update_data['vendor_contact_person'] = contact_person_input.value
+                if 'vendor_country' in edited_fields:
+                    update_data['vendor_country'] = country_input.value
+                if 'status' in edited_fields:
+                    update_data['status'] = status_select.value
+                if 'bank_customer' in edited_fields:
+                    update_data['bank_customer'] = bank_customer_select.value
+                if 'cif' in edited_fields:
+                    update_data['cif'] = cif_input.value if cif_input.value else None
+                if 'material_outsourcing_arrangement' in edited_fields:
+                    update_data['material_outsourcing_arrangement'] = material_outsourcing_select.value
+                if 'due_diligence_required' in edited_fields:
+                    update_data['due_diligence_required'] = due_diligence_select.value
+                if 'last_due_diligence_date' in edited_fields:
+                    update_data['last_due_diligence_date'] = last_dd_date_input.value if last_dd_date_input.value else None
+                if 'next_required_due_diligence_date' in edited_fields:
+                    update_data['next_required_due_diligence_date'] = next_dd_date_input.value if next_dd_date_input.value else None
+                if 'next_required_due_diligence_alert_frequency' in edited_fields:
+                    update_data['next_required_due_diligence_alert_frequency'] = alert_freq_select.value
+                
+                # Make API call
+                import httpx
+                from app.core.config import settings
+                
+                api_url = f"http://localhost:8000{settings.api_v1_prefix}/vendors/{vendor.id}"
+                
+                async with httpx.AsyncClient() as client:
+                    response = await client.put(
+                        api_url,
+                        json=update_data,
+                        timeout=30.0
+                    )
+                    
+                    if response.status_code == 200:
+                        ui.notify("✅ Vendor information updated successfully!", type="positive")
+                        edit_dialog.close()
+                        # Refresh the page to show updated data
+                        ui.navigate.to(f'/vendor-info/{vendor.id}')
+                    else:
+                        error_detail = response.json().get('detail', 'Unknown error')
+                        ui.notify(f"❌ Error updating vendor: {error_detail}", type="negative")
+            except Exception as e:
+                ui.notify(f"❌ Error: {str(e)}", type="negative")
+                print(f"Error updating vendor: {e}")
+                import traceback
+                traceback.print_exc()
+        
+        # Bind edit button to open dialog
+        def open_edit_dialog():
+            # Reset changes tracking
+            edited_fields.clear()
+            has_changes_ref['value'] = False
+            # Reset input values to current vendor data
+            vendor_name_input.value = vendor.vendor_name
+            contact_person_input.value = vendor.vendor_contact_person
+            country_input.value = vendor.vendor_country
+            status_select.value = vendor.status.value
+            bank_customer_select.value = vendor.bank_customer.value
+            cif_input.value = vendor.cif or ""
+            material_outsourcing_select.value = vendor.material_outsourcing_arrangement.value
+            due_diligence_select.value = vendor.due_diligence_required.value
+            last_dd_date_input.value = vendor.last_due_diligence_date.strftime("%Y-%m-%d") if vendor.last_due_diligence_date else ""
+            next_dd_date_input.value = vendor.next_required_due_diligence_date.strftime("%Y-%m-%d") if vendor.next_required_due_diligence_date else ""
+            alert_freq_select.value = vendor.next_required_due_diligence_alert_frequency.value if vendor.next_required_due_diligence_alert_frequency else alert_freq_options[0]
+            edit_dialog.open()
+        
+        edit_btn.on_click(open_edit_dialog)
     
     # Documents Section - Two Categories
     if vendor:
