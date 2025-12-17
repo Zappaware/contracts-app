@@ -399,6 +399,59 @@ class ContractService:
             .filter(Contract.end_date >= date.today())
             .all()
         )
+    
+    def get_contracts_with_no_documents(
+        self,
+        skip: int = 0,
+        limit: int = 1000
+    ) -> tuple[List[Contract], int]:
+        """
+        Get active contracts that have no documents uploaded
+        Returns: (contracts, total_count)
+        """
+        # Query active contracts that have no associated documents
+        query = (
+            self.db.query(Contract)
+            .outerjoin(ContractDocument, Contract.id == ContractDocument.contract_id)
+            .filter(Contract.status == ContractStatusType.ACTIVE)
+            .filter(ContractDocument.id == None)  # No documents
+        )
+        
+        # Get total count before pagination
+        total_count = query.count()
+        
+        # Apply pagination
+        contracts = query.offset(skip).limit(limit).all()
+        
+        return contracts, total_count
+    
+    def get_contracts_needing_review(
+        self,
+        skip: int = 0,
+        limit: int = 1000,
+        days_ahead: int = 90
+    ) -> tuple[List[Contract], int]:
+        """
+        Get active contracts expiring within specified days that need review
+        (contracts expiring soon, regardless of document status)
+        Returns: (contracts, total_count)
+        """
+        cutoff_date = date.today() + timedelta(days=days_ahead)
+        
+        query = (
+            self.db.query(Contract)
+            .filter(Contract.status == ContractStatusType.ACTIVE)
+            .filter(Contract.end_date <= cutoff_date)
+            .filter(Contract.end_date >= date.today())
+        )
+        
+        # Get total count before pagination
+        total_count = query.count()
+        
+        # Apply pagination
+        contracts = query.offset(skip).limit(limit).all()
+        
+        return contracts, total_count
 
     def create_user(self, user_data: UserCreate) -> User:
         """

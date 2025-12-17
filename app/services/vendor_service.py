@@ -229,6 +229,105 @@ class VendorService:
         self.db.commit()
         self.db.refresh(vendor)
         return vendor
+    
+    def update_vendor_primary_email(self, vendor_id: int, new_email: str) -> VendorEmail:
+        """Update the primary email for a vendor"""
+        vendor = self.get_vendor_by_id(vendor_id)
+        if not vendor:
+            raise HTTPException(
+                status_code=HTTPStatus.NOT_FOUND,
+                detail=ErrorMessages.VENDOR_NOT_FOUND
+            )
+        
+        # Get primary email
+        primary_email = next((e for e in vendor.emails if e.is_primary), None)
+        
+        if primary_email:
+            # Update existing primary email
+            primary_email.email = new_email
+        else:
+            # Create new primary email if none exists
+            primary_email = VendorEmail(
+                vendor_id=vendor_id,
+                email=new_email,
+                is_primary=True
+            )
+            self.db.add(primary_email)
+        
+        self.db.commit()
+        self.db.refresh(primary_email)
+        return primary_email
+    
+    def update_vendor_primary_phone(self, vendor_id: int, area_code: str, phone_number: str) -> VendorPhone:
+        """Update the primary phone for a vendor"""
+        vendor = self.get_vendor_by_id(vendor_id)
+        if not vendor:
+            raise HTTPException(
+                status_code=HTTPStatus.NOT_FOUND,
+                detail=ErrorMessages.VENDOR_NOT_FOUND
+            )
+        
+        # Get primary phone
+        primary_phone = next((p for p in vendor.phones if p.is_primary), None)
+        
+        if primary_phone:
+            # Update existing primary phone
+            primary_phone.area_code = area_code
+            primary_phone.phone_number = phone_number
+        else:
+            # Create new primary phone if none exists
+            primary_phone = VendorPhone(
+                vendor_id=vendor_id,
+                area_code=area_code,
+                phone_number=phone_number,
+                is_primary=True
+            )
+            self.db.add(primary_phone)
+        
+        self.db.commit()
+        self.db.refresh(primary_phone)
+        return primary_phone
+    
+    def update_vendor_primary_address(
+        self, 
+        vendor_id: int, 
+        address: str, 
+        city: str = None, 
+        state: str = None, 
+        zip_code: str = None
+    ) -> VendorAddress:
+        """Update the primary address for a vendor"""
+        vendor = self.get_vendor_by_id(vendor_id)
+        if not vendor:
+            raise HTTPException(
+                status_code=HTTPStatus.NOT_FOUND,
+                detail=ErrorMessages.VENDOR_NOT_FOUND
+            )
+        
+        # Get primary address
+        primary_address = next((a for a in vendor.addresses if a.is_primary), None)
+        
+        if primary_address:
+            # Update existing primary address
+            primary_address.address = address
+            primary_address.city = city
+            primary_address.state = state
+            primary_address.zip_code = zip_code
+        else:
+            # Create new primary address if none exists
+            primary_address = VendorAddress(
+                vendor_id=vendor_id,
+                address=address,
+                city=city,
+                state=state,
+                zip_code=zip_code,
+                is_primary=True
+            )
+            self.db.add(primary_address)
+        
+        self.db.commit()
+        self.db.refresh(primary_address)
+        return primary_address
 
     def get_active_vendors(self, skip: int = 0, limit: int = 1000) -> List[Vendor]:
         return (
