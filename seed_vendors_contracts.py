@@ -274,7 +274,7 @@ def seed_vendors_and_contracts():
         
         print("\n🌱 Starting vendor and contract seeding...\n")
         
-        # Create 10 vendors
+        # Create 20 vendors (doubled from 10)
         vendors_data = [
             {
                 "vendor_name": "TechCorp Solutions Inc",
@@ -415,13 +415,153 @@ def seed_vendors_and_contracts():
                 "zip_code": "02101",
                 "email": "solutions@enterprise.com",
                 "phone": "+1-617-5551001"
+            },
+            {
+                "vendor_name": "Digital Marketing Agency",
+                "vendor_contact_person": "Kate Thompson",
+                "vendor_country": "United States",
+                "bank_customer": BankCustomerType.ARUBA_BANK,
+                "cif": "890123",
+                "material_outsourcing_arrangement": MaterialOutsourcingType.NO,
+                "address": "444 Marketing Plaza",
+                "city": "Chicago",
+                "state": "Illinois",
+                "zip_code": "60601",
+                "email": "contact@digitalmarketing.com",
+                "phone": "+1-312-5551101"
+            },
+            {
+                "vendor_name": "Financial Advisory Services",
+                "vendor_contact_person": "Liam O'Brien",
+                "vendor_country": "Canada",
+                "bank_customer": BankCustomerType.ORCO_BANK,
+                "cif": "901234",
+                "material_outsourcing_arrangement": MaterialOutsourcingType.YES,
+                "address": "555 Finance Street",
+                "city": "Vancouver",
+                "state": "British Columbia",
+                "zip_code": "V6B1H8",
+                "email": "advisory@financialservices.ca",
+                "phone": "+1-604-5551201"
+            },
+            {
+                "vendor_name": "HR Management Solutions",
+                "vendor_contact_person": "Maria Santos",
+                "vendor_country": "Aruba",
+                "bank_customer": BankCustomerType.ARUBA_BANK,
+                "cif": "012345",
+                "material_outsourcing_arrangement": MaterialOutsourcingType.NO,
+                "address": "666 HR Boulevard",
+                "city": "",
+                "state": "",
+                "zip_code": "",
+                "email": "hr@management.aw",
+                "phone": "297-5551301"
+            },
+            {
+                "vendor_name": "Legal Compliance Corp",
+                "vendor_contact_person": "Nathan White",
+                "vendor_country": "United States",
+                "bank_customer": BankCustomerType.ARUBA_BANK,
+                "cif": "123450",
+                "material_outsourcing_arrangement": MaterialOutsourcingType.YES,
+                "address": "777 Legal Way",
+                "city": "Washington",
+                "state": "DC",
+                "zip_code": "20001",
+                "email": "compliance@legal.com",
+                "phone": "+1-202-5551401"
+            },
+            {
+                "vendor_name": "Training and Development Inc",
+                "vendor_contact_person": "Olivia Martinez",
+                "vendor_country": "Mexico",
+                "bank_customer": BankCustomerType.NONE,
+                "cif": None,
+                "material_outsourcing_arrangement": MaterialOutsourcingType.NO,
+                "address": "888 Training Center",
+                "city": "Guadalajara",
+                "state": "Jalisco",
+                "zip_code": "44100",
+                "email": "training@development.mx",
+                "phone": "+52-33-5551501"
+            },
+            {
+                "vendor_name": "Equipment Leasing Partners",
+                "vendor_contact_person": "Paul Johnson",
+                "vendor_country": "United States",
+                "bank_customer": BankCustomerType.ARUBA_BANK,
+                "cif": "234501",
+                "material_outsourcing_arrangement": MaterialOutsourcingType.YES,
+                "address": "999 Lease Lane",
+                "city": "Denver",
+                "state": "Colorado",
+                "zip_code": "80202",
+                "email": "leasing@equipment.com",
+                "phone": "+1-303-5551601"
+            },
+            {
+                "vendor_name": "Customer Support Services",
+                "vendor_contact_person": "Quinn Davis",
+                "vendor_country": "Netherlands",
+                "bank_customer": BankCustomerType.NONE,
+                "cif": None,
+                "material_outsourcing_arrangement": MaterialOutsourcingType.NO,
+                "address": "101 Support Avenue",
+                "city": "Rotterdam",
+                "state": "South Holland",
+                "zip_code": "3011",
+                "email": "support@customer.nl",
+                "phone": "+31-10-5551701"
+            },
+            {
+                "vendor_name": "Telecommunications Provider",
+                "vendor_contact_person": "Rachel Green",
+                "vendor_country": "Curacao",
+                "bank_customer": BankCustomerType.ORCO_BANK,
+                "cif": "345012",
+                "material_outsourcing_arrangement": MaterialOutsourcingType.YES,
+                "address": "202 Telecom Road",
+                "city": "",
+                "state": "",
+                "zip_code": "",
+                "email": "info@telecom.cw",
+                "phone": "+599-9-5551801"
+            },
+            {
+                "vendor_name": "Office Supplies Distribution",
+                "vendor_contact_person": "Steve Miller",
+                "vendor_country": "United States",
+                "bank_customer": BankCustomerType.ARUBA_BANK,
+                "cif": "456123",
+                "material_outsourcing_arrangement": MaterialOutsourcingType.NO,
+                "address": "303 Supply Street",
+                "city": "Seattle",
+                "state": "Washington",
+                "zip_code": "98101",
+                "email": "orders@officesupplies.com",
+                "phone": "+1-206-5551901"
+            },
+            {
+                "vendor_name": "Facilities Management Group",
+                "vendor_contact_person": "Tina Brown",
+                "vendor_country": "Bonaire",
+                "bank_customer": BankCustomerType.NONE,
+                "cif": None,
+                "material_outsourcing_arrangement": MaterialOutsourcingType.YES,
+                "address": "404 Facilities Drive",
+                "city": "",
+                "state": "",
+                "zip_code": "",
+                "email": "facilities@management.bq",
+                "phone": "+599-7-5552001"
             }
         ]
         
         vendors = []
         
         if vendors_created:
-            print("Creating 10 vendors...\n")
+            print("Creating 20 vendors...\n")
             
             for i, vendor_data in enumerate(vendors_data, 1):
                 # Determine bank type for vendor ID generation
@@ -546,11 +686,11 @@ def seed_vendors_and_contracts():
             print(f"\n✅ Successfully seeded {len(vendors)} vendors!\n")
         else:
             # Load existing vendors
-            vendors = db.query(Vendor).limit(10).all()
+            vendors = db.query(Vendor).limit(20).all()
             print(f"✓ Using {len(vendors)} existing vendors\n")
         
-        # Create 10 contracts
-        print("Creating 10 contracts...\n")
+        # Create 20 contracts (doubled from 10)
+        print("Creating 20 contracts...\n")
         
         contracts_data = [
             {
@@ -642,6 +782,96 @@ def seed_vendors_and_contracts():
                 "currency": CurrencyType.USD,
                 "start_offset_days": -200,
                 "duration_days": 1095
+            },
+            {
+                "description": "Marketing Campaign Services",
+                "contract_type": ContractType.SERVICE_AGREEMENT,
+                "department": DepartmentType.MARKETING,
+                "amount": 32000.00,
+                "currency": CurrencyType.USD,
+                "start_offset_days": -300,
+                "duration_days": 360  # Expiring soon
+            },
+            {
+                "description": "Financial Planning Advisory",
+                "contract_type": ContractType.CONSULTING_AGREEMENT,
+                "department": DepartmentType.FINANCE,
+                "amount": 55000.00,
+                "currency": CurrencyType.AWG,
+                "start_offset_days": -280,
+                "duration_days": 330  # Expiring within 90 days
+            },
+            {
+                "description": "Payroll Management System",
+                "contract_type": ContractType.SOFTWARE_LICENSE,
+                "department": DepartmentType.HUMAN_RESOURCES,
+                "amount": 28000.00,
+                "currency": CurrencyType.USD,
+                "start_offset_days": -20,
+                "duration_days": 365
+            },
+            {
+                "description": "Legal Document Review",
+                "contract_type": ContractType.CONSULTING_AGREEMENT,
+                "department": DepartmentType.LEGAL,
+                "amount": 42000.00,
+                "currency": CurrencyType.USD,
+                "start_offset_days": -310,
+                "duration_days": 365  # Expiring within 90 days
+            },
+            {
+                "description": "Employee Training Program",
+                "contract_type": ContractType.SERVICE_AGREEMENT,
+                "department": DepartmentType.HUMAN_RESOURCES,
+                "amount": 18000.00,
+                "currency": CurrencyType.AWG,
+                "start_offset_days": -250,
+                "duration_days": 365
+            },
+            {
+                "description": "Equipment Rental Agreement",
+                "contract_type": ContractType.LEASE_AGREEMENT,
+                "department": DepartmentType.OPERATIONS,
+                "amount": 65000.00,
+                "currency": CurrencyType.USD,
+                "start_offset_days": -100,
+                "duration_days": 730
+            },
+            {
+                "description": "Call Center Support Services",
+                "contract_type": ContractType.SUPPORT_CONTRACT,
+                "department": DepartmentType.CUSTOMER_SERVICE,
+                "amount": 38000.00,
+                "currency": CurrencyType.USD,
+                "start_offset_days": -320,
+                "duration_days": 380  # Expiring within 90 days
+            },
+            {
+                "description": "Mobile Network Services",
+                "contract_type": ContractType.SERVICE_AGREEMENT,
+                "department": DepartmentType.IT,
+                "amount": 22000.00,
+                "currency": CurrencyType.AWG,
+                "start_offset_days": -290,
+                "duration_days": 350  # Expiring within 90 days
+            },
+            {
+                "description": "Office Supplies Annual Contract",
+                "contract_type": ContractType.PURCHASE_AGREEMENT,
+                "department": DepartmentType.OPERATIONS,
+                "amount": 15000.00,
+                "currency": CurrencyType.USD,
+                "start_offset_days": -5,
+                "duration_days": 365
+            },
+            {
+                "description": "Building Maintenance Services",
+                "contract_type": ContractType.MAINTENANCE_CONTRACT,
+                "department": DepartmentType.OPERATIONS,
+                "amount": 48000.00,
+                "currency": CurrencyType.USD,
+                "start_offset_days": -305,
+                "duration_days": 365  # Expiring within 90 days
             }
         ]
         
@@ -688,37 +918,55 @@ def seed_vendors_and_contracts():
             db.add(contract)
             db.flush()
             
-            # Create contract document
-            doc_path, doc_size = save_contract_document(
-                contract,
-                f"{contract_data['description']} - Signed",
-                start_date
-            )
-            
-            contract_doc = ContractDocument(
-                contract_id=contract.id,
-                file_name="contract.pdf",
-                custom_document_name=f"{contract_data['description']} - Signed",
-                document_signed_date=start_date,
-                file_path=doc_path,
-                file_size=doc_size,
-                content_type="application/pdf",
-                created_at=datetime.now(timezone.utc)
-            )
-            db.add(contract_doc)
-            
-            print(f"  ✓ Created contract: {contract.contract_id} - {contract.contract_description} ({vendor.vendor_name})")
+            # Create contract document for some contracts (every other contract gets a document)
+            # This creates a mix: some with documents, some without (for testing pending_contracts page)
+            if i % 2 == 0:
+                doc_path, doc_size = save_contract_document(
+                    contract,
+                    f"{contract_data['description']} - Signed",
+                    start_date
+                )
+                
+                contract_doc = ContractDocument(
+                    contract_id=contract.id,
+                    file_name="contract.pdf",
+                    custom_document_name=f"{contract_data['description']} - Signed",
+                    document_signed_date=start_date,
+                    file_path=doc_path,
+                    file_size=doc_size,
+                    content_type="application/pdf",
+                    created_at=datetime.now(timezone.utc)
+                )
+                db.add(contract_doc)
+                print(f"  ✓ Created contract: {contract.contract_id} - {contract.contract_description} ({vendor.vendor_name}) [WITH DOCUMENT]")
+            else:
+                print(f"  ✓ Created contract: {contract.contract_id} - {contract.contract_description} ({vendor.vendor_name}) [NO DOCUMENT]")
         
         db.commit()
-        print(f"\n✅ Successfully seeded 10 contracts!")
+        print(f"\n✅ Successfully seeded 20 contracts!")
         
-        print("\n" + "="*60)
+        # Count contracts with and without documents
+        contracts_with_docs = sum(1 for i in range(len(contracts_data)) if i % 2 == 0)
+        contracts_without_docs = len(contracts_data) - contracts_with_docs
+        
+        # Count contracts expiring within 90 days
+        contracts_expiring_soon = 0
+        for i, contract_data in enumerate(contracts_data):
+            start_date = date.today() + timedelta(days=contract_data["start_offset_days"])
+            end_date = start_date + timedelta(days=contract_data["duration_days"])
+            if date.today() <= end_date <= date.today() + timedelta(days=90):
+                contracts_expiring_soon += 1
+        
+        print("\n" + "="*70)
         print("SUMMARY")
-        print("="*60)
+        print("="*70)
         print(f"Vendors: {len(vendors)}")
         print(f"Contracts: {len(contracts_data)}")
+        print(f"  - With documents: {contracts_with_docs}")
+        print(f"  - Without documents: {contracts_without_docs} (will appear in Pending Documents)")
+        print(f"  - Expiring within 90 days: {contracts_expiring_soon} (will appear in Pending Reviews)")
         print(f"Users available: {len(users)}")
-        print("="*60)
+        print("="*70)
         
     except Exception as e:
         print(f"❌ Error seeding vendors and contracts: {e}")
