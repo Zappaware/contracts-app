@@ -1,8 +1,10 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 from nicegui import ui
 import io
 import base64
-from app.utils.vendor_lookup import get_vendor_id_by_name
+from app.db.database import SessionLocal
+from app.services.contract_service import ContractService
+from app.models.contract import ContractStatusType
 try:
     import pandas as pd
     PANDAS_AVAILABLE = True
@@ -19,7 +21,6 @@ def pending_reviews():
     # Global variables for table and data
     contracts_table = None
     contract_rows = []
-    manager_label = None
     
     # Function to handle owned/backup toggle
     def on_role_toggle(e):
@@ -28,16 +29,11 @@ def pending_reviews():
         # Filter contracts based on selected role
         filtered = [row for row in contract_rows if row['role'] == role]
         
-        # Update manager name based on role
+        # Update notification based on role
         if role == 'backup':
-            manager_name = "John Doe"
             ui.notify("Showing backup contracts (John Doe)", type="info")
         else:  # owned
-            manager_name = "William Defoe"
             ui.notify("Showing owned contracts (William Defoe)", type="info")
-        
-        # Update the manager label
-        manager_label.set_text(f"Manager: {manager_name}")
         
         # If there's an active search, reapply it to the new filtered set
         try:
@@ -58,110 +54,92 @@ def pending_reviews():
         contracts_table.rows = filtered
         contracts_table.update()
     
-    # Mock data for pending contracts
-    def get_mock_pending_contracts():
+    # Fetch contracts needing review from database
+    def fetch_contracts_needing_review():
         """
-        Simulates contracts that are pending documents.
-        This will be replaced with actual API call when available.
+        Fetches active contracts expiring within 90 days that need review.
         """
-        today = datetime.now()
-        
-        mock_contracts = [
-            {
-                "contract_id": "CTR-2024-001",
-                "vendor_name": "Acme Corp",
-                "contract_type": "Service Agreement",
-                "description": "IT Support Services",
-                "expiration_date": today + timedelta(days=30),  # 30 days remaining
-                "manager": "William Defoe",
-                "role": "owned"
-            },
-            {
-                "contract_id": "CTR-2024-012",
-                "vendor_name": "Beta Technologies",
-                "contract_type": "Software License",
-                "description": "Enterprise Software Licensing",
-                "expiration_date": today + timedelta(days=45),  # 45 days remaining
-                "manager": "John Doe",
-                "role": "backup"
-            },
-            {
-                "contract_id": "CTR-2024-023",
-                "vendor_name": "Gamma Consulting",
-                "contract_type": "Consulting",
-                "description": "Business Process Optimization",
-                "expiration_date": today + timedelta(days=60),  # 60 days remaining
-                "manager": "William Defoe",
-                "role": "owned"
-            },
-            {
-                "contract_id": "CTR-2024-034",
-                "vendor_name": "Delta Logistics",
-                "contract_type": "Transportation",
-                "description": "Freight and Delivery Services",
-                "expiration_date": today + timedelta(days=15),  # 15 days remaining
-                "manager": "John Doe",
-                "role": "backup"
-            },
-            {
-                "contract_id": "CTR-2023-089",
-                "vendor_name": "Epsilon Security",
-                "contract_type": "Security Services",
-                "description": "Building Security and Monitoring",
-                "expiration_date": today + timedelta(days=90),  # 90 days remaining
-                "manager": "William Defoe",
-                "role": "owned"
-            },
-            {
-                "contract_id": "CTR-2024-045",
-                "vendor_name": "Zeta Solutions",
-                "contract_type": "Maintenance",
-                "description": "Equipment Maintenance Contract",
-                "expiration_date": today + timedelta(days=75),  # 75 days remaining
-                "manager": "John Doe",
-                "role": "backup"
-            },
-            {
-                "contract_id": "CTR-2024-056",
-                "vendor_name": "Eta Services",
-                "contract_type": "Cleaning Services",
-                "description": "Office Cleaning and Janitorial",
-                "expiration_date": today + timedelta(days=25),  # 25 days remaining
-                "manager": "William Defoe",
-                "role": "owned"
-            },
-            {
-                "contract_id": "CTR-2024-067",
-                "vendor_name": "Theta Communications",
-                "contract_type": "Telecommunications",
-                "description": "Internet and Phone Services",
-                "expiration_date": today + timedelta(days=50),  # 50 days remaining
-                "manager": "John Doe",
-                "role": "backup"
-            },
-        ]
-        
-        rows = []
-        for contract in mock_contracts:
-            exp_date = contract["expiration_date"]
+        db = SessionLocal()
+        try:
+            contract_service = ContractService(db)
             
-            # Look up vendor_id from vendor_name
-            vendor_id = get_vendor_id_by_name(contract["vendor_name"])
+            # Get contracts needing review (expiring within 90 days)
+            contracts, _ = contract_service.get_contracts_needing_review(
+                skip=0,
+                limit=1000,
+                days_ahead=90
+            )
             
-            rows.append({
-                "contract_id": contract["contract_id"],
-                "vendor_name": contract["vendor_name"],
-                "vendor_id": vendor_id,  # Add vendor_id for routing
-                "contract_type": contract["contract_type"],
-                "description": contract["description"],
-                "expiration_date": exp_date.strftime("%Y-%m-%d"),
-                "expiration_timestamp": exp_date.timestamp(),  # For sorting
-                "status": "Pending documents",  # Fixed status for pending contracts
-                "manager": contract["manager"],
-                "role": contract["role"],
-            })
-        
-        return rows
+            print(f"Found {len(contracts)} contracts needing review from database")
+            
+            if not contracts:
+                print("No contracts needing review found in database")
+                return []
+            
+            # Map contract data to table row format
+            rows = []
+            for contract in contracts:
+                # Get contract owner name
+                owner_name = f"{contract.contract_owner.first_name} {contract.contract_owner.last_name}"
+                backup_name = f"{contract.contract_owner_backup.first_name} {contract.contract_owner_backup.last_name}"
+                
+                # Get vendor info
+                vendor_name = contract.vendor.vendor_name if contract.vendor else "Unknown"
+                vendor_id = contract.vendor.id if contract.vendor else None
+                
+                # Get contract type value
+                contract_type = contract.contract_type.value if hasattr(contract.contract_type, 'value') else str(contract.contract_type)
+                
+                # Format expiration date (end_date)
+                if contract.end_date:
+                    if isinstance(contract.end_date, date):
+                        exp_date = contract.end_date
+                        formatted_date = exp_date.strftime("%Y-%m-%d")
+                        exp_timestamp = datetime.combine(exp_date, datetime.min.time()).timestamp()
+                    else:
+                        formatted_date = str(contract.end_date)
+                        exp_timestamp = 0
+                else:
+                    formatted_date = "N/A"
+                    exp_timestamp = 0
+                
+                # Determine role based on user (for demo, using contract owner ID)
+                # Odd IDs = William Defoe (owned), Even IDs = John Doe (backup)
+                # In real app, you'd check against current logged-in user
+                if contract.contract_owner_id % 2 == 1:
+                    manager = owner_name
+                    role = "owned"
+                else:
+                    manager = backup_name
+                    role = "backup"
+                
+                row_data = {
+                    "id": int(contract.id),
+                    "contract_id": str(contract.contract_id or ""),
+                    "vendor_id": int(vendor_id) if vendor_id else 0,
+                    "vendor_name": str(vendor_name or ""),
+                    "contract_type": str(contract_type or ""),
+                    "description": str(contract.contract_description or ""),
+                    "expiration_date": str(formatted_date),
+                    "expiration_timestamp": float(exp_timestamp),
+                    "status": "Pending review",  # Display status (not from DB)
+                    "manager": str(manager),
+                    "role": str(role),
+                }
+                rows.append(row_data)
+            
+            print(f"Processed {len(rows)} contract rows")
+            return rows
+            
+        except Exception as e:
+            error_msg = f"Error fetching contracts needing review: {str(e)}"
+            print(error_msg)
+            import traceback
+            traceback.print_exc()
+            ui.notify(error_msg, type="negative")
+            return []
+        finally:
+            db.close()
 
     contract_columns = [
         {
@@ -219,7 +197,17 @@ def pending_reviews():
         "headerClasses": "bg-[#144c8e] text-white",
     }
 
-    contract_rows = get_mock_pending_contracts()
+    contract_rows = []
+    
+    # Initial fetch
+    contract_rows = fetch_contracts_needing_review()
+    
+    # Debug: Check if we have data
+    print(f"Total contract rows fetched: {len(contract_rows)}")
+    if contract_rows:
+        print(f"First row sample: {contract_rows[0]}")
+    else:
+        ui.notify("No contracts needing review. No active contracts are expiring within 90 days.", type="info")
     
     # Main container
     with ui.element("div").classes("max-w-6xl mt-8 mx-auto w-full"):
@@ -240,14 +228,15 @@ def pending_reviews():
                     on_change=on_role_toggle
                 ).props('toggle-color=primary text-color=primary').classes('role-toggle')
         
-        # Manager name and description row
-        with ui.row().classes('items-center justify-between ml-4 mb-4 w-full'):
-            ui.label("Contracts missing required documents").classes(
+        # Description row
+        with ui.row().classes('ml-4 mb-4 w-full'):
+            ui.label("Contracts expiring within 90 days that need review").classes(
                 "text-sm text-gray-500"
             )
-            manager_label = ui.label("Manager: John Doe").classes(
-                "text-base font-semibold text-primary"
-            )
+        
+        # Count label row
+        with ui.row().classes('ml-4 mb-2'):
+            count_label = ui.label(f"Total: {len(contract_rows)} contracts").classes("text-sm text-gray-500")
         
         # Define search functions first
         def filter_contracts():
@@ -284,17 +273,41 @@ def pending_reviews():
             ui.button(icon='search', on_click=filter_contracts).props('color=primary')
             ui.button(icon='clear', on_click=clear_search).props('color=secondary')
         
+        # Show message if no data
+        if not contract_rows:
+            with ui.card().classes("w-full p-6"):
+                ui.label("No contracts needing review found").classes("text-lg font-bold text-gray-500")
+                ui.label("No active contracts are expiring within 90 days.").classes("text-sm text-gray-400 mt-2")
+        
         # Create table after search bar (showing backup contracts by default - John Doe)
-        initial_rows = [row for row in contract_rows if row['role'] == 'backup']
+        initial_rows = [row for row in contract_rows if row.get('role') == 'backup']
+        print(f"Creating table with {len(initial_rows)} rows (filtered by role: backup)")
+        
         contracts_table = ui.table(
             columns=contract_columns,
             column_defaults=contract_columns_defaults,
             rows=initial_rows,
             pagination=10,
-            row_key="contract_id"
+            row_key="id"
         ).classes("w-full").props("flat bordered").classes(
             "contracts-table shadow-lg rounded-lg overflow-hidden"
         )
+        
+        # Force update if we have data
+        if initial_rows:
+            contracts_table.update()
+        
+        # Refresh function (defined after table is created)
+        def refresh_contracts():
+            nonlocal contract_rows
+            contract_rows = fetch_contracts_needing_review()
+            count_label.set_text(f"Total: {len(contract_rows)} contracts")
+            # Reapply current filters
+            filter_contracts()
+            ui.notify(f"Refreshed: {len(contract_rows)} contracts needing review loaded", type="info")
+        
+        # Add refresh button
+        ui.button("Refresh", icon="refresh", on_click=refresh_contracts).props('color=primary flat').classes('ml-4')
         
         search_input.on_value_change(filter_contracts)
         
@@ -318,6 +331,15 @@ def pending_reviews():
             }
         """)
         
+        # Add slot for contract ID with clickable link (links to contract info)
+        contracts_table.add_slot('body-cell-contract_id', '''
+            <q-td :props="props">
+                <a :href="'/contract-info/' + props.row.id" class="text-blue-600 hover:text-blue-800 underline cursor-pointer">
+                    {{ props.value }}
+                </a>
+            </q-td>
+        ''')
+        
         # Add slot for vendor name with clickable link
         contracts_table.add_slot('body-cell-vendor_name', '''
             <q-td :props="props">
@@ -328,25 +350,13 @@ def pending_reviews():
             </q-td>
         ''')
         
-        # Add slot for custom styling of status column with review button
+        # Add slot for custom styling of status column
         contracts_table.add_slot('body-cell-status', '''
             <q-td :props="props">
-                <a v-if="props.row.vendor_id" :href="'/vendor-info/' + props.row.vendor_id" style="text-decoration: none;">
-                    <q-btn 
-                        label="Review" 
-                        color="primary" 
-                        size="sm" 
-                        icon="visibility"
-                    />
-                </a>
-                <q-btn 
-                    v-else
-                    label="Review" 
-                    color="grey" 
-                    size="sm" 
-                    icon="visibility"
-                    disabled
-                />
+                <div class="text-orange-600 font-semibold flex items-center gap-1">
+                    <q-icon name="pending" color="orange" size="sm" />
+                    {{ props.value }}
+                </div>
             </q-td>
         ''')
         
