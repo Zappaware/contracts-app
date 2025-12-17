@@ -22,37 +22,6 @@ def pending_reviews():
     contracts_table = None
     contract_rows = []
     
-    # Function to handle owned/backup toggle
-    def on_role_toggle(e):
-        role = e.value  # Will be 'backup' or 'owned'
-        
-        # Filter contracts based on selected role
-        filtered = [row for row in contract_rows if row['role'] == role]
-        
-        # Update notification based on role
-        if role == 'backup':
-            ui.notify("Showing backup contracts (John Doe)", type="info")
-        else:  # owned
-            ui.notify("Showing owned contracts (William Defoe)", type="info")
-        
-        # If there's an active search, reapply it to the new filtered set
-        try:
-            search_term = (search_input.value or "").lower()
-            if search_term:
-                filtered = [
-                    row for row in filtered
-                    if search_term in (row['contract_id'] or "").lower()
-                    or search_term in (row['vendor_name'] or "").lower()
-                    or search_term in (row['contract_type'] or "").lower()
-                    or search_term in (row['description'] or "").lower()
-                    or search_term in (row['manager'] or "").lower()
-                ]
-        except NameError:
-            pass  # search_input not yet defined
-        
-        # Update table with filtered results
-        contracts_table.rows = filtered
-        contracts_table.update()
     
     # Fetch contracts needing review from database
     def fetch_contracts_needing_review():
@@ -220,13 +189,6 @@ def pending_reviews():
             with ui.row().classes('items-center gap-3'):
                 # Generate Report button
                 ui.button("Generate", icon="description", on_click=lambda: open_generate_dialog()).props('color=primary')
-                
-                # Toggle for Owned/Backup
-                role_toggle = ui.toggle(
-                    {'backup': 'Backup', 'owned': 'Owned'}, 
-                    value='backup', 
-                    on_change=on_role_toggle
-                ).props('toggle-color=primary text-color=primary').classes('role-toggle')
         
         # Description row
         with ui.row().classes('ml-4 mb-4 w-full'):
@@ -240,9 +202,8 @@ def pending_reviews():
         
         # Define search functions first
         def filter_contracts():
-            # Get base rows based on current toggle state
-            current_role = role_toggle.value
-            base_rows = [row for row in contract_rows if row['role'] == current_role]
+            # Show all contracts regardless of role
+            base_rows = contract_rows
             
             search_term = (search_input.value or "").lower()
             if not search_term:
@@ -279,9 +240,9 @@ def pending_reviews():
                 ui.label("No contracts needing review found").classes("text-lg font-bold text-gray-500")
                 ui.label("No active contracts are expiring within 90 days.").classes("text-sm text-gray-400 mt-2")
         
-        # Create table after search bar (showing backup contracts by default - John Doe)
-        initial_rows = [row for row in contract_rows if row.get('role') == 'backup']
-        print(f"Creating table with {len(initial_rows)} rows (filtered by role: backup)")
+        # Create table after search bar (showing all contracts)
+        initial_rows = contract_rows
+        print(f"Creating table with {len(initial_rows)} rows")
         
         contracts_table = ui.table(
             columns=contract_columns,
@@ -318,16 +279,6 @@ def pending_reviews():
             }
             .contracts-table tbody tr {
                 background-color: white !important;
-            }
-            
-            /* Toggle button styling - white background for selected button */
-            .role-toggle .q-btn--active {
-                background-color: white !important;
-                box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1) !important;
-            }
-            .role-toggle .q-btn {
-                font-weight: 500;
-                padding: 6px 16px;
             }
         """)
         

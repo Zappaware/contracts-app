@@ -20,21 +20,6 @@ def vendors_list():
     filtered_rows = []  # For storing filtered results
     status_filter = None  # None = All, 'active' = Active, 'inactive' = Inactive
     
-    # Function to handle owned/backup toggle
-    def on_role_toggle(e):
-        role = e.value  # Will be 'backup' or 'owned'
-        
-        # Update notification based on role
-        if role == 'backup':
-            ui.notify("Showing backup vendors (John Doe)", type="info")
-        else:  # owned
-            ui.notify("Showing owned vendors (William Defoe)", type="info")
-        
-        # Reapply filters (which will handle role filtering)
-        try:
-            apply_filters()
-        except NameError:
-            pass  # apply_filters not yet defined
     
     # Fetch vendors directly from database service
     def fetch_vendors():
@@ -233,18 +218,10 @@ def vendors_list():
     
     # Page header
     with ui.element("div").classes("max-w-6xl mx-auto mt-8 w-full"):
-        # Section header with toggle
-        with ui.row().classes('items-center justify-between ml-4 mb-4 w-full'):
-            with ui.row().classes('items-center gap-2'):
-                ui.icon('business', color='primary').style('font-size: 32px')
-                ui.label("Vendor List").classes("text-h5 font-bold")
-            
-            # Toggle for Owned/Backup
-            role_toggle = ui.toggle(
-                {'backup': 'Backup', 'owned': 'Owned'}, 
-                value='backup', 
-                on_change=on_role_toggle
-            ).props('toggle-color=primary text-color=primary').classes('role-toggle')
+        # Section header
+        with ui.row().classes('items-center gap-2 ml-4 mb-4'):
+            ui.icon('business', color='primary').style('font-size: 32px')
+            ui.label("Vendor List").classes("text-h5 font-bold")
         
         # Description row
         with ui.row().classes('ml-4 mb-4 w-full'):
@@ -331,9 +308,8 @@ def vendors_list():
             else:
                 status_filter = status_filter_select.value
             
-            # Get base rows based on current toggle state
-            current_role = role_toggle.value
-            filtered_rows = [row for row in vendor_rows if row['role'] == current_role]
+            # Show all vendors regardless of role
+            filtered_rows = vendor_rows
             
             # Apply status filter (double-check at display level)
             if status_filter_select.value and status_filter_select.value != "All Statuses":
@@ -414,10 +390,9 @@ def vendors_list():
             with ui.row().classes("gap-2 mt-4"):
                 ui.button("Clear All Filters", icon="clear", on_click=clear_filters).props('color=orange')
         
-        # Create table after search bar (showing backup vendors by default - John Doe)
-        # Apply role filter only (status and search filters will be applied via apply_filters)
-        initial_rows = [row for row in vendor_rows if row.get('role') == 'backup']
-        print(f"Creating table with {len(initial_rows)} rows (filtered by role: backup)")
+        # Create table after search bar (showing all vendors)
+        initial_rows = vendor_rows
+        print(f"Creating table with {len(initial_rows)} rows")
         
         vendors_table = ui.table(
             columns=vendor_columns,
@@ -462,16 +437,6 @@ def vendors_list():
             }
             .vendors-table tbody tr {
                 background-color: white !important;
-            }
-            
-            /* Toggle button styling - white background for selected button */
-            .role-toggle .q-btn--active {
-                background-color: white !important;
-                box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1) !important;
-            }
-            .role-toggle .q-btn {
-                font-weight: 500;
-                padding: 6px 16px;
             }
         """)
         

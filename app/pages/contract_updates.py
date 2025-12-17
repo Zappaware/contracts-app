@@ -21,17 +21,6 @@ def contract_updates():
     contract_rows = []
     
     # Function to handle owned/backup toggle
-    def on_role_toggle(e):
-        role = e.value  # Will be 'backup' or 'owned'
-        
-        # Update notification based on role
-        if role == 'backup':
-            ui.notify("Showing backup contracts (John Doe)", type="info")
-        else:  # owned
-            ui.notify("Showing owned contracts (William Defoe)", type="info")
-        
-        # Reapply filters
-        apply_filters()
     
     # Mock data for contract updates (contracts with responses from managers)
     def get_mock_contract_updates():
@@ -332,13 +321,6 @@ def contract_updates():
             with ui.row().classes('items-center gap-3'):
                 # Generate Report button
                 ui.button("Generate", icon="description", on_click=lambda: open_generate_dialog()).props('color=primary')
-                
-                # Toggle for Owned/Backup
-                role_toggle = ui.toggle(
-                    {'backup': 'Backup', 'owned': 'Owned'}, 
-                    value='backup', 
-                    on_change=on_role_toggle
-                ).props('toggle-color=primary text-color=primary').classes('role-toggle')
         
         # Description row
         with ui.row().classes('ml-4 mb-4 w-full'):
@@ -388,9 +370,8 @@ def contract_updates():
         
         # Define filter function
         def apply_filters():
-            # Get base rows based on current toggle state
-            current_role = role_toggle.value
-            base_rows = [row for row in contract_rows if row['role'] == current_role]
+            # Show all contracts regardless of role
+            base_rows = contract_rows
             
             # Apply owner filter
             if owner_filter.value and owner_filter.value != 'All':
@@ -447,8 +428,8 @@ def contract_updates():
             ui.button(icon='search', on_click=apply_filters).props('color=primary')
             ui.button(icon='clear', on_click=clear_filters).props('color=secondary')
         
-        # Create table after search bar (showing backup contracts by default - John Doe)
-        initial_rows = [row for row in contract_rows if row['role'] == 'backup']
+        # Create table after search bar (showing all contracts)
+        initial_rows = contract_rows
         contracts_table = ui.table(
             columns=contract_columns,
             column_defaults=contract_columns_defaults,
@@ -473,16 +454,6 @@ def contract_updates():
             /* Highlight returned contracts with light red background */
             .contracts-table tbody tr:has(.q-btn[label="Returned"]) {
                 background-color: #fee2e2 !important;
-            }
-            
-            /* Toggle button styling - white background for selected button */
-            .role-toggle .q-btn--active {
-                background-color: white !important;
-                box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1) !important;
-            }
-            .role-toggle .q-btn {
-                font-weight: 500;
-                padding: 6px 16px;
             }
         """)
         

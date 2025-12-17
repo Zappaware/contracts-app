@@ -57,36 +57,6 @@ def home_page():
         # recent_activity_container.visible = False  # Commented out - Recent Activity is hidden
     
     # Function to handle owned/backup toggle
-    def on_role_toggle(e):
-        role = e.value  # Will be 'backup' or 'owned'
-        
-        # Filter contracts based on selected role
-        filtered = [row for row in contract_rows if row['role'] == role]
-        
-        # Update notification based on role
-        if role == 'backup':
-            ui.notify("Showing backup contracts (John Doe)", type="info")
-        else:  # owned
-            ui.notify("Showing owned contracts (William Defoe)", type="info")
-        
-        # If there's an active search, reapply it to the new filtered set
-        try:
-            search_term = (search_input.value or "").lower()
-            if search_term:
-                filtered = [
-                    row for row in filtered
-                    if search_term in (row['contract_id'] or "").lower()
-                    or search_term in (row['vendor_name'] or "").lower()
-                    or search_term in (row['contract_type'] or "").lower()
-                    or search_term in (row['description'] or "").lower()
-                    or search_term in (row['manager'] or "").lower()
-                ]
-        except NameError:
-            pass  # search_input not yet defined
-        
-        # Update table with filtered results
-        contracts_table.rows = filtered
-        contracts_table.update()
     
     # Quick Stats Cards (shrink to table width)
     with ui.element("div").classes("max-w-6xl mx-auto w-full"):
@@ -467,13 +437,6 @@ def home_page():
             with ui.row().classes('items-center gap-2'):
                 ui.icon('warning', color='orange').style('font-size: 32px')
                 ui.label("Contracts Requiring Attention").classes("text-h5 font-bold")
-            
-            # Toggle for Owned/Backup
-            role_toggle = ui.toggle(
-                {'backup': 'Backup', 'owned': 'Owned'}, 
-                value='backup', 
-                on_change=on_role_toggle
-            ).props('toggle-color=primary text-color=primary').classes('role-toggle')
         
         # Description row
         with ui.row().classes('ml-4 mb-4 w-full'):
@@ -483,9 +446,8 @@ def home_page():
         
         # Define search functions first
         def filter_contracts():
-            # Get base rows based on current toggle state
-            current_role = role_toggle.value
-            base_rows = [row for row in contract_rows if row['role'] == current_role]
+            # Show all contracts regardless of role
+            base_rows = contract_rows
             
             search_term = (search_input.value or "").lower()
             if not search_term:
@@ -516,8 +478,8 @@ def home_page():
             ui.button(icon='search', on_click=filter_contracts).props('color=primary')
             ui.button(icon='clear', on_click=clear_search).props('color=secondary')
         
-        # Create table after search bar (showing backup contracts by default - John Doe)
-        initial_rows = [row for row in contract_rows if row['role'] == 'backup']
+        # Create table after search bar (showing all contracts)
+        initial_rows = contract_rows
         contracts_table = ui.table(
             columns=contract_columns,
             column_defaults=contract_columns_defaults,
@@ -543,16 +505,6 @@ def home_page():
             }
             .contracts-table tbody tr:has(td:contains("remaining")) {
                 background-color: #fef3c7 !important;
-            }
-            
-            /* Toggle button styling - white background for selected button */
-            .role-toggle .q-btn--active {
-                background-color: white !important;
-                box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1) !important;
-            }
-            .role-toggle .q-btn {
-                font-weight: 500;
-                padding: 6px 16px;
             }
         """)
         
