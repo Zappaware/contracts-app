@@ -14,7 +14,8 @@ def new_contract():
     db = SessionLocal()
     try:
         vendor_service = VendorService(db)
-        vendors_list, _ = vendor_service.get_vendors_with_filters(skip=0, limit=1000, status_filter=None, search=None)
+        # Only load Active vendors for contract creation (exclude Terminated and Inactive vendors)
+        vendors_list, _ = vendor_service.get_vendors_with_filters(skip=0, limit=1000, status_filter="Active", search=None)
         vendor_options = {vendor.vendor_name: vendor.id for vendor in vendors_list}
         vendor_names = list(vendor_options.keys()) if vendor_options else ["No vendors available"]
         

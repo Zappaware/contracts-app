@@ -369,10 +369,10 @@ def vendor_contracts(vendor_id: int):
             row_key="id"
         ).classes("w-full").props("flat bordered").classes("shadow-lg rounded-lg overflow-hidden")
         
-        # Add clickable contract ID column
+        # Add clickable contract ID column - link to contract info page
         contracts_table.add_slot('body-cell-contract_id', '''
             <q-td :props="props">
-                <a href="#" @click.prevent="window.vendorContractsShowDetails(props.row.id)" class="text-blue-600 hover:text-blue-800 underline cursor-pointer">
+                <a :href="'/contract-info/' + props.row.id" class="text-blue-600 hover:text-blue-800 underline cursor-pointer">
                     {{ props.value }}
                 </a>
             </q-td>
@@ -414,45 +414,8 @@ def vendor_contracts(vendor_id: int):
         # Global variable to store pending contract view ID
         pending_contract_id = {'value': None}
         
-        # Add actions slot with View button
-        contracts_table.add_slot('body-cell-actions', '''
-            <q-td :props="props">
-                <q-btn flat dense color="primary" icon="visibility" label="View" 
-                       @click="window.pendingContractViewId = props.row.id" />
-            </q-td>
-        ''')
-        
-        # Update contract ID to be clickable
-        contracts_table.add_slot('body-cell-contract_id', '''
-            <q-td :props="props">
-                <a href="#" class="text-blue-600 hover:text-blue-800 underline cursor-pointer" 
-                   @click.prevent="window.pendingContractViewId = props.row.id">
-                    {{ props.value }}
-                </a>
-            </q-td>
-        ''')
-        
-        # Initialize JavaScript variable
-        ui.run_javascript('window.pendingContractViewId = null;')
-        
-        # Poll for contract view requests
-        def check_for_contract_view():
-            try:
-                result = ui.run_javascript('return window.pendingContractViewId;', timeout=0.1)
-                if result and result != pending_contract_id['value']:
-                    pending_contract_id['value'] = result
-                    contract_id = int(result)
-                    if contract_id in contracts_lookup:
-                        show_contract_details(contracts_lookup[contract_id])
-                        contract_details_dialog.open()
-                        # Reset
-                        ui.run_javascript('window.pendingContractViewId = null;')
-                        pending_contract_id['value'] = None
-            except:
-                pass  # Ignore errors from JavaScript calls
-        
-        # Start polling timer
-        ui.timer(0.2, check_for_contract_view)
+        # Note: Contract ID is already clickable via the slot defined above (line 372-379)
+        # The link navigates directly to /contract-info/{id}
         
         # Show "No results found" message
         if not filtered_rows:
