@@ -19,7 +19,6 @@ def expired_contracts():
     # Global variables for table and data
     contracts_table = None
     contract_rows = []
-    manager_label = None
     
     # Function to handle owned/backup toggle
     def on_role_toggle(e):
@@ -28,16 +27,11 @@ def expired_contracts():
         # Filter contracts based on selected role
         filtered = [row for row in contract_rows if row['role'] == role]
         
-        # Update manager name based on role
+        # Update notification based on role
         if role == 'backup':
-            manager_name = "John Doe"
             ui.notify("Showing backup contracts (John Doe)", type="info")
         else:  # owned
-            manager_name = "William Defoe"
             ui.notify("Showing owned contracts (William Defoe)", type="info")
-        
-        # Update the manager label
-        manager_label.set_text(f"Manager: {manager_name}")
         
         # If there's an active search, reapply it to the new filtered set
         try:
@@ -240,13 +234,10 @@ def expired_contracts():
                     on_change=on_role_toggle
                 ).props('toggle-color=primary text-color=primary').classes('role-toggle')
         
-        # Manager name and description row
-        with ui.row().classes('items-center justify-between ml-4 mb-4 w-full'):
+        # Description row
+        with ui.row().classes('ml-4 mb-4 w-full'):
             ui.label("Contracts that have passed their expiration date").classes(
                 "text-sm text-gray-500"
-            )
-            manager_label = ui.label("Manager: John Doe").classes(
-                "text-base font-semibold text-primary"
             )
         
         # Define search functions first
@@ -317,6 +308,15 @@ def expired_contracts():
                 padding: 6px 16px;
             }
         """)
+        
+        # Add slot for contract ID with clickable link (links to contract info)
+        contracts_table.add_slot('body-cell-contract_id', '''
+            <q-td :props="props">
+                <a :href="'/contract-info/' + props.row.id" class="text-blue-600 hover:text-blue-800 underline cursor-pointer">
+                    {{ props.value }}
+                </a>
+            </q-td>
+        ''')
         
         # Add slot for vendor name with clickable link
         contracts_table.add_slot('body-cell-vendor_name', '''

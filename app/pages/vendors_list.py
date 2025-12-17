@@ -18,23 +18,17 @@ def vendors_list():
     vendors_table = None
     vendor_rows = []
     filtered_rows = []  # For storing filtered results
-    manager_label = None
     status_filter = None  # None = All, 'active' = Active, 'inactive' = Inactive
     
     # Function to handle owned/backup toggle
     def on_role_toggle(e):
         role = e.value  # Will be 'backup' or 'owned'
         
-        # Update manager name based on role
+        # Update notification based on role
         if role == 'backup':
-            manager_name = "John Doe"
             ui.notify("Showing backup vendors (John Doe)", type="info")
         else:  # owned
-            manager_name = "William Defoe"
             ui.notify("Showing owned vendors (William Defoe)", type="info")
-        
-        # Update the manager label
-        manager_label.set_text(f"Manager: {manager_name}")
         
         # Reapply filters (which will handle role filtering)
         try:
@@ -252,10 +246,9 @@ def vendors_list():
                 on_change=on_role_toggle
             ).props('toggle-color=primary text-color=primary').classes('role-toggle')
         
-        # Manager name and description row
-        with ui.row().classes('items-center justify-between ml-4 mb-4 w-full'):
+        # Description row
+        with ui.row().classes('ml-4 mb-4 w-full'):
             ui.label("List of all vendors").classes("text-sm text-gray-500")
-            manager_label = ui.label("Manager: John Doe").classes("text-base font-semibold text-primary")
         
         # Count label row (will be updated by filter_vendors function)
         with ui.row().classes('ml-4 mb-2'):

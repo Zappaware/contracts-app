@@ -8,7 +8,6 @@ def manager():
     # Global variables for table and data
     contracts_table = None
     contract_rows = []
-    manager_label = None
     
     # Fetch active contracts count from database
     active_contracts_count = 0
@@ -43,16 +42,11 @@ def manager():
         # Filter contracts based on selected role
         filtered = [row for row in contract_rows if row['role'] == role]
         
-        # Update manager name based on role
+        # Update notification based on role
         if role == 'backup':
-            manager_name = "John Doe"
             ui.notify("Showing backup contracts (John Doe)", type="info")
         else:  # owned
-            manager_name = "William Defoe"
             ui.notify("Showing owned contracts (William Defoe)", type="info")
-        
-        # Update the manager label
-        manager_label.set_text(f"Manager: {manager_name}")
         
         # If there's an active search, reapply it to the new filtered set
         try:
@@ -396,13 +390,10 @@ def manager():
                 on_change=on_role_toggle
             ).props('toggle-color=primary text-color=primary').classes('role-toggle')
         
-        # Manager name and description row
-        with ui.row().classes('items-center justify-between ml-4 mb-4 w-full'):
+        # Description row
+        with ui.row().classes('ml-4 mb-4 w-full'):
             ui.label("Contracts approaching or past their expiration date").classes(
                 "text-sm text-gray-500"
-            )
-            manager_label = ui.label("Manager: John Doe").classes(
-                "text-base font-semibold text-primary"
             )
         
         # Define search functions first
