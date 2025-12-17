@@ -21,7 +21,6 @@ def active_contracts():
     # Global variables for table and data
     contracts_table = None
     contract_rows = []
-    manager_label = None
     
     # Function to handle owned/backup toggle
     def on_role_toggle(e):
@@ -30,16 +29,11 @@ def active_contracts():
         # Filter contracts based on selected role
         filtered = [row for row in contract_rows if row['role'] == role]
         
-        # Update manager name based on role
+        # Update notification based on role
         if role == 'backup':
-            manager_name = "John Doe"
             ui.notify("Showing backup contracts (John Doe)", type="info")
         else:  # owned
-            manager_name = "William Defoe"
             ui.notify("Showing owned contracts (William Defoe)", type="info")
-        
-        # Update the manager label
-        manager_label.set_text(f"Manager: {manager_name}")
         
         # If there's an active search, reapply it to the new filtered set
         try:
@@ -106,18 +100,47 @@ def active_contracts():
                 # Get status value
                 status = contract.status.value if hasattr(contract.status, 'value') else str(contract.status)
                 
-                # Format expiration date (end_date)
+                # Get department value
+                department = contract.department.value if hasattr(contract.department, 'value') else str(contract.department)
+                
+                # Get automatic renewal value
+                automatic_renewal = contract.automatic_renewal.value if hasattr(contract.automatic_renewal, 'value') else str(contract.automatic_renewal)
+                
+                # Format start date
+                if contract.start_date:
+                    if isinstance(contract.start_date, date):
+                        formatted_start_date = contract.start_date.strftime("%Y-%m-%d")
+                    else:
+                        formatted_start_date = str(contract.start_date)
+                else:
+                    formatted_start_date = "N/A"
+                
+                # Format expiration date (end_date) and calculate quarter
                 if contract.end_date:
                     if isinstance(contract.end_date, date):
                         exp_date = contract.end_date
                         formatted_date = exp_date.strftime("%Y-%m-%d")
                         exp_timestamp = datetime.combine(exp_date, datetime.min.time()).timestamp()
+                        
+                        # Calculate ending quarter
+                        month = exp_date.month
+                        year = exp_date.year
+                        if month in [1, 2, 3]:
+                            ending_quarter = f"Q1 {year}"
+                        elif month in [4, 5, 6]:
+                            ending_quarter = f"Q2 {year}"
+                        elif month in [7, 8, 9]:
+                            ending_quarter = f"Q3 {year}"
+                        else:
+                            ending_quarter = f"Q4 {year}"
                     else:
                         formatted_date = str(contract.end_date)
                         exp_timestamp = 0
+                        ending_quarter = "N/A"
                 else:
                     formatted_date = "N/A"
                     exp_timestamp = 0
+                    ending_quarter = "N/A"
                 
                 # Determine role based on user (for demo, using contract owner ID)
                 # Odd IDs = William Defoe (owned), Even IDs = John Doe (backup)
@@ -139,11 +162,17 @@ def active_contracts():
                     "vendor_name": str(vendor_name or ""),
                     "contract_type": str(contract_type or ""),
                     "description": str(contract.contract_description or ""),
-                    "expiration_date": str(formatted_date),
+                    "start_date": str(formatted_start_date),
+                    "end_date": str(formatted_date),
+                    "expiration_date": str(formatted_date),  # Keep for backward compatibility
                     "expiration_timestamp": float(exp_timestamp),
+                    "ending_quarter": str(ending_quarter),
+                    "automatic_renewal": str(automatic_renewal),
+                    "department": str(department),
                     "status": str(status or "Unknown"),
                     "status_color": str(status_color),
                     "manager": str(manager),
+                    "backup": str(backup_name),
                     "role": str(role),
                 }
                 rows.append(row_data)
@@ -249,13 +278,10 @@ def active_contracts():
                     on_change=on_role_toggle
                 ).props('toggle-color=primary text-color=primary').classes('role-toggle')
         
-        # Manager name and description row
-        with ui.row().classes('items-center justify-between ml-4 mb-4 w-full'):
+        # Description row
+        with ui.row().classes('ml-4 mb-4 w-full'):
             ui.label("Contracts currently in effect").classes(
                 "text-sm text-gray-500"
-            )
-            manager_label = ui.label("Manager: John Doe").classes(
-                "text-base font-semibold text-primary"
             )
         
         # Count label row
@@ -355,6 +381,15 @@ def active_contracts():
             }
         """)
         
+        # Add slot for contract ID with clickable link (links to contract info)
+        contracts_table.add_slot('body-cell-contract_id', '''
+            <q-td :props="props">
+                <a :href="'/contract-info/' + props.row.id" class="text-blue-600 hover:text-blue-800 underline cursor-pointer">
+                    {{ props.value }}
+                </a>
+            </q-td>
+        ''')
+        
         # Add slot for vendor name with clickable link (links to vendor details)
         contracts_table.add_slot('body-cell-vendor_name', '''
             <q-td :props="props">
@@ -396,6 +431,7 @@ def active_contracts():
                     end_date_input.value = default_end
                     
                     ui.label("The report will include all active contracts within the selected date range.").classes("text-xs text-gray-500 italic")
+                    ui.label("Note: Extension/Renewal history fields are not yet implemented and will show as 'N/A'.").classes("text-xs text-orange-600 italic mt-2")
                     
                     with ui.row().classes('gap-2 justify-end w-full mt-4'):
                         ui.button("Cancel", on_click=dialog.close).props('flat')
@@ -428,17 +464,25 @@ def active_contracts():
                     dialog.close()
                     return
                 
-                # Prepare data for Excel
+                # Prepare data for Excel with all required fields
                 report_data = []
                 for contract in filtered_contracts:
                     report_data.append({
+                        "Vendor": contract.get('vendor_name', ''),
                         "Contract ID": contract.get('contract_id', ''),
                         "Contract Type": contract.get('contract_type', ''),
                         "Description": contract.get('description', ''),
-                        "Vendor": contract.get('vendor_name', ''),
-                        "Expiration Date": contract.get('expiration_date', ''),
-                        "Status": contract.get('status', ''),
-                        "Manager": contract.get('manager', ''),
+                        "Contract Start Date": contract.get('start_date', ''),
+                        "Contract End Date": contract.get('end_date', ''),
+                        "Ending in Quarter": contract.get('ending_quarter', ''),
+                        "Automatic Renewal": contract.get('automatic_renewal', ''),
+                        "Department": contract.get('department', ''),
+                        "Contract Manager": contract.get('manager', ''),
+                        "Contract Backups": contract.get('backup', ''),
+                        "Latest Extension/Renewal": "N/A",  # Not yet implemented in database
+                        "Previous Extension/Renewal 1": "N/A",  # Not yet implemented in database
+                        "Previous Extension/Renewal 2": "N/A",  # Not yet implemented in database
+                        "Previous Extension/Renewal 3": "N/A",  # Not yet implemented in database
                     })
                 
                 # Create DataFrame
