@@ -108,11 +108,12 @@ async def create_contract(
 def update_contract(
     contract_id: int,
     contract_data: ContractUpdate,
-    modified_by: str = Form("SYSTEM", description="User making the modification"),
+    modified_by: str = "SYSTEM",
     db: Session = Depends(get_db)
 ):
     """
     Update existing contract with audit trail.
+    The modified_by parameter can be passed as a query parameter.
     """
     contract_service = ContractService(db)
     

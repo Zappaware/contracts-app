@@ -81,6 +81,7 @@ class ContractStatusType(str, enum.Enum):
     ACTIVE = "Active"
     EXPIRED = "Expired"
     TERMINATED = "Terminated"
+    PENDING_TERMINATION = "Pending Termination"
 
 
 class ContractTerminationType(str, enum.Enum):

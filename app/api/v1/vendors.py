@@ -320,11 +320,12 @@ async def create_vendor(
 def update_vendor(
     vendor_id: int,
     vendor_data: VendorUpdate,
-    modified_by: str = Form("SYSTEM", description="User making the modification"),
+    modified_by: str = "SYSTEM",
     db: Session = Depends(get_db)
 ):
     """
     Update existing vendor with audit trail.
+    The modified_by parameter can be passed as a query parameter.
     """
     vendor_service = VendorService(db)
     
@@ -637,6 +638,81 @@ def get_vendor_documents_summary(
     
     # Return using Pydantic schema
     return summary_data
+
+
+@router.put("/{vendor_id}/email", response_model=VendorEmailResponse)
+def update_vendor_primary_email(
+    vendor_id: int,
+    email: str,
+    db: Session = Depends(get_db)
+):
+    """
+    Update the primary email for a vendor.
+    """
+    vendor_service = VendorService(db)
+    
+    try:
+        updated_email = vendor_service.update_vendor_primary_email(vendor_id, email)
+        return updated_email
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error updating vendor email: {str(e)}"
+        )
+
+
+@router.put("/{vendor_id}/phone", response_model=VendorPhoneResponse)
+def update_vendor_primary_phone(
+    vendor_id: int,
+    area_code: str,
+    phone_number: str,
+    db: Session = Depends(get_db)
+):
+    """
+    Update the primary phone for a vendor.
+    """
+    vendor_service = VendorService(db)
+    
+    try:
+        updated_phone = vendor_service.update_vendor_primary_phone(vendor_id, area_code, phone_number)
+        return updated_phone
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error updating vendor phone: {str(e)}"
+        )
+
+
+@router.put("/{vendor_id}/address", response_model=VendorAddressResponse)
+def update_vendor_primary_address(
+    vendor_id: int,
+    address: str,
+    city: Optional[str] = None,
+    state: Optional[str] = None,
+    zip_code: Optional[str] = None,
+    db: Session = Depends(get_db)
+):
+    """
+    Update the primary address for a vendor.
+    """
+    vendor_service = VendorService(db)
+    
+    try:
+        updated_address = vendor_service.update_vendor_primary_address(
+            vendor_id, address, city, state, zip_code
+        )
+        return updated_address
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error updating vendor address: {str(e)}"
+        )
 
 
 @router.get("/{vendor_id}/contracts")

@@ -33,6 +33,7 @@ class AlertFrequencyType(str, enum.Enum):
 class VendorStatusType(str, enum.Enum):
     ACTIVE = "Active"
     INACTIVE = "Inactive"
+    TERMINATED = "Terminated"
 
 
 class Vendor(Base):
