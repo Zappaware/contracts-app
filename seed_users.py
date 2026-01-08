@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from app.db.database import SessionLocal
 from app.models.contract import User, DepartmentType, UserRole
 from app.core.security import get_password_hash
-from datetime import datetime
+from datetime import datetime, timezone
 
 def seed_users():
     db = SessionLocal()
@@ -60,8 +60,8 @@ def seed_users():
                 **user_data,
                 hashed_password=get_password_hash(password),
                 is_active=True,
-                created_at=datetime.utcnow(),
-                updated_at=datetime.utcnow()
+                created_at=datetime.now(timezone.utc),
+                updated_at=datetime.now(timezone.utc)
             )
             db.add(user)
             print(f"  ✓ Created user: {user.first_name} {user.last_name} ({user.email})")

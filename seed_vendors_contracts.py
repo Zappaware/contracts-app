@@ -10,10 +10,10 @@ from app.models.vendor import (
     VendorStatusType, BankCustomerType, AlertFrequencyType
 )
 from app.models.contract import (
-    Contract, ContractDocument, User,
+    Contract, ContractDocument, User, ContractUpdate,
     ContractType, AutomaticRenewalType, RenewalPeriodType, DepartmentType,
     NoticePeriodType, ExpirationNoticePeriodType, CurrencyType,
-    PaymentMethodType, ContractStatusType
+    PaymentMethodType, ContractStatusType, ContractUpdateStatus
 )
 from datetime import datetime, date, timedelta, timezone
 from dateutil.relativedelta import relativedelta
@@ -264,6 +264,103 @@ def seed_vendors_and_contracts():
         existing_contract_count = db.query(Contract).count()
         if existing_contract_count > 0:
             print(f"⚠️  Database already has {existing_contract_count} contract(s). Skipping contract seed.")
+            # Still create contract updates even if contracts already exist
+            all_contracts = db.query(Contract).all()
+            vendors = db.query(Vendor).limit(50).all()
+            
+            # Check if contract updates already exist
+            existing_updates_count = db.query(ContractUpdate).count()
+            if existing_updates_count > 0:
+                print(f"⚠️  Database already has {existing_updates_count} contract update(s).")
+                print("   If you want to recreate contract updates, delete existing ones first.")
+                print("   Or run with --force-updates flag to add more updates.\n")
+                
+                # Check for --force-updates flag
+                import sys
+                if '--force-updates' not in sys.argv:
+                    return
+                else:
+                    print("   --force-updates flag detected. Creating additional contract updates...\n")
+            
+            # Create ContractUpdate entries for existing contracts
+            print("\nCreating contract update entries for existing contracts...\n")
+            returned_count = 0
+            updated_count = 0
+            
+            # Get contracts that don't have updates yet (if not forcing)
+            import sys
+            if '--force-updates' in sys.argv:
+                contracts_to_process = all_contracts
+            else:
+                # Only process contracts that don't have updates yet
+                contracts_with_updates = {update.contract_id for update in db.query(ContractUpdate).all()}
+                contracts_to_process = [c for c in all_contracts if c.id not in contracts_with_updates]
+            
+            if not contracts_to_process:
+                print("   All contracts already have updates. Use --force-updates to create more.\n")
+                return
+            
+            print(f"   Processing {len(contracts_to_process)} contract(s) for updates...\n")
+            
+            for i, contract in enumerate(contracts_to_process):
+                # 30% chance of returned status, 20% chance of updated status
+                rand = random.random()
+                if rand < 0.30:  # 30% returned
+                    # Create returned contract update
+                    contract_update = ContractUpdate(
+                        contract_id=contract.id,
+                        status=ContractUpdateStatus.RETURNED,
+                        response_provided_by_user_id=contract.contract_owner_id if random.random() < 0.5 else contract.contract_owner_backup_id,
+                        response_date=datetime.now(timezone.utc) - timedelta(days=random.randint(1, 10)),
+                        has_document=random.random() < 0.7,
+                        admin_comments=random.choice([
+                            "Please provide the complete signed contract document and verify vendor contact information.",
+                            "The contract document is missing the authorized signature on page 3. Please obtain the signature and resubmit.",
+                            "Vendor contact person and address information is incomplete. Please update with complete vendor details.",
+                            "The expiration date in the system does not match the date on the signed contract document. Please verify and update.",
+                            "This contract should be classified as 'Service Agreement' rather than current type. Please update the contract type.",
+                            "Please verify vendor credentials and ensure all contract terms are properly documented before resubmission.",
+                            "Missing required supporting documents. Please attach all necessary documents.",
+                            "Contract terms need clarification. Please provide additional details on payment terms."
+                        ]),
+                        returned_reason=random.choice([
+                            "Contract requires additional documentation and signature verification.",
+                            "Missing signature on page 3",
+                            "Incomplete vendor information",
+                            "Contract expiration date needs verification against vendor agreement.",
+                            "Contract type classification needs correction.",
+                            "Vendor information and contract terms need review.",
+                            "Missing required documents",
+                            "Payment terms unclear"
+                        ]),
+                        returned_date=datetime.now(timezone.utc) - timedelta(days=random.randint(1, 5)),
+                        initial_vendor_name=contract.vendor.vendor_name,
+                        initial_contract_type=contract.contract_type.value,
+                        initial_description=contract.contract_description,
+                        initial_expiration_date=contract.end_date,
+                        created_at=datetime.now(timezone.utc) - timedelta(days=random.randint(5, 15)),
+                        updated_at=datetime.now(timezone.utc) - timedelta(days=random.randint(1, 5))
+                    )
+                    db.add(contract_update)
+                    returned_count += 1
+                    if returned_count <= 5:  # Only print first 5 to avoid spam
+                        print(f"  ✓ Created returned contract update: {contract.contract_id}")
+                elif rand < 0.50:  # 20% updated
+                    # Create updated contract update
+                    contract_update = ContractUpdate(
+                        contract_id=contract.id,
+                        status=ContractUpdateStatus.UPDATED,
+                        response_provided_by_user_id=contract.contract_owner_id if random.random() < 0.5 else contract.contract_owner_backup_id,
+                        response_date=datetime.now(timezone.utc) - timedelta(days=random.randint(1, 7)),
+                        has_document=random.random() < 0.6,
+                        created_at=datetime.now(timezone.utc) - timedelta(days=random.randint(3, 10)),
+                        updated_at=datetime.now(timezone.utc) - timedelta(days=random.randint(1, 3))
+                    )
+                    db.add(contract_update)
+                    updated_count += 1
+            
+            db.commit()
+            print(f"\n✅ Created {returned_count} returned contract updates and {updated_count} updated contract updates!")
             return
         
         # Get existing users (should be seeded by seed_users.py)
@@ -274,7 +371,7 @@ def seed_vendors_and_contracts():
         
         print("\n🌱 Starting vendor and contract seeding...\n")
         
-        # Create 20 vendors (doubled from 10)
+        # Create 50 vendors
         vendors_data = [
             {
                 "vendor_name": "TechCorp Solutions Inc",
@@ -561,7 +658,16 @@ def seed_vendors_and_contracts():
         vendors = []
         
         if vendors_created:
-            print("Creating 20 vendors...\n")
+            print("Creating 50 vendors...\n")
+            
+            # Expand vendors list to 50 by duplicating and modifying existing ones
+            base_vendors = vendors_data.copy()
+            for i in range(len(base_vendors), 50):
+                base_vendor = base_vendors[i % len(base_vendors)].copy()
+                base_vendor["vendor_name"] = f"{base_vendor['vendor_name']} {i // len(base_vendors) + 1}"
+                base_vendor["email"] = base_vendor["email"].replace("@", f"{i}@")
+                base_vendor["cif"] = str(int(base_vendor.get("cif", "0") or "0") + i) if base_vendor.get("cif") else None
+                vendors_data.append(base_vendor)
             
             for i, vendor_data in enumerate(vendors_data, 1):
                 # Determine bank type for vendor ID generation
@@ -572,17 +678,28 @@ def seed_vendors_and_contracts():
                 else:
                     vendor_id = f"AB{i}"  # Default
                 
-                # Calculate due diligence dates
-                last_dd_date = datetime.now(timezone.utc) - timedelta(days=180)  # 6 months ago
-                if vendor_data["material_outsourcing_arrangement"] == MaterialOutsourcingType.YES:
-                    next_dd_date = last_dd_date + relativedelta(years=1)
-                else:
-                    next_dd_date = last_dd_date + relativedelta(years=3)
+                # Calculate due diligence dates with variation
+                # Create a mix of past due, upcoming, and current due diligence dates
+                days_ago_options = [30, 60, 90, 180, 365, 730]  # Various periods ago
+                days_ago = random.choice(days_ago_options)
+                last_dd_date = datetime.now(timezone.utc) - timedelta(days=days_ago)
                 
-                # Randomly assign status (60% Active, 40% Inactive for realistic distribution)
+                # Calculate next required date based on material outsourcing
+                if vendor_data["material_outsourcing_arrangement"] == MaterialOutsourcingType.YES:
+                    # Material outsourcing: 1 year cycle, but add some variation
+                    years_to_add = 1
+                    days_variation = random.randint(-60, 60)  # ±60 days variation
+                    next_dd_date = last_dd_date + relativedelta(years=years_to_add, days=days_variation)
+                else:
+                    # Non-material: 3 year cycle, but add some variation
+                    years_to_add = 3
+                    days_variation = random.randint(-90, 90)  # ±90 days variation
+                    next_dd_date = last_dd_date + relativedelta(years=years_to_add, days=days_variation)
+                
+                # Randomly assign status (70% Active, 30% Inactive for more active vendors)
                 vendor_status = random.choices(
                     [VendorStatusType.ACTIVE, VendorStatusType.INACTIVE],
-                    weights=[60, 40],
+                    weights=[70, 30],
                     k=1
                 )[0]
                 
@@ -595,10 +712,16 @@ def seed_vendors_and_contracts():
                     material_outsourcing_arrangement=vendor_data["material_outsourcing_arrangement"],
                     bank_customer=vendor_data["bank_customer"],
                     cif=vendor_data.get("cif"),
-                    due_diligence_required=DueDiligenceRequiredType.YES,
-                    last_due_diligence_date=last_dd_date,
-                    next_required_due_diligence_date=next_dd_date,
-                    next_required_due_diligence_alert_frequency=AlertFrequencyType.THIRTY_DAYS,
+                due_diligence_required=DueDiligenceRequiredType.YES,
+                last_due_diligence_date=last_dd_date,
+                next_required_due_diligence_date=next_dd_date,
+                # Vary alert frequency (mostly 30 days, some 15, 60, 90)
+                next_required_due_diligence_alert_frequency=random.choices(
+                    [AlertFrequencyType.FIFTEEN_DAYS, AlertFrequencyType.THIRTY_DAYS, 
+                     AlertFrequencyType.SIXTY_DAYS, AlertFrequencyType.NINETY_DAYS],
+                    weights=[10, 60, 20, 10],
+                    k=1
+                )[0],
                     status=vendor_status,
                     created_at=datetime.now(timezone.utc),
                     updated_at=datetime.now(timezone.utc)
@@ -638,7 +761,7 @@ def seed_vendors_and_contracts():
                 )
                 db.add(phone)
                 
-                # Create vendor documents (Due Diligence and NDA)
+                # Create vendor documents (Due Diligence and NDA - always required)
                 dd_path, dd_size = save_vendor_document(
                     vendor,
                     DocumentType.DUE_DILIGENCE,
@@ -679,6 +802,94 @@ def seed_vendors_and_contracts():
                 )
                 db.add(nda_doc)
                 
+                # Add MOA-related documents if Material Outsourcing = YES
+                if vendor_data["material_outsourcing_arrangement"] == MaterialOutsourcingType.YES:
+                    # Risk Assessment Form (required for MOA)
+                    risk_assessment_date = last_dd_date + timedelta(days=random.randint(0, 30))
+                    ra_path, ra_size = save_vendor_document(
+                        vendor,
+                        DocumentType.RISK_ASSESSMENT_FORM,
+                        f"{vendor_data['vendor_name']} Risk Assessment",
+                        risk_assessment_date
+                    )
+                    
+                    ra_doc = VendorDocument(
+                        vendor_id=vendor.id,
+                        document_type=DocumentType.RISK_ASSESSMENT_FORM,
+                        file_name="risk_assessment.pdf",
+                        custom_document_name=f"{vendor_data['vendor_name']} Risk Assessment",
+                        document_signed_date=risk_assessment_date,
+                        file_path=ra_path,
+                        file_size=ra_size,
+                        content_type="application/pdf",
+                        created_at=datetime.now(timezone.utc)
+                    )
+                    db.add(ra_doc)
+                    
+                    # Optional MOA documents (60% chance for each)
+                    if random.random() < 0.6:  # 60% chance
+                        bcp_date = last_dd_date + timedelta(days=random.randint(0, 60))
+                        bcp_path, bcp_size = save_vendor_document(
+                            vendor,
+                            DocumentType.BUSINESS_CONTINUITY_PLAN,
+                            f"{vendor_data['vendor_name']} Business Continuity Plan",
+                            bcp_date
+                        )
+                        bcp_doc = VendorDocument(
+                            vendor_id=vendor.id,
+                            document_type=DocumentType.BUSINESS_CONTINUITY_PLAN,
+                            file_name="business_continuity.pdf",
+                            custom_document_name=f"{vendor_data['vendor_name']} Business Continuity Plan",
+                            document_signed_date=bcp_date,
+                            file_path=bcp_path,
+                            file_size=bcp_size,
+                            content_type="application/pdf",
+                            created_at=datetime.now(timezone.utc)
+                        )
+                        db.add(bcp_doc)
+                    
+                    if random.random() < 0.6:  # 60% chance
+                        drp_date = last_dd_date + timedelta(days=random.randint(0, 60))
+                        drp_path, drp_size = save_vendor_document(
+                            vendor,
+                            DocumentType.DISASTER_RECOVERY_PLAN,
+                            f"{vendor_data['vendor_name']} Disaster Recovery Plan",
+                            drp_date
+                        )
+                        drp_doc = VendorDocument(
+                            vendor_id=vendor.id,
+                            document_type=DocumentType.DISASTER_RECOVERY_PLAN,
+                            file_name="disaster_recovery.pdf",
+                            custom_document_name=f"{vendor_data['vendor_name']} Disaster Recovery Plan",
+                            document_signed_date=drp_date,
+                            file_path=drp_path,
+                            file_size=drp_size,
+                            content_type="application/pdf",
+                            created_at=datetime.now(timezone.utc)
+                        )
+                        db.add(drp_doc)
+                    
+                    if random.random() < 0.6:  # 60% chance
+                        ip_date = last_dd_date + timedelta(days=random.randint(0, 60))
+                        ip_path, ip_size = save_vendor_document(
+                            vendor,
+                            DocumentType.INSURANCE_POLICY,
+                            f"{vendor_data['vendor_name']} Insurance Policy",
+                            ip_date
+                        )
+                        ip_doc = VendorDocument(
+                            vendor_id=vendor.id,
+                            document_type=DocumentType.INSURANCE_POLICY,
+                            file_name="insurance_policy.pdf",
+                            custom_document_name=f"{vendor_data['vendor_name']} Insurance Policy",
+                            document_signed_date=ip_date,
+                            file_path=ip_path,
+                            file_size=ip_size,
+                            content_type="application/pdf",
+                            created_at=datetime.now(timezone.utc)
+                        )
+                        db.add(ip_doc)
+                
                 vendors.append(vendor)
                 print(f"  ✓ Created vendor: {vendor.vendor_id} - {vendor.vendor_name}")
             
@@ -689,8 +900,8 @@ def seed_vendors_and_contracts():
             vendors = db.query(Vendor).limit(20).all()
             print(f"✓ Using {len(vendors)} existing vendors\n")
         
-        # Create 20 contracts (doubled from 10)
-        print("Creating 20 contracts...\n")
+        # Create 50 contracts
+        print("Creating 50 contracts...\n")
         
         contracts_data = [
             {
@@ -875,6 +1086,14 @@ def seed_vendors_and_contracts():
             }
         ]
         
+        # Expand contracts list to 50 by duplicating and modifying existing ones
+        base_contracts = contracts_data.copy()
+        for i in range(len(base_contracts), 50):
+            base_contract = base_contracts[i % len(base_contracts)].copy()
+            base_contract["amount"] = base_contract["amount"] * (1 + (i % 5) * 0.1)  # Vary amounts
+            base_contract["start_offset_days"] = base_contract["start_offset_days"] + (i % 30) * 5  # Vary start dates
+            contracts_data.append(base_contract)
+        
         for i, contract_data in enumerate(contracts_data):
             vendor = vendors[i % len(vendors)]  # Distribute contracts across vendors
             
@@ -890,6 +1109,11 @@ def seed_vendors_and_contracts():
             else:
                 status = ContractStatusType.ACTIVE
             
+            # Add some random variation to contract amounts (±10%)
+            base_amount = contract_data["amount"]
+            variation = random.uniform(0.9, 1.1)  # 90% to 110% of base amount
+            contract_amount = round(base_amount * variation, 2)
+            
             # Create contract
             contract_id = f"CT{i+1}"
             contract = Contract(
@@ -902,7 +1126,7 @@ def seed_vendors_and_contracts():
                 automatic_renewal=AutomaticRenewalType.YES if i % 2 == 0 else AutomaticRenewalType.NO,
                 renewal_period=RenewalPeriodType.ONE_YEAR if i % 2 == 0 else None,
                 department=contract_data["department"],
-                contract_amount=contract_data["amount"],
+                contract_amount=contract_amount,  # Use varied amount
                 contract_currency=contract_data["currency"],
                 payment_method=PaymentMethodType.INVOICE if i % 2 == 0 else PaymentMethodType.STANDING_ORDER,
                 termination_notice_period=NoticePeriodType.THIRTY_DAYS,
@@ -943,28 +1167,112 @@ def seed_vendors_and_contracts():
                 print(f"  ✓ Created contract: {contract.contract_id} - {contract.contract_description} ({vendor.vendor_name}) [NO DOCUMENT]")
         
         db.commit()
-        print(f"\n✅ Successfully seeded 20 contracts!")
+        print(f"\n✅ Successfully seeded 50 contracts!")
+        
+        # Get all created contracts for contract updates creation
+        all_contracts = db.query(Contract).all()
         
         # Count contracts with and without documents
         contracts_with_docs = sum(1 for i in range(len(contracts_data)) if i % 2 == 0)
         contracts_without_docs = len(contracts_data) - contracts_with_docs
         
+        # Create ContractUpdate entries for some contracts (30% returned, 20% updated)
+        print("\nCreating contract update entries...\n")
+        returned_count = 0
+        updated_count = 0
+        
+        # Get contracts that don't have updates yet (if not forcing)
+        import sys
+        if '--force-updates' in sys.argv:
+            contracts_to_process = all_contracts
+        else:
+            # Only process contracts that don't have updates yet
+            contracts_with_updates = {update.contract_id for update in db.query(ContractUpdate).all()}
+            contracts_to_process = [c for c in all_contracts if c.id not in contracts_with_updates]
+        
+        if not contracts_to_process:
+            print("   All contracts already have updates. Use --force-updates to create more.")
+            return
+        
+        print(f"   Creating updates for {len(contracts_to_process)} contract(s) without updates...\n")
+        
+        for i, contract in enumerate(contracts_to_process):
+            # 30% chance of returned status, 20% chance of updated status
+            rand = random.random()
+            if rand < 0.30:  # 30% returned
+                # Create returned contract update
+                contract_update = ContractUpdate(
+                    contract_id=contract.id,
+                    status=ContractUpdateStatus.RETURNED,
+                    response_provided_by_user_id=contract.contract_owner_id if random.random() < 0.5 else contract.contract_owner_backup_id,
+                    response_date=datetime.now(timezone.utc) - timedelta(days=random.randint(1, 10)),
+                    has_document=random.random() < 0.7,
+                    admin_comments=random.choice([
+                        "Please provide the complete signed contract document and verify vendor contact information.",
+                        "The contract document is missing the authorized signature on page 3. Please obtain the signature and resubmit.",
+                        "Vendor contact person and address information is incomplete. Please update with complete vendor details.",
+                        "The expiration date in the system does not match the date on the signed contract document. Please verify and update.",
+                        "This contract should be classified as 'Service Agreement' rather than current type. Please update the contract type.",
+                        "Please verify vendor credentials and ensure all contract terms are properly documented before resubmission.",
+                        "Missing required supporting documents. Please attach all necessary documents.",
+                        "Contract terms need clarification. Please provide additional details on payment terms."
+                    ]),
+                    returned_reason=random.choice([
+                        "Contract requires additional documentation and signature verification.",
+                        "Missing signature on page 3",
+                        "Incomplete vendor information",
+                        "Contract expiration date needs verification against vendor agreement.",
+                        "Contract type classification needs correction.",
+                        "Vendor information and contract terms need review.",
+                        "Missing required documents",
+                        "Payment terms unclear"
+                    ]),
+                    returned_date=datetime.now(timezone.utc) - timedelta(days=random.randint(1, 5)),
+                    initial_vendor_name=contract.vendor.vendor_name,
+                    initial_contract_type=contract.contract_type.value,
+                    initial_description=contract.contract_description,
+                    initial_expiration_date=contract.end_date,
+                    created_at=datetime.now(timezone.utc) - timedelta(days=random.randint(5, 15)),
+                    updated_at=datetime.now(timezone.utc) - timedelta(days=random.randint(1, 5))
+                )
+                db.add(contract_update)
+                returned_count += 1
+                if returned_count <= 5:  # Only print first 5 to avoid spam
+                    print(f"  ✓ Created returned contract update: {contract.contract_id}")
+            elif rand < 0.50:  # 20% updated
+                # Create updated contract update
+                contract_update = ContractUpdate(
+                    contract_id=contract.id,
+                    status=ContractUpdateStatus.UPDATED,
+                    response_provided_by_user_id=contract.contract_owner_id if random.random() < 0.5 else contract.contract_owner_backup_id,
+                    response_date=datetime.now(timezone.utc) - timedelta(days=random.randint(1, 7)),
+                    has_document=random.random() < 0.6,
+                    created_at=datetime.now(timezone.utc) - timedelta(days=random.randint(3, 10)),
+                    updated_at=datetime.now(timezone.utc) - timedelta(days=random.randint(1, 3))
+                )
+                db.add(contract_update)
+                updated_count += 1
+        
+        db.commit()
+        print(f"\n✅ Created {returned_count} returned contract updates and {updated_count} updated contract updates!")
+        
         # Count contracts expiring within 90 days
         contracts_expiring_soon = 0
-        for i, contract_data in enumerate(contracts_data):
-            start_date = date.today() + timedelta(days=contract_data["start_offset_days"])
-            end_date = start_date + timedelta(days=contract_data["duration_days"])
-            if date.today() <= end_date <= date.today() + timedelta(days=90):
+        for contract in all_contracts:
+            if date.today() <= contract.end_date <= date.today() + timedelta(days=90):
                 contracts_expiring_soon += 1
         
         print("\n" + "="*70)
         print("SUMMARY")
         print("="*70)
         print(f"Vendors: {len(vendors)}")
-        print(f"Contracts: {len(contracts_data)}")
+        print(f"Contracts: {len(all_contracts)}")
         print(f"  - With documents: {contracts_with_docs}")
         print(f"  - Without documents: {contracts_without_docs} (will appear in Pending Documents)")
         print(f"  - Expiring within 90 days: {contracts_expiring_soon} (will appear in Pending Reviews)")
+        print(f"Contract Updates:")
+        print(f"  - Returned: {returned_count}")
+        print(f"  - Updated: {updated_count}")
         print(f"Users available: {len(users)}")
         print("="*70)
         
@@ -978,6 +1286,204 @@ def seed_vendors_and_contracts():
         db.close()
 
 
+def update_existing_vendors_and_contracts():
+    """
+    Update existing vendors and contracts with random variations:
+    - Material outsourcing assignment
+    - Due diligence dates (mix of past due and upcoming)
+    - Contract amounts with variation
+    """
+    db = SessionLocal()
+    
+    try:
+        print("\n🔄 Updating existing vendors and contracts with variations...\n")
+        
+        # Update existing vendors
+        vendors = db.query(Vendor).all()
+        if not vendors:
+            print("❌ No vendors found in database. Please run seed_vendors_and_contracts() first.")
+            return
+        
+        print(f"Updating {len(vendors)} vendors...")
+        
+        for vendor in vendors:
+            # Randomly assign material outsourcing (50/50 chance if not already set)
+            if random.random() < 0.5:
+                vendor.material_outsourcing_arrangement = MaterialOutsourcingType.YES
+            else:
+                vendor.material_outsourcing_arrangement = MaterialOutsourcingType.NO
+            
+            # Update due diligence dates with variation
+            days_ago_options = [30, 60, 90, 180, 365, 730]  # Various periods ago
+            days_ago = random.choice(days_ago_options)
+            last_dd_date = datetime.now(timezone.utc) - timedelta(days=days_ago)
+            
+            # Calculate next required date based on material outsourcing
+            if vendor.material_outsourcing_arrangement == MaterialOutsourcingType.YES:
+                years_to_add = 1
+                days_variation = random.randint(-90, 90)  # ±90 days variation
+            else:
+                years_to_add = 3
+                days_variation = random.randint(-180, 180)  # ±180 days variation
+            
+            next_dd_date = last_dd_date + relativedelta(years=years_to_add, days=days_variation)
+            
+            # Update vendor fields
+            vendor.last_due_diligence_date = last_dd_date
+            vendor.next_required_due_diligence_date = next_dd_date
+            vendor.due_diligence_required = DueDiligenceRequiredType.YES
+            vendor.next_required_due_diligence_alert_frequency = random.choices(
+                [AlertFrequencyType.FIFTEEN_DAYS, AlertFrequencyType.THIRTY_DAYS, 
+                 AlertFrequencyType.SIXTY_DAYS, AlertFrequencyType.NINETY_DAYS],
+                weights=[10, 60, 20, 10],
+                k=1
+            )[0]
+            vendor.updated_at = datetime.now(timezone.utc)
+            
+            # Add MOA documents if material outsourcing = YES and vendor doesn't have them
+            if vendor.material_outsourcing_arrangement == MaterialOutsourcingType.YES:
+                existing_doc_types = {doc.document_type for doc in vendor.documents}
+                
+                # Add Risk Assessment if missing
+                if DocumentType.RISK_ASSESSMENT_FORM not in existing_doc_types:
+                    risk_assessment_date = last_dd_date + timedelta(days=random.randint(0, 30))
+                    ra_path, ra_size = save_vendor_document(
+                        vendor,
+                        DocumentType.RISK_ASSESSMENT_FORM,
+                        f"{vendor.vendor_name} Risk Assessment",
+                        risk_assessment_date
+                    )
+                    ra_doc = VendorDocument(
+                        vendor_id=vendor.id,
+                        document_type=DocumentType.RISK_ASSESSMENT_FORM,
+                        file_name="risk_assessment.pdf",
+                        custom_document_name=f"{vendor.vendor_name} Risk Assessment",
+                        document_signed_date=risk_assessment_date,
+                        file_path=ra_path,
+                        file_size=ra_size,
+                        content_type="application/pdf",
+                        created_at=datetime.now(timezone.utc)
+                    )
+                    db.add(ra_doc)
+                
+                # Add optional MOA documents (60% chance for each)
+                if DocumentType.BUSINESS_CONTINUITY_PLAN not in existing_doc_types and random.random() < 0.6:
+                    bcp_date = last_dd_date + timedelta(days=random.randint(0, 60))
+                    bcp_path, bcp_size = save_vendor_document(
+                        vendor,
+                        DocumentType.BUSINESS_CONTINUITY_PLAN,
+                        f"{vendor.vendor_name} Business Continuity Plan",
+                        bcp_date
+                    )
+                    bcp_doc = VendorDocument(
+                        vendor_id=vendor.id,
+                        document_type=DocumentType.BUSINESS_CONTINUITY_PLAN,
+                        file_name="business_continuity.pdf",
+                        custom_document_name=f"{vendor.vendor_name} Business Continuity Plan",
+                        document_signed_date=bcp_date,
+                        file_path=bcp_path,
+                        file_size=bcp_size,
+                        content_type="application/pdf",
+                        created_at=datetime.now(timezone.utc)
+                    )
+                    db.add(bcp_doc)
+                
+                if DocumentType.DISASTER_RECOVERY_PLAN not in existing_doc_types and random.random() < 0.6:
+                    drp_date = last_dd_date + timedelta(days=random.randint(0, 60))
+                    drp_path, drp_size = save_vendor_document(
+                        vendor,
+                        DocumentType.DISASTER_RECOVERY_PLAN,
+                        f"{vendor.vendor_name} Disaster Recovery Plan",
+                        drp_date
+                    )
+                    drp_doc = VendorDocument(
+                        vendor_id=vendor.id,
+                        document_type=DocumentType.DISASTER_RECOVERY_PLAN,
+                        file_name="disaster_recovery.pdf",
+                        custom_document_name=f"{vendor.vendor_name} Disaster Recovery Plan",
+                        document_signed_date=drp_date,
+                        file_path=drp_path,
+                        file_size=drp_size,
+                        content_type="application/pdf",
+                        created_at=datetime.now(timezone.utc)
+                    )
+                    db.add(drp_doc)
+                
+                if DocumentType.INSURANCE_POLICY not in existing_doc_types and random.random() < 0.6:
+                    ip_date = last_dd_date + timedelta(days=random.randint(0, 60))
+                    ip_path, ip_size = save_vendor_document(
+                        vendor,
+                        DocumentType.INSURANCE_POLICY,
+                        f"{vendor.vendor_name} Insurance Policy",
+                        ip_date
+                    )
+                    ip_doc = VendorDocument(
+                        vendor_id=vendor.id,
+                        document_type=DocumentType.INSURANCE_POLICY,
+                        file_name="insurance_policy.pdf",
+                        custom_document_name=f"{vendor.vendor_name} Insurance Policy",
+                        document_signed_date=ip_date,
+                        file_path=ip_path,
+                        file_size=ip_size,
+                        content_type="application/pdf",
+                        created_at=datetime.now(timezone.utc)
+                    )
+                    db.add(ip_doc)
+        
+        # Update existing contracts with varied amounts
+        contracts = db.query(Contract).all()
+        if contracts:
+            print(f"\nUpdating {len(contracts)} contracts with varied amounts...")
+            
+            for contract in contracts:
+                # Add random variation to contract amounts (±15%)
+                if contract.contract_amount:
+                    base_amount = float(contract.contract_amount)
+                    variation = random.uniform(0.85, 1.15)  # 85% to 115% of base amount
+                    new_amount = round(base_amount * variation, 2)
+                    contract.contract_amount = new_amount
+                    contract.updated_at = datetime.now(timezone.utc)
+        
+        db.commit()
+        
+        # Print summary
+        vendors_moa = db.query(Vendor).filter(Vendor.material_outsourcing_arrangement == MaterialOutsourcingType.YES).count()
+        vendors_with_past_due = 0
+        for vendor in db.query(Vendor).all():
+            if vendor.next_required_due_diligence_date:
+                next_dd_date = vendor.next_required_due_diligence_date
+                if isinstance(next_dd_date, datetime):
+                    next_dd_date = next_dd_date.date()
+                if next_dd_date < date.today():
+                    vendors_with_past_due += 1
+        
+        print("\n" + "="*70)
+        print("UPDATE SUMMARY")
+        print("="*70)
+        print(f"Vendors updated: {len(vendors)}")
+        print(f"  - With Material Outsourcing: {vendors_moa}")
+        print(f"  - With Due Diligence past due: {vendors_with_past_due}")
+        print(f"Contracts updated: {len(contracts)}")
+        print("="*70)
+        print("\n✅ Successfully updated vendors and contracts!\n")
+        
+    except Exception as e:
+        print(f"❌ Error updating vendors and contracts: {e}")
+        import traceback
+        traceback.print_exc()
+        db.rollback()
+        raise
+    finally:
+        db.close()
+
+
 if __name__ == "__main__":
-    seed_vendors_and_contracts()
+    import sys
+    
+    if len(sys.argv) > 1 and sys.argv[1] == "--update":
+        # Run update function
+        update_existing_vendors_and_contracts()
+    else:
+        # Run normal seed function
+        seed_vendors_and_contracts()
 
