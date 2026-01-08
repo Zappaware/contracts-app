@@ -1,8 +1,10 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 from nicegui import ui
+from app.db.database import SessionLocal
+from app.services.contract_service import ContractService
+from app.models.contract import ContractStatusType
 import io
 import base64
-from app.utils.vendor_lookup import get_vendor_id_by_name
 try:
     import pandas as pd
     PANDAS_AVAILABLE = True
@@ -21,110 +23,128 @@ def expired_contracts():
     contract_rows = []
     
     
-    # Mock data for expired contracts
-    def get_mock_expired_contracts():
+    # Fetch expired contracts from database
+    def fetch_expired_contracts():
         """
-        Simulates expired contracts.
-        This will be replaced with actual API call when available.
+        Fetches expired contracts directly from the database service.
+        This avoids HTTP requests and circular dependencies.
         """
-        today = datetime.now()
-        
-        mock_contracts = [
-            {
-                "contract_id": "CTR-2023-001",
-                "vendor_name": "Acme Corp",
-                "contract_type": "Service Agreement",
-                "description": "IT Support Services",
-                "expiration_date": today - timedelta(days=5),
-                "manager": "William Defoe",
-                "role": "owned"
-            },
-            {
-                "contract_id": "CTR-2023-012",
-                "vendor_name": "Beta Technologies",
-                "contract_type": "Software License",
-                "description": "Enterprise Software Licensing",
-                "expiration_date": today - timedelta(days=15),
-                "manager": "John Doe",
-                "role": "backup"
-            },
-            {
-                "contract_id": "CTR-2023-023",
-                "vendor_name": "Gamma Consulting",
-                "contract_type": "Consulting",
-                "description": "Business Process Optimization",
-                "expiration_date": today - timedelta(days=30),
-                "manager": "William Defoe",
-                "role": "owned"
-            },
-            {
-                "contract_id": "CTR-2023-034",
-                "vendor_name": "Delta Logistics",
-                "contract_type": "Transportation",
-                "description": "Freight and Delivery Services",
-                "expiration_date": today - timedelta(days=10),
-                "manager": "John Doe",
-                "role": "backup"
-            },
-            {
-                "contract_id": "CTR-2022-089",
-                "vendor_name": "Epsilon Security",
-                "contract_type": "Security Services",
-                "description": "Building Security and Monitoring",
-                "expiration_date": today - timedelta(days=60),
-                "manager": "William Defoe",
-                "role": "owned"
-            },
-            {
-                "contract_id": "CTR-2023-045",
-                "vendor_name": "Zeta Solutions",
-                "contract_type": "Maintenance",
-                "description": "Equipment Maintenance Contract",
-                "expiration_date": today - timedelta(days=45),
-                "manager": "John Doe",
-                "role": "backup"
-            },
-            {
-                "contract_id": "CTR-2023-056",
-                "vendor_name": "Eta Services",
-                "contract_type": "Cleaning Services",
-                "description": "Office Cleaning and Janitorial",
-                "expiration_date": today - timedelta(days=20),
-                "manager": "William Defoe",
-                "role": "owned"
-            },
-            {
-                "contract_id": "CTR-2023-067",
-                "vendor_name": "Theta Communications",
-                "contract_type": "Telecommunications",
-                "description": "Internet and Phone Services",
-                "expiration_date": today - timedelta(days=25),
-                "manager": "John Doe",
-                "role": "backup"
-            },
-        ]
-        
-        rows = []
-        for contract in mock_contracts:
-            exp_date = contract["expiration_date"]
+        db = SessionLocal()
+        try:
+            contract_service = ContractService(db)
             
-            # Look up vendor_id from vendor_name
-            vendor_id = get_vendor_id_by_name(contract["vendor_name"])
+            # Get expired contracts only (limit 1000 for display)
+            contracts, _ = contract_service.search_and_filter_contracts(
+                skip=0,
+                limit=1000,
+                status=ContractStatusType.EXPIRED,
+                search=None,
+                contract_type=None,
+                department=None,
+                owner_id=None,
+                vendor_id=None,
+                expiring_soon=None
+            )
             
-            rows.append({
-                "contract_id": contract["contract_id"],
-                "vendor_name": contract["vendor_name"],
-                "vendor_id": vendor_id,  # Add vendor_id for routing
-                "contract_type": contract["contract_type"],
-                "description": contract["description"],
-                "expiration_date": exp_date.strftime("%Y-%m-%d"),
-                "expiration_timestamp": exp_date.timestamp(),  # For sorting
-                "status": "Expired",
-                "manager": contract["manager"],
-                "role": contract["role"],
-            })
-        
-        return rows
+            print(f"Found {len(contracts)} expired contracts from database")
+            
+            if not contracts:
+                print("No expired contracts found in database")
+                return []
+            
+            # Map contract data to table row format
+            rows = []
+            for contract in contracts:
+                # Get contract owner (manager) name
+                manager_name = f"{contract.contract_owner.first_name} {contract.contract_owner.last_name}"
+                backup_name = f"{contract.contract_owner_backup.first_name} {contract.contract_owner_backup.last_name}"
+                
+                # Get vendor info
+                vendor_name = contract.vendor.vendor_name if contract.vendor else "Unknown"
+                vendor_id = contract.vendor.id if contract.vendor else None
+                
+                # Get contract type value
+                contract_type = contract.contract_type.value if hasattr(contract.contract_type, 'value') else str(contract.contract_type)
+                
+                # Get status value
+                status = contract.status.value if hasattr(contract.status, 'value') else str(contract.status)
+                
+                # Get department value
+                department = contract.department.value if hasattr(contract.department, 'value') else str(contract.department)
+                
+                # Format expiration date (end_date)
+                if contract.end_date:
+                    if isinstance(contract.end_date, date):
+                        exp_date = contract.end_date
+                        formatted_date = exp_date.strftime("%Y-%m-%d")
+                        exp_timestamp = datetime.combine(exp_date, datetime.min.time()).timestamp()
+                    else:
+                        formatted_date = str(contract.end_date)
+                        exp_timestamp = 0
+                else:
+                    formatted_date = "N/A"
+                    exp_timestamp = 0
+                
+                # Format start date
+                if contract.start_date:
+                    if isinstance(contract.start_date, date):
+                        formatted_start_date = contract.start_date.strftime("%Y-%m-%d")
+                    else:
+                        formatted_start_date = str(contract.start_date)
+                else:
+                    formatted_start_date = "N/A"
+                
+                # Calculate days past due (difference between today and end_date)
+                days_past_due = 0
+                if contract.end_date and isinstance(contract.end_date, date):
+                    today = date.today()
+                    if contract.end_date < today:
+                        days_past_due = (today - contract.end_date).days
+                
+                # Count email notifications for this contract
+                # Note: ContractNotification table may not exist or may reference a different schema
+                # Try to query using raw SQL to avoid importing the model (which has duplicate User class)
+                email_notification_count = 0
+                try:
+                    # Query using raw SQL to avoid model import conflicts
+                    from sqlalchemy import text
+                    result = db.execute(
+                        text("SELECT COUNT(*) FROM contract_notifications WHERE contract_id = :contract_id"),
+                        {"contract_id": contract.id}
+                    ).scalar()
+                    email_notification_count = result if result else 0
+                except Exception:
+                    # If table doesn't exist or query fails, default to 0
+                    # This is expected if the notification system isn't set up
+                    pass
+                
+                rows.append({
+                    "id": contract.id,  # Internal ID for routing
+                    "contract_id": contract.contract_id,
+                    "vendor_name": vendor_name,
+                    "vendor_id": vendor_id,
+                    "contract_type": contract_type,
+                    "description": contract.contract_description,
+                    "start_date": formatted_start_date,
+                    "expiration_date": formatted_date,
+                    "expiration_timestamp": exp_timestamp,
+                    "status": status,
+                    "department": department,
+                    "manager": manager_name,
+                    "backup": backup_name,
+                    "days_past_due": days_past_due,
+                    "email_notifications": email_notification_count,
+                })
+            
+            return rows
+            
+        except Exception as e:
+            print(f"Error fetching expired contracts: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            return []
+        finally:
+            db.close()
 
     contract_columns = [
         {
@@ -182,7 +202,7 @@ def expired_contracts():
         "headerClasses": "bg-[#144c8e] text-white",
     }
 
-    contract_rows = get_mock_expired_contracts()
+    contract_rows = fetch_expired_contracts()
     
     # Main container
     with ui.element("div").classes("max-w-6xl mt-8 mx-auto w-full"):
@@ -324,22 +344,49 @@ def expired_contracts():
                     dialog.close()
                     return
                 
-                if not contract_rows:
-                    ui.notify("No expired contracts available for export", type="warning")
+                # Parse dates
+                start_date = datetime.strptime(start_date_str, "%Y-%m-%d").date()
+                end_date = datetime.strptime(end_date_str, "%Y-%m-%d").date()
+                
+                if start_date > end_date:
+                    ui.notify("Start date must be before end date", type="negative")
+                    return
+                
+                # Filter contracts by date range (end_date must be within range) and status must be Expired
+                filtered_contracts = []
+                for contract in contract_rows:
+                    # Check if contract has expiration date within range
+                    exp_date_str = contract.get('expiration_date', '')
+                    if exp_date_str and exp_date_str != 'N/A':
+                        try:
+                            exp_date = datetime.strptime(exp_date_str, "%Y-%m-%d").date()
+                            # Include contracts that expired within the date range
+                            if start_date <= exp_date <= end_date and contract.get('status') == 'Expired':
+                                filtered_contracts.append(contract)
+                        except ValueError:
+                            # Skip contracts with invalid date format
+                            continue
+                
+                if not filtered_contracts:
+                    ui.notify("No expired contracts found within the selected date range", type="warning")
                     dialog.close()
                     return
                 
-                # Prepare data for Excel
+                # Prepare data for Excel with all required fields
                 report_data = []
-                for contract in contract_rows:
+                for contract in filtered_contracts:
                     report_data.append({
                         "Contract ID": contract.get('contract_id', ''),
                         "Contract Type": contract.get('contract_type', ''),
                         "Description": contract.get('description', ''),
                         "Vendor": contract.get('vendor_name', ''),
-                        "Expiration Date": contract.get('expiration_date', ''),
-                        "Status": contract.get('status', ''),
-                        "Manager": contract.get('manager', ''),
+                        "Contract Start": contract.get('start_date', ''),
+                        "Contract End Date": contract.get('expiration_date', ''),
+                        "Department": contract.get('department', ''),
+                        "Contract Manager": contract.get('manager', ''),
+                        "Contract Backups": contract.get('backup', ''),
+                        "Days Past Due": contract.get('days_past_due', 0),
+                        "Email Notifications": contract.get('email_notifications', 0),
                     })
                 
                 # Create DataFrame

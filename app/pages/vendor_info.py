@@ -427,18 +427,34 @@ def vendor_info(vendor_id: int):
                 contracts_card.on("click", open_contracts_documents)
                 
                 # Supporting Documents Category
-                with ui.card().classes("flex-1 p-6 border-2 border-green-300 hover:border-green-500 cursor-pointer transition-all") as supporting_card:
+                supporting_card = ui.card().classes("flex-1 p-6 border-2 border-green-300 hover:border-green-500 cursor-pointer transition-all")
+                supporting_badge_container = None
+                
+                def update_supporting_docs_badge():
+                    """Update the supporting documents badge count"""
+                    nonlocal supporting_badge_container
+                    current_count = len(vendor.documents) if vendor and vendor.documents else 0
+                    if supporting_badge_container:
+                        supporting_badge_container.clear()
+                        with supporting_badge_container:
+                            if current_count > 0:
+                                ui.badge(f"{current_count} document(s)", color="green").classes("text-sm font-semibold")
+                            else:
+                                ui.label("No documents available").classes("text-gray-500 italic text-sm")
+                
+                with supporting_card:
                     with ui.column().classes("items-center text-center gap-3"):
                         ui.icon("folder", size="48px", color="green").classes("mb-2")
                         ui.label("Supporting Documents").classes("text-lg font-bold text-green-700")
                         
-                        if supporting_docs_count > 0:
-                            ui.badge(f"{supporting_docs_count} document(s)", color="green").classes("text-sm font-semibold")
-                        else:
-                            ui.label("No documents available").classes("text-gray-500 italic text-sm")
+                        supporting_badge_container = ui.column().classes("items-center")
+                        update_supporting_docs_badge()
                 
                 # Click handler for supporting documents
                 def open_supporting_documents():
+                    # Refresh vendor data before opening
+                    refresh_supporting_docs()
+                    update_supporting_docs_badge()
                     supporting_docs_dialog.open()
                 
                 supporting_card.on("click", open_supporting_documents)
@@ -507,95 +523,287 @@ def vendor_info(vendor_id: int):
                     ui.button("Close", icon="close", on_click=contracts_dialog.close).props('color=primary')
             
             # Supporting Documents Dialog
-            with ui.dialog() as supporting_docs_dialog, ui.card().classes("min-w-[800px] max-w-4xl max-h-[80vh] overflow-y-auto"):
-                ui.label("Supporting Documents").classes("text-h5 mb-4 text-green-600 font-bold")
+            with ui.dialog() as supporting_docs_dialog, ui.card().classes("min-w-[800px] max-w-4xl max-h-[80vh] overflow-y-auto") as dialog_card:
+                dialog_content_container = ui.column().classes("w-full")
                 
-                if supporting_docs_count > 0:
-                    # Organize documents by type
-                    documents_by_type = {}
-                    for doc in vendor.documents:
-                        doc_type = doc.document_type.value
-                        if doc_type not in documents_by_type:
-                            documents_by_type[doc_type] = []
-                        documents_by_type[doc_type].append(doc)
+                def refresh_supporting_docs():
+                    """Refresh supporting documents by reloading vendor data"""
+                    nonlocal vendor, supporting_docs_count
                     
-                    # Define the document types to display (in order)
-                    document_types_to_show = [
-                        DocumentType.DUE_DILIGENCE.value,
-                        DocumentType.NON_DISCLOSURE_AGREEMENT.value,
-                        DocumentType.RISK_ASSESSMENT_FORM.value,
-                        DocumentType.BUSINESS_CONTINUITY_PLAN.value,
-                        DocumentType.DISASTER_RECOVERY_PLAN.value,
-                        DocumentType.INSURANCE_POLICY.value,
-                        DocumentType.INTEGRITY_POLICY.value,
-                    ]
+                    from app.db.database import SessionLocal
+                    from sqlalchemy.orm import joinedload
+                    from app.models.vendor import Vendor
+                    db = SessionLocal()
+                    try:
+                        vendor = db.query(Vendor).options(
+                            joinedload(Vendor.documents)
+                        ).filter(Vendor.id == vendor_id).first()
+                        supporting_docs_count = len(vendor.documents) if vendor.documents else 0
+                    finally:
+                        db.close()
                     
-                    # Display each document type section
-                    for doc_type in document_types_to_show:
-                        with ui.card().classes("w-full mb-4 p-4 border-l-4 border-green-400"):
-                            with ui.row().classes("items-center justify-between w-full mb-2"):
-                                ui.label(doc_type).classes("text-lg font-bold text-gray-800")
+                    # Update the badge on the main card
+                    update_supporting_docs_badge()
+                    
+                    # Rebuild dialog content
+                    dialog_content_container.clear()
+                    build_supporting_docs_content()
+                
+                def build_supporting_docs_content():
+                    """Build the content of the supporting documents dialog"""
+                    with dialog_content_container:
+                        ui.label("Supporting Documents").classes("text-h5 mb-4 text-green-600 font-bold")
+                        
+                        # Refresh count from current vendor data
+                        current_count = len(vendor.documents) if vendor.documents else 0
+                        
+                        # Organize documents by type
+                        documents_by_type = {}
+                        for doc in vendor.documents:
+                            doc_type = doc.document_type.value
+                            if doc_type not in documents_by_type:
+                                documents_by_type[doc_type] = []
+                            documents_by_type[doc_type].append(doc)
+                        
+                        # Define the document types to display (in order)
+                        document_types_to_show = [
+                            DocumentType.DUE_DILIGENCE.value,
+                            DocumentType.NON_DISCLOSURE_AGREEMENT.value,
+                            DocumentType.RISK_ASSESSMENT_FORM.value,
+                            DocumentType.BUSINESS_CONTINUITY_PLAN.value,
+                            DocumentType.DISASTER_RECOVERY_PLAN.value,
+                            DocumentType.INSURANCE_POLICY.value,
+                            DocumentType.INTEGRITY_POLICY.value,
+                        ]
+                        
+                        # Display each document type section
+                        for doc_type in document_types_to_show:
+                            with ui.card().classes("w-full mb-4 p-4 border-l-4 border-green-400"):
+                                with ui.row().classes("items-center justify-between w-full mb-2"):
+                                    ui.label(doc_type).classes("text-lg font-bold text-gray-800")
+                                    
+                                    docs_for_type = documents_by_type.get(doc_type, [])
+                                    count_badge = ui.badge(
+                                        f"{len(docs_for_type)} document(s)" if docs_for_type else "No document available",
+                                        color="green" if docs_for_type else "gray"
+                                    ).classes("text-sm")
+                                    
+                                    # Add (+) button for each document type
+                                    add_btn = ui.button(icon="add", color="green").props('flat round size=sm').tooltip('Add Document')
+                                    
+                                    def open_add_document_dialog(document_type_val=doc_type):
+                                        """Open dialog to add a new document of this type"""
+                                        with ui.dialog() as add_doc_dialog, ui.card().classes("min-w-[500px]"):
+                                            ui.label(f"Add {document_type_val} Document").classes("text-h6 mb-4")
+                                            
+                                            doc_name_input = ui.input("Document Name", placeholder="Enter document name").classes("w-full mb-3").props('outlined')
+                                            issue_date_input = ui.input("Issue Date *", placeholder="YYYY-MM-DD").classes("w-full mb-3").props('outlined type=date required')
+                                            
+                                            file_upload = ui.upload(
+                                                on_upload=lambda e: ui.notify(f'File selected: {e.name}'),
+                                                max_file_size=10_000_000,
+                                                max_files=1
+                                            ).classes('w-full mb-4').props('accept=.pdf')
+                                            
+                                            def save_new_document():
+                                                if not issue_date_input.value:
+                                                    ui.notify("Issue Date is required", type="negative")
+                                                    return
+                                                
+                                                if not file_upload.value:
+                                                    ui.notify("Please select a file to upload", type="negative")
+                                                    return
+                                                
+                                                # Upload document via API
+                                                import httpx
+                                                import asyncio
+                                                
+                                                async def upload_document():
+                                                    try:
+                                                        files = {'file': (file_upload.value[0].name, file_upload.value[0].content, 'application/pdf')}
+                                                        data = {
+                                                            'document_type': document_type_val,
+                                                            'custom_document_name': doc_name_input.value or file_upload.value[0].name,
+                                                            'document_signed_date': issue_date_input.value
+                                                        }
+                                                        
+                                                        async with httpx.AsyncClient(timeout=30.0) as client:
+                                                            response = await client.post(
+                                                                f"http://localhost:8000/api/v1/vendors/{vendor_id}/documents",
+                                                                files=files,
+                                                                data=data
+                                                            )
+                                                            
+                                                            if response.status_code == 200:
+                                                                ui.notify(f"Document added successfully!", type="positive")
+                                                                add_doc_dialog.close()
+                                                                refresh_supporting_docs()
+                                                            else:
+                                                                error_detail = response.json().get('detail', 'Unknown error')
+                                                                ui.notify(f"Error adding document: {error_detail}", type="negative")
+                                                    except Exception as e:
+                                                        ui.notify(f"Error: {str(e)}", type="negative")
+                                                        print(f"Error uploading document: {e}")
+                                                
+                                                asyncio.create_task(upload_document())
+                                            
+                                            with ui.row().classes("gap-2 justify-end w-full mt-4"):
+                                                ui.button("Cancel", on_click=add_doc_dialog.close).props('flat')
+                                                ui.button("Save", icon="save", on_click=save_new_document).props('color=primary')
+                                        
+                                        add_doc_dialog.open()
+                                    
+                                    add_btn.on_click(lambda dt=doc_type: open_add_document_dialog(dt))
                                 
                                 docs_for_type = documents_by_type.get(doc_type, [])
                                 if docs_for_type:
-                                    ui.badge(f"{len(docs_for_type)} document(s)", color="green").classes("text-sm")
+                                    for doc in docs_for_type:
+                                        with ui.row().classes("items-center gap-4 p-3 bg-gray-50 rounded-lg mb-2 w-full"):
+                                            with ui.column().classes("flex-1"):
+                                                ui.label(doc.custom_document_name).classes("font-medium text-gray-800")
+                                                issue_date = doc.document_signed_date.strftime("%Y-%m-%d") if doc.document_signed_date else "N/A"
+                                                ui.label(f"Issue Date: {issue_date}").classes("text-sm text-gray-600")
+                                            
+                                            # Action buttons: View, Download, Edit, Delete
+                                            with ui.row().classes("gap-2"):
+                                                view_btn = ui.button(icon="visibility").props('color=primary flat round size=sm').tooltip('View')
+                                                download_btn = ui.button(icon="download").props('color=secondary flat round size=sm').tooltip('Download')
+                                                edit_btn = ui.button(icon="edit").props('color=orange flat round size=sm').tooltip('Edit')
+                                                delete_btn = ui.button(icon="delete").props('color=negative flat round size=sm').tooltip('Delete')
+                                                
+                                                def make_view_handler(doc_path, doc_name, file_name):
+                                                    def view_document():
+                                                        ui.notify(f"Opening {doc_name}...", type="info")
+                                                        make_download_handler(doc_path, doc_name, file_name)()
+                                                    return view_document
+                                                
+                                                def make_download_handler(doc_path, doc_name, file_name):
+                                                    def download_document():
+                                                        import os
+                                                        if os.path.exists(doc_path):
+                                                            with open(doc_path, 'rb') as f:
+                                                                file_content = f.read()
+                                                            import base64
+                                                            b64_content = base64.b64encode(file_content).decode()
+                                                            ui.run_javascript(f'''
+                                                                const link = document.createElement('a');
+                                                                link.href = 'data:application/pdf;base64,{b64_content}';
+                                                                link.download = '{file_name}';
+                                                                document.body.appendChild(link);
+                                                                link.click();
+                                                                document.body.removeChild(link);
+                                                            ''')
+                                                            ui.notify(f"Downloaded {doc_name}", type="positive")
+                                                        else:
+                                                            ui.notify(f"File not found: {doc_name}", type="negative")
+                                                    return download_document
+                                                
+                                                def open_edit_dialog(doc_obj):
+                                                    """Open dialog to edit document metadata"""
+                                                    with ui.dialog() as edit_doc_dialog, ui.card().classes("min-w-[500px]"):
+                                                        ui.label(f"Edit {doc_obj.custom_document_name}").classes("text-h6 mb-4")
+                                                        
+                                                        doc_name_edit = ui.input("Document Name", value=doc_obj.custom_document_name).classes("w-full mb-3").props('outlined')
+                                                        issue_date_edit = ui.input(
+                                                            "Issue Date *",
+                                                            value=doc_obj.document_signed_date.strftime("%Y-%m-%d") if doc_obj.document_signed_date else ""
+                                                        ).classes("w-full mb-3").props('outlined type=date required')
+                                                        
+                                                        def save_edited_document():
+                                                            if not issue_date_edit.value:
+                                                                ui.notify("Issue Date is required", type="negative")
+                                                                return
+                                                            
+                                                            import httpx
+                                                            import asyncio
+                                                            
+                                                            async def update_document():
+                                                                try:
+                                                                    data = {
+                                                                        'custom_document_name': doc_name_edit.value,
+                                                                        'document_signed_date': issue_date_edit.value
+                                                                    }
+                                                                    
+                                                                    async with httpx.AsyncClient(timeout=30.0) as client:
+                                                                        response = await client.patch(
+                                                                            f"http://localhost:8000/api/v1/vendors/{vendor_id}/documents/{doc_obj.id}",
+                                                                            data=data
+                                                                        )
+                                                                        
+                                                                        if response.status_code == 200:
+                                                                            ui.notify(f"Document updated successfully!", type="positive")
+                                                                            edit_doc_dialog.close()
+                                                                            refresh_supporting_docs()
+                                                                        else:
+                                                                            error_detail = response.json().get('detail', 'Unknown error')
+                                                                            ui.notify(f"Error updating document: {error_detail}", type="negative")
+                                                                except Exception as e:
+                                                                    ui.notify(f"Error: {str(e)}", type="negative")
+                                                                    print(f"Error updating document: {e}")
+                                                            
+                                                            asyncio.create_task(update_document())
+                                                        
+                                                        with ui.row().classes("gap-2 justify-end w-full mt-4"):
+                                                            ui.button("Cancel", on_click=edit_doc_dialog.close).props('flat')
+                                                            ui.button("Save", icon="save", on_click=save_edited_document).props('color=primary')
+                                                        
+                                                        edit_doc_dialog.open()
+                                                
+                                                def confirm_delete(doc_obj):
+                                                    """Confirm and delete document"""
+                                                    with ui.dialog() as confirm_dialog, ui.card().classes("min-w-[400px]"):
+                                                        ui.label(f"Delete Document").classes("text-h6 mb-2 text-red-600")
+                                                        ui.label(f"Are you sure you want to delete '{doc_obj.custom_document_name}'?").classes("mb-4")
+                                                        ui.label("This action cannot be undone.").classes("text-sm text-gray-600 mb-4")
+                                                        
+                                                        def delete_document():
+                                                            import httpx
+                                                            import asyncio
+                                                            
+                                                            async def perform_delete():
+                                                                try:
+                                                                    async with httpx.AsyncClient(timeout=30.0) as client:
+                                                                        response = await client.delete(
+                                                                            f"http://localhost:8000/api/v1/vendors/{vendor_id}/documents/{doc_obj.id}"
+                                                                        )
+                                                                        
+                                                                        if response.status_code == 204:
+                                                                            ui.notify(f"Document deleted successfully!", type="positive")
+                                                                            confirm_dialog.close()
+                                                                            refresh_supporting_docs()
+                                                                        else:
+                                                                            error_detail = response.json().get('detail', 'Unknown error') if response.status_code != 204 else None
+                                                                            ui.notify(f"Error deleting document: {error_detail or 'Unknown error'}", type="negative")
+                                                                except Exception as e:
+                                                                    ui.notify(f"Error: {str(e)}", type="negative")
+                                                                    print(f"Error deleting document: {e}")
+                                                            
+                                                            asyncio.create_task(perform_delete())
+                                                        
+                                                        with ui.row().classes("gap-2 justify-end w-full mt-4"):
+                                                            ui.button("Cancel", on_click=confirm_dialog.close).props('flat')
+                                                            ui.button("Delete", icon="delete", on_click=delete_document).props('color=negative')
+                                                        
+                                                        confirm_dialog.open()
+                                                
+                                                view_btn.on_click(make_view_handler(doc.file_path, doc.custom_document_name, doc.file_name))
+                                                download_btn.on_click(make_download_handler(doc.file_path, doc.custom_document_name, doc.file_name))
+                                                edit_btn.on_click(lambda d=doc: open_edit_dialog(d))
+                                                delete_btn.on_click(lambda d=doc: confirm_delete(d))
                                 else:
-                                    ui.badge("No document available", color="gray").classes("text-sm")
-                            
-                            docs_for_type = documents_by_type.get(doc_type, [])
-                            if docs_for_type:
-                                for doc in docs_for_type:
-                                    with ui.row().classes("items-center gap-4 p-3 bg-gray-50 rounded-lg mb-2 w-full"):
-                                        with ui.column().classes("flex-1"):
-                                            ui.label(doc.custom_document_name).classes("font-medium text-gray-800")
-                                            issue_date = doc.document_signed_date.strftime("%Y-%m-%d") if doc.document_signed_date else "N/A"
-                                            ui.label(f"Issue Date: {issue_date}").classes("text-sm text-gray-600")
-                                        
-                                        # View/Download buttons
-                                        with ui.row().classes("gap-2"):
-                                            view_btn = ui.button("View", icon="visibility").props('color=primary flat size=sm')
-                                            download_btn = ui.button("Download", icon="download").props('color=secondary flat size=sm')
-                                            
-                                            def make_view_handler(doc_path, doc_name, file_name):
-                                                def view_document():
-                                                    ui.notify(f"Opening {doc_name}...", type="info")
-                                                    make_download_handler(doc_path, doc_name, file_name)()
-                                                return view_document
-                                            
-                                            def make_download_handler(doc_path, doc_name, file_name):
-                                                def download_document():
-                                                    import os
-                                                    if os.path.exists(doc_path):
-                                                        with open(doc_path, 'rb') as f:
-                                                            file_content = f.read()
-                                                        import base64
-                                                        b64_content = base64.b64encode(file_content).decode()
-                                                        ui.run_javascript(f'''
-                                                            const link = document.createElement('a');
-                                                            link.href = 'data:application/pdf;base64,{b64_content}';
-                                                            link.download = '{file_name}';
-                                                            document.body.appendChild(link);
-                                                            link.click();
-                                                            document.body.removeChild(link);
-                                                        ''')
-                                                        ui.notify(f"Downloaded {doc_name}", type="positive")
-                                                    else:
-                                                        ui.notify(f"File not found: {doc_name}", type="negative")
-                                                return download_document
-                                            
-                                            view_btn.on_click(make_view_handler(doc.file_path, doc.custom_document_name, doc.file_name))
-                                            download_btn.on_click(make_download_handler(doc.file_path, doc.custom_document_name, doc.file_name))
-                            else:
-                                with ui.row().classes("p-3 bg-gray-50 rounded-lg w-full"):
-                                    ui.label("No document available").classes("text-gray-500 italic")
+                                    with ui.row().classes("p-3 bg-gray-50 rounded-lg w-full"):
+                                        ui.label("No document available").classes("text-gray-500 italic")
+                        
+                        if current_count == 0:
+                            with ui.row().classes("p-6 w-full justify-center"):
+                                ui.label("No supporting documents available").classes("text-gray-500 italic text-lg")
+                        
+                        # Close button
+                        with ui.row().classes("justify-end mt-4 w-full"):
+                            ui.button("Close", icon="close", on_click=supporting_docs_dialog.close).props('color=primary')
                 
-                else:
-                    with ui.row().classes("p-6 w-full justify-center"):
-                        ui.label("No supporting documents available").classes("text-gray-500 italic text-lg")
-                
-                # Close button
-                with ui.row().classes("justify-end mt-4 w-full"):
-                    ui.button("Close", icon="close", on_click=supporting_docs_dialog.close).props('color=primary')
+                # Build initial content
+                build_supporting_docs_content()
     
     # Additional Documents Section
     if vendor:

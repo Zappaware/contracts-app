@@ -1,10 +1,35 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 import requests
-from nicegui import ui
+from nicegui import ui, app
 from app.utils.vendor_lookup import get_vendor_id_by_name
+import re
 
 
 def manager():
+    # Get current logged-in user
+    current_username = app.storage.user.get('username', None)
+    current_user_id = None
+    current_user_name = None
+    
+    # Fetch current user from database
+    try:
+        from app.db.database import SessionLocal
+        from app.models.contract import User
+        db = SessionLocal()
+        try:
+            if current_username:
+                # Try to find user by email or username
+                current_user = db.query(User).filter(
+                    (User.email == current_username) | (User.first_name.ilike(f"%{current_username}%"))
+                ).first()
+                if current_user:
+                    current_user_id = current_user.id
+                    current_user_name = f"{current_user.first_name} {current_user.last_name}"
+        finally:
+            db.close()
+    except Exception as e:
+        print(f"Error fetching current user: {e}")
+    
     # Global variables for table and data
     contracts_table = None
     contract_rows = []
@@ -163,125 +188,125 @@ def manager():
     
     # ===== NEW SECTION: Contracts Requiring Attention =====
     
-    # Mock data for contracts requiring attention (since API is not available yet)
-    def get_mock_contracts():
+    def get_contracts_requiring_attention():
         """
-        Simulates contracts that have reached their notification window.
-        This will be replaced with actual API call when available.
+        Fetch contracts that have reached their notification window
+        for the current logged-in user (as Contract Manager or Backup).
         """
-        today = datetime.now()
+        if not current_user_id:
+            print("No current user found, returning empty list")
+            return []
         
-        mock_contracts = [
-            {
-                "contract_id": "CTR-2024-001",
-                "vendor_name": "Acme Corp",
-                "contract_type": "Service Agreement",
-                "description": "IT Support Services",
-                "expiration_date": today - timedelta(days=5),  # 5 days past due
-                "manager": "William Defoe",
-                "role": "owned"
-            },
-            {
-                "contract_id": "CTR-2024-012",
-                "vendor_name": "Beta Technologies",
-                "contract_type": "Software License",
-                "description": "Enterprise Software Licensing",
-                "expiration_date": today - timedelta(days=15),  # 15 days past due
-                "manager": "John Doe",
-                "role": "backup"
-            },
-            {
-                "contract_id": "CTR-2024-023",
-                "vendor_name": "Gamma Consulting",
-                "contract_type": "Consulting",
-                "description": "Business Process Optimization",
-                "expiration_date": today + timedelta(days=10),  # 10 days remaining
-                "manager": "William Defoe",
-                "role": "owned"
-            },
-            {
-                "contract_id": "CTR-2024-034",
-                "vendor_name": "Delta Logistics",
-                "contract_type": "Transportation",
-                "description": "Freight and Delivery Services",
-                "expiration_date": today + timedelta(days=5),  # 5 days remaining
-                "manager": "John Doe",
-                "role": "backup"
-            },
-            {
-                "contract_id": "CTR-2023-089",
-                "vendor_name": "Epsilon Security",
-                "contract_type": "Security Services",
-                "description": "Building Security and Monitoring",
-                "expiration_date": today - timedelta(days=30),  # 30 days past due
-                "manager": "William Defoe",
-                "role": "owned"
-            },
-            {
-                "contract_id": "CTR-2024-045",
-                "vendor_name": "Zeta Solutions",
-                "contract_type": "Maintenance",
-                "description": "Equipment Maintenance Contract",
-                "expiration_date": today + timedelta(days=20),  # 20 days remaining
-                "manager": "John Doe",
-                "role": "backup"
-            },
-            {
-                "contract_id": "CTR-2024-056",
-                "vendor_name": "Eta Services",
-                "contract_type": "Cleaning Services",
-                "description": "Office Cleaning and Janitorial",
-                "expiration_date": today - timedelta(days=2),  # 2 days past due
-                "manager": "William Defoe",
-                "role": "owned"
-            },
-            {
-                "contract_id": "CTR-2024-067",
-                "vendor_name": "Theta Communications",
-                "contract_type": "Telecommunications",
-                "description": "Internet and Phone Services",
-                "expiration_date": today + timedelta(days=15),  # 15 days remaining
-                "manager": "John Doe",
-                "role": "backup"
-            },
-        ]
-        
+        today = date.today()
         rows = []
-        for contract in mock_contracts:
-            exp_date = contract["expiration_date"]
-            days_diff = (today - exp_date).days
-            
-            # Calculate status and visual indicators
-            if days_diff > 0:
-                # Past due - RED
-                status = f"{days_diff} days past due"
-                status_class = "expired"
-                row_class = "bg-red-50"
-            else:
-                # Approaching expiration - WARNING
-                status = f"{abs(days_diff)} days remaining"
-                status_class = "warning"
-                row_class = "bg-yellow-50"
-            
-            # Look up vendor_id from vendor_name
-            vendor_id = get_vendor_id_by_name(contract["vendor_name"])
-            
-            rows.append({
-                "contract_id": contract["contract_id"],
-                "vendor_name": contract["vendor_name"],
-                "vendor_id": vendor_id,  # Add vendor_id for routing
-                "contract_type": contract["contract_type"],
-                "description": contract["description"],
-                "expiration_date": exp_date.strftime("%Y-%m-%d"),
-                "expiration_timestamp": exp_date.timestamp(),  # For sorting
-                "status": status,
-                "status_class": status_class,
-                "row_class": row_class,
-                "manager": contract["manager"],
-                "role": contract["role"],
-            })
         
-        return rows
+        try:
+            from app.db.database import SessionLocal
+            from app.services.contract_service import ContractService
+            from app.models.contract import ContractStatusType, Contract, ExpirationNoticePeriodType
+            from sqlalchemy import or_, and_
+            from sqlalchemy.orm import joinedload
+            
+            db = SessionLocal()
+            try:
+                # Get all active contracts where user is owner or backup
+                contracts = db.query(Contract).options(
+                    joinedload(Contract.vendor),
+                    joinedload(Contract.contract_owner),
+                    joinedload(Contract.contract_owner_backup)
+                ).filter(
+                    Contract.status == ContractStatusType.ACTIVE,
+                    or_(
+                        Contract.contract_owner_id == current_user_id,
+                        Contract.contract_owner_backup_id == current_user_id
+                    )
+                ).all()
+                
+                # Filter contracts that have reached notification window
+                contracts_in_window = []
+                for contract in contracts:
+                    if not contract.end_date:
+                        continue
+                    
+                    # Parse expiration notice frequency to get days
+                    notice_days = 30  # Default
+                    if contract.expiration_notice_frequency:
+                        freq_str = contract.expiration_notice_frequency.value if hasattr(contract.expiration_notice_frequency, 'value') else str(contract.expiration_notice_frequency)
+                        # Extract number from strings like "30 days", "15 days", etc.
+                        match = re.search(r'(\d+)', freq_str)
+                        if match:
+                            notice_days = int(match.group(1))
+                    
+                    # Calculate notification window start date
+                    notification_window_date = contract.end_date - timedelta(days=notice_days)
+                    
+                    # Check if notification window has been reached
+                    if today >= notification_window_date:
+                        contracts_in_window.append(contract)
+                
+                # Build rows
+                for contract in contracts_in_window:
+                    # Determine user's role for this contract
+                    if contract.contract_owner_id == current_user_id:
+                        my_role = "Contract Manager"
+                        role_color = "blue"
+                        role_class = "text-blue-700"
+                    elif contract.contract_owner_backup_id == current_user_id:
+                        my_role = "Backup"
+                        role_color = "yellow"
+                        role_class = "text-yellow-700"
+                    else:
+                        continue  # Shouldn't happen, but skip just in case
+                    
+                    # Calculate days until/after expiration
+                    days_diff = (contract.end_date - today).days
+                    
+                    # Calculate status and visual indicators
+                    if days_diff < 0:
+                        # Past due - RED
+                        status = f"{abs(days_diff)} days past due"
+                        status_class = "expired"
+                        row_class = "bg-red-50"
+                    else:
+                        # Approaching expiration - WARNING
+                        status = f"{days_diff} days remaining"
+                        status_class = "warning"
+                        row_class = "bg-yellow-50"
+                    
+                    # Get vendor info
+                    vendor_name = contract.vendor.vendor_name if contract.vendor else "Unknown"
+                    vendor_id = contract.vendor.id if contract.vendor else None
+                    
+                    # Get contract type value
+                    contract_type = contract.contract_type.value if hasattr(contract.contract_type, 'value') else str(contract.contract_type)
+                    
+                    rows.append({
+                        "id": contract.id,  # Database ID for linking
+                        "contract_id": contract.contract_id,
+                        "vendor_name": vendor_name,
+                        "vendor_id": vendor_id,
+                        "contract_type": contract_type,
+                        "description": contract.contract_description,
+                        "expiration_date": contract.end_date.strftime("%Y-%m-%d"),
+                        "expiration_timestamp": datetime.combine(contract.end_date, datetime.min.time()).timestamp(),
+                        "status": status,
+                        "status_class": status_class,
+                        "row_class": row_class,
+                        "my_role": my_role,
+                        "role_color": role_color,
+                        "role_class": role_class,
+                    })
+                
+                print(f"Found {len(rows)} contracts requiring attention for user {current_user_name}")
+                return rows
+                
+            finally:
+                db.close()
+        except Exception as e:
+            print(f"Error fetching contracts requiring attention: {e}")
+            import traceback
+            traceback.print_exc()
+            return []
 
     contract_columns = [
         {
@@ -326,9 +351,9 @@ def manager():
             "align": "left",
         },
         {
-            "name": "manager",
-            "label": "Manager",
-            "field": "manager",
+            "name": "my_role",
+            "label": "My Role",
+            "field": "my_role",
             "align": "left",
             "sortable": True,
         },
@@ -339,52 +364,80 @@ def manager():
         "headerClasses": "bg-[#144c8e] text-white",
     }
 
-    contract_rows = get_mock_contracts()
+    contract_rows = get_contracts_requiring_attention()
     
     # Container for the contracts table (visible by default)
     contracts_table_container = ui.element("div").classes("max-w-6xl mt-8 mx-auto w-full")
     contracts_table_container.visible = True
     
     with contracts_table_container:
-        # Section header with toggle
+        # Section header - Contract Manager/Backup
         with ui.row().classes('items-center justify-between ml-4 mb-4 w-full'):
             with ui.row().classes('items-center gap-2'):
                 ui.icon('warning', color='orange').style('font-size: 32px')
-                ui.label("Contracts Requiring Attention").classes("text-h5 font-bold")
+                ui.label("Contract Manager/Backup: Contracts Requiring Attention").classes("text-h5 font-bold")
         
         # Description row
         with ui.row().classes('ml-4 mb-4 w-full'):
-            ui.label("Contracts approaching or past their expiration date").classes(
+            ui.label("Contracts approaching or past their expiration date that require your attention").classes(
                 "text-sm text-gray-500"
             )
         
-        # Define search functions first
+        # Role filter dropdown
+        role_filter = None
+        with ui.row().classes('w-full ml-4 mr-4 mb-4 gap-4 px-2'):
+            with ui.column().classes('flex-1 min-w-[200px]'):
+                ui.label("Filter by Role:").classes("text-sm font-medium mb-1")
+                role_filter = ui.select(
+                    options=['All', 'Contract Manager', 'Backup'],
+                    value='All',
+                    on_change=lambda e: filter_contracts()
+                ).classes('w-full').props('outlined dense')
+        
+        # Define search and filter functions
         def filter_contracts():
-            # Show all contracts regardless of role
+            # Start with all contracts
             base_rows = contract_rows
             
+            # Apply role filter
+            if role_filter.value and role_filter.value != 'All':
+                if role_filter.value == 'Contract Manager':
+                    base_rows = [row for row in base_rows if row.get('my_role') == 'Contract Manager']
+                elif role_filter.value == 'Backup':
+                    base_rows = [row for row in base_rows if row.get('my_role') == 'Backup']
+            
+            # Apply search filter
             search_term = (search_input.value or "").lower()
-            if not search_term:
-                contracts_table.rows = base_rows
-            else:
+            if search_term:
                 filtered = [
                     row for row in base_rows
                     if search_term in (row['contract_id'] or "").lower()
                     or search_term in (row['vendor_name'] or "").lower()
                     or search_term in (row['contract_type'] or "").lower()
                     or search_term in (row['description'] or "").lower()
-                    or search_term in (row['manager'] or "").lower()
+                    or search_term in (row.get('my_role', '') or "").lower()
                 ]
-                contracts_table.rows = filtered
+                base_rows = filtered
+            
+            # Update table
+            if base_rows:
+                contracts_table.rows = base_rows
+                contracts_table.visible = True
+                empty_state_container.visible = False
+            else:
+                contracts_table.visible = False
+                empty_state_container.visible = True
+            
             contracts_table.update()
         
         def clear_search():
             search_input.value = ""
-            filter_contracts()  # Use filter_contracts to respect current role
+            role_filter.value = 'All'
+            filter_contracts()
         
         # Search input for filtering contracts (above the table)
         with ui.row().classes('w-full ml-4 mr-4 mb-6 gap-2 px-2'):
-            search_input = ui.input(placeholder='Search by Contract ID, Vendor, Type, Description, or Manager...').classes(
+            search_input = ui.input(placeholder='Search by Contract ID, Vendor, Type, Description, or Role...').classes(
                 'flex-1'
             ).props('outlined dense clearable')
             with search_input.add_slot('prepend'):
@@ -392,8 +445,16 @@ def manager():
             ui.button(icon='search', on_click=filter_contracts).props('color=primary')
             ui.button(icon='clear', on_click=clear_search).props('color=secondary')
         
-        # Create table after search bar (showing all contracts)
-        initial_rows = contract_rows
+        # Empty state container (initially hidden)
+        empty_state_container = ui.element("div").classes("w-full p-8 text-center")
+        empty_state_container.visible = False
+        with empty_state_container:
+            ui.icon('info', size='48px', color='gray').classes('mb-4')
+            ui.label("No contracts requiring attention").classes("text-xl font-semibold text-gray-600 mb-2")
+            ui.label("You currently have no contracts that have reached their notification window.").classes("text-gray-500")
+        
+        # Create table after search bar
+        initial_rows = contract_rows if contract_rows else []
         contracts_table = ui.table(
             columns=contract_columns,
             column_defaults=contract_columns_defaults,
@@ -403,6 +464,11 @@ def manager():
         ).classes("w-full").props("flat bordered").classes(
             "contracts-table shadow-lg rounded-lg overflow-hidden"
         )
+        
+        # Show empty state if no contracts
+        if not initial_rows:
+            contracts_table.visible = False
+            empty_state_container.visible = True
         
         search_input.on_value_change(filter_contracts)
         
@@ -428,6 +494,15 @@ def manager():
             }
         """)
         
+        # Add slot for contract ID with clickable link
+        contracts_table.add_slot('body-cell-contract_id', '''
+            <q-td :props="props">
+                <a :href="'/contract-info/' + props.row.id" class="text-blue-600 hover:text-blue-800 underline cursor-pointer font-semibold">
+                    {{ props.value }}
+                </a>
+            </q-td>
+        ''')
+        
         # Add slot for vendor name with clickable link
         contracts_table.add_slot('body-cell-vendor_name', '''
             <q-td :props="props">
@@ -435,6 +510,19 @@ def manager():
                     {{ props.value }}
                 </a>
                 <span v-else class="text-gray-600">{{ props.value }}</span>
+            </q-td>
+        ''')
+        
+        # Add slot for My Role column with color coding
+        contracts_table.add_slot('body-cell-my_role', '''
+            <q-td :props="props">
+                <div v-if="props.row.my_role === 'Contract Manager'" class="flex items-center gap-2">
+                    <q-badge color="blue" :label="props.value" class="font-semibold" />
+                </div>
+                <div v-else-if="props.row.my_role === 'Backup'" class="flex items-center gap-2">
+                    <q-badge color="yellow" :label="props.value" text-color="black" class="font-semibold" />
+                </div>
+                <div v-else class="text-gray-600">{{ props.value }}</div>
             </q-td>
         ''')
         
