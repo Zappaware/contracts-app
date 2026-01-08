@@ -510,6 +510,95 @@ async def upload_vendor_document(
         )
 
 
+@router.patch("/{vendor_id}/documents/{document_id}", response_model=VendorDocumentResponse)
+async def update_vendor_document(
+    vendor_id: int,
+    document_id: int,
+    custom_document_name: Optional[str] = Form(None, description="Custom name for the document"),
+    document_signed_date: Optional[str] = Form(None, description="Document signed date (YYYY-MM-DD)"),
+    db: Session = Depends(get_db)
+):
+    """
+    Update vendor document metadata (name and/or signed date).
+    """
+    vendor_service = VendorService(db)
+    
+    # Verify the document belongs to the vendor
+    from app.models.vendor import VendorDocument
+    document = db.query(VendorDocument).filter(
+        VendorDocument.id == document_id,
+        VendorDocument.vendor_id == vendor_id
+    ).first()
+    
+    if not document:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Document not found for this vendor"
+        )
+    
+    try:
+        signed_date = None
+        if document_signed_date:
+            from datetime import datetime
+            signed_date = datetime.fromisoformat(document_signed_date)
+        
+        updated_document = vendor_service.update_vendor_document(
+            document_id,
+            custom_document_name=custom_document_name,
+            document_signed_date=signed_date
+        )
+        
+        return updated_document
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid date format. Use YYYY-MM-DD: {str(e)}"
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error updating document: {str(e)}"
+        )
+
+
+@router.delete("/{vendor_id}/documents/{document_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_vendor_document(
+    vendor_id: int,
+    document_id: int,
+    db: Session = Depends(get_db)
+):
+    """
+    Delete a vendor document.
+    """
+    vendor_service = VendorService(db)
+    
+    # Verify the document belongs to the vendor
+    from app.models.vendor import VendorDocument
+    document = db.query(VendorDocument).filter(
+        VendorDocument.id == document_id,
+        VendorDocument.vendor_id == vendor_id
+    ).first()
+    
+    if not document:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Document not found for this vendor"
+        )
+    
+    try:
+        vendor_service.delete_vendor_document(document_id)
+        return None
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error deleting document: {str(e)}"
+        )
+
+
 @router.get("/{vendor_id}/required-documents")
 def get_required_documents(vendor_id: int, db: Session = Depends(get_db)):
     """
