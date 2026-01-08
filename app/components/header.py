@@ -1,4 +1,4 @@
-from nicegui import ui
+from nicegui import ui, app
 
 
 def header():
@@ -40,6 +40,15 @@ def header():
                     "text-black font-[segoe ui] flex flex-column p-2"
                 )
                 ui.link("Terminated agreements", "/terminated-contracts").classes(
+                    "text-black font-[segoe ui] flex flex-column p-2"
+                )
+                ui.link("Material Outsourcing Agreement Report", "/moa-report").classes(
+                    "text-black font-[segoe ui] flex flex-column p-2 border-t border-gray-200"
+                )
+                ui.link("Contracts Monetary Value Report", "/monetary-value-report").classes(
+                    "text-black font-[segoe ui] flex flex-column p-2"
+                )
+                ui.link("Due Diligence Report", "/due-diligence-report").classes(
                     "text-black font-[segoe ui] flex flex-column p-2"
                 )
                 ui.menu_item("Audit trail").classes(
@@ -100,6 +109,57 @@ def header():
             ui.input(placeholder="Search").classes(
                 "w-64 bg-white font-[segoe ui]"
             ).props("outlined dense")
-            ui.button("Logout", color=None, icon="logout").classes(
+            
+            # Logout button with confirmation dialog
+            logout_btn = ui.button("Logout", color=None, icon="logout").classes(
                 "text-weight-regular normal-case text-gray-500 font-[segoe ui]"
             ).props("flat")
+            
+            # Logout confirmation dialog
+            with ui.dialog() as logout_dialog, ui.card().classes("min-w-[400px]"):
+                ui.label("Confirm Logout").classes("text-h6 mb-4 font-bold")
+                ui.label("Are you sure you want to log out?").classes("mb-6 text-gray-700")
+                
+                with ui.row().classes("gap-2 justify-end w-full"):
+                    cancel_btn = ui.button("Cancel", on_click=logout_dialog.close).props('flat color=grey')
+                    
+                    def confirm_logout():
+                        """Perform logout: clear session and redirect to login"""
+                        # Close dialog first
+                        logout_dialog.close()
+                        
+                        # Clear all user session data
+                        app.storage.user.clear()
+                        # Explicitly mark as not logged in
+                        app.storage.user['logged_in'] = False
+                        
+                        # Clear browser storage and redirect with session invalidation
+                        ui.run_javascript('''
+                            // Clear session storage
+                            if (typeof(Storage) !== "undefined") {
+                                sessionStorage.clear();
+                            }
+                            // Clear NiceGUI user storage from local storage
+                            try {
+                                localStorage.removeItem('nicegui_user_storage');
+                            } catch(e) {
+                                console.log('Could not clear localStorage:', e);
+                            }
+                            // Replace current history entry to prevent back button access
+                            window.history.replaceState(null, null, '/login');
+                            // Force redirect to login page (this prevents back button access)
+                            window.location.replace('/login');
+                        ''')
+                        
+                        # Also use NiceGUI navigation as immediate fallback
+                        # Using replace instead of navigate to prevent back button access
+                        try:
+                            ui.navigate.to('/login', replace=True)
+                        except:
+                            # If replace doesn't work, use regular navigate
+                            ui.navigate.to('/login')
+                    
+                    confirm_btn = ui.button("Logout", icon="logout", on_click=confirm_logout).props('color=negative')
+            
+            # Open logout confirmation dialog when logout button is clicked
+            logout_btn.on_click(logout_dialog.open)
