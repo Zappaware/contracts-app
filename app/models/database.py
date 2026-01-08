@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Text, Date, DateTime, Decimal, Boolean, ForeignKey, BigInteger
+from sqlalchemy import Column, Integer, String, Text, Date, DateTime, Numeric, Boolean, ForeignKey, BigInteger
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from sqlalchemy.dialects.mssql import UNIQUEIDENTIFIER
@@ -134,9 +134,9 @@ class Contract(Base):
     start_date = Column(Date, nullable=False)
     end_date = Column(Date)
     status = Column(String(20), nullable=False, default="pending")  # active, expired, terminated, pending
-    initial_fee_amount = Column(Decimal(15, 2))
+    initial_fee_amount = Column(Numeric(15, 2))
     initial_fee_currency = Column(String(3), default="USD")
-    maintenance_fee_amount = Column(Decimal(15, 2))
+    maintenance_fee_amount = Column(Numeric(15, 2))
     maintenance_fee_currency = Column(String(3), default="USD")
     payment_method = Column(String(50))
     termination_notice_days = Column(Integer)
@@ -230,7 +230,7 @@ class ContractPayment(Base):
     
     payment_id = Column(Integer, primary_key=True, index=True)
     contract_id = Column(Integer, ForeignKey("contracts.contract_id"), nullable=False)
-    amount = Column(Decimal(15, 2), nullable=False)
+    amount = Column(Numeric(15, 2), nullable=False)
     currency = Column(String(3), nullable=False, default="USD")
     due_date = Column(Date, nullable=False)
     paid_date = Column(Date)

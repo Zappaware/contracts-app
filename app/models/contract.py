@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey, Enum, Numeric, Date
+from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey, Enum, Numeric, Date, Text
 from sqlalchemy.orm import relationship
 from app.db.database import Base
 from datetime import datetime, date
@@ -95,6 +95,13 @@ class UserRole(str, enum.Enum):
     CONTRACT_MANAGER_BACKUP = "Contract Manager Backup"
 
 
+class ContractUpdateStatus(str, enum.Enum):
+    PENDING_REVIEW = "pending_review"
+    RETURNED = "returned"
+    UPDATED = "updated"
+    COMPLETED = "completed"
+
+
 class Contract(Base):
     __tablename__ = "contracts"
 
@@ -147,6 +154,7 @@ class Contract(Base):
     contract_owner_backup = relationship("User", foreign_keys=[contract_owner_backup_id], back_populates="backup_contracts")
     contract_owner_manager = relationship("User", foreign_keys=[contract_owner_manager_id], back_populates="managed_contracts")
     documents = relationship("ContractDocument", back_populates="contract", cascade="all, delete-orphan")
+    updates = relationship("ContractUpdate", back_populates="contract", cascade="all, delete-orphan")
 
 
 class User(Base):
@@ -200,3 +208,43 @@ class ContractDocument(Base):
     
     # Relationships
     contract = relationship("Contract", back_populates="documents")
+
+
+class ContractUpdate(Base):
+    """Track contract review workflow - responses, returns, and admin comments"""
+    __tablename__ = "contract_updates"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    contract_id = Column(Integer, ForeignKey("contracts.id"), nullable=False)
+    
+    # Status tracking
+    status = Column(Enum(ContractUpdateStatus, values_callable=lambda x: [e.value for e in x]), nullable=False, default=ContractUpdateStatus.PENDING_REVIEW)
+    
+    # Who provided the response
+    response_provided_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)  # Contract Manager or Backup
+    response_date = Column(DateTime, nullable=True)
+    has_document = Column(Boolean, default=False)
+    
+    # Admin review (if returned)
+    admin_comments = Column(Text, nullable=True)  # View-only comments from Contract Admin
+    returned_reason = Column(Text, nullable=True)  # Reason for return
+    returned_date = Column(DateTime, nullable=True)
+    
+    # Previous response info (for tracking corrections)
+    previous_update_id = Column(Integer, ForeignKey("contract_updates.id"), nullable=True)  # Reference to previous update if this is a correction
+    correction_date = Column(DateTime, nullable=True)
+    
+    # Initial values (pre-populated when editing returned contracts)
+    initial_vendor_name = Column(String(255), nullable=True)
+    initial_contract_type = Column(String(100), nullable=True)
+    initial_description = Column(Text, nullable=True)
+    initial_expiration_date = Column(Date, nullable=True)
+    
+    # Timestamps
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Relationships
+    contract = relationship("Contract", back_populates="updates")
+    response_provided_by = relationship("User", foreign_keys=[response_provided_by_user_id])
+    previous_update = relationship("ContractUpdate", remote_side=[id], foreign_keys=[previous_update_id])

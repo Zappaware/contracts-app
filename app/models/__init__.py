@@ -11,6 +11,25 @@ from .vendor import (
     DocumentType
 )
 
+from .contract import (
+    Contract,
+    ContractDocument,
+    ContractUpdate,
+    User,
+    ContractType,
+    AutomaticRenewalType,
+    RenewalPeriodType,
+    DepartmentType,
+    NoticePeriodType,
+    ExpirationNoticePeriodType,
+    CurrencyType,
+    PaymentMethodType,
+    ContractStatusType,
+    ContractTerminationType,
+    UserRole,
+    ContractUpdateStatus
+)
+
 __all__ = [
     "Vendor",
     "VendorAddress",
@@ -21,5 +40,21 @@ __all__ = [
     "MaterialOutsourcingType",
     "DueDiligenceRequiredType",
     "AlertFrequencyType",
-    "DocumentType"
+    "DocumentType",
+    "Contract",
+    "ContractDocument",
+    "ContractUpdate",
+    "User",
+    "ContractType",
+    "AutomaticRenewalType",
+    "RenewalPeriodType",
+    "DepartmentType",
+    "NoticePeriodType",
+    "ExpirationNoticePeriodType",
+    "CurrencyType",
+    "PaymentMethodType",
+    "ContractStatusType",
+    "ContractTerminationType",
+    "UserRole",
+    "ContractUpdateStatus"
 ]
