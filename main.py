@@ -33,6 +33,9 @@ from app.pages.contract_managers import contract_managers
 from app.pages.manager import manager
 from app.pages.pending_reviews import pending_reviews
 from app.pages.contract_updates import contract_updates
+from app.pages.moa_report import moa_report
+from app.pages.monetary_value_report import monetary_value_report
+from app.pages.due_diligence_report import due_diligence_report
 
 
 # Define lifespan context manager for startup/shutdown
@@ -270,6 +273,36 @@ def contract_updates_page():
         return
     header()
     contract_updates()
+
+
+@ui.page("/moa-report")
+def moa_report_page():
+    """Material Outsourcing Agreement Report page"""
+    if not nicegui_app.storage.user.get('logged_in'):
+        ui.navigate.to('/login')
+        return
+    header()
+    moa_report()
+
+
+@ui.page("/monetary-value-report")
+def monetary_value_report_page():
+    """Contracts Monetary Value Report page"""
+    if not nicegui_app.storage.user.get('logged_in'):
+        ui.navigate.to('/login')
+        return
+    header()
+    monetary_value_report()
+
+
+@ui.page("/due-diligence-report")
+def due_diligence_report_page():
+    """Vendors Due Diligence Report page"""
+    if not nicegui_app.storage.user.get('logged_in'):
+        ui.navigate.to('/login')
+        return
+    header()
+    due_diligence_report()
 
 
 # ============================================================================
