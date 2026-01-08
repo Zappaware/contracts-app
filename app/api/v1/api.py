@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from app.api.v1 import health, vendors, contracts, auth, dashboards
+from app.api.v1 import health, vendors, contracts, auth, dashboards, contract_updates
 
 api_router = APIRouter()
 
@@ -17,3 +17,6 @@ api_router.include_router(vendors.router, prefix="/vendors", tags=["vendors"])
 
 # Include contracts router
 api_router.include_router(contracts.router, prefix="/contracts", tags=["contracts"])
+
+# Include contract updates router
+api_router.include_router(contract_updates.router, prefix="/contract-updates", tags=["contract-updates"])
