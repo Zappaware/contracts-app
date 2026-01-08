@@ -1,8 +1,13 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 from nicegui import ui
 import io
 import base64
+import httpx
 from app.utils.vendor_lookup import get_vendor_id_by_name
+from app.db.database import SessionLocal
+from sqlalchemy.orm import joinedload
+from app.models.contract import ContractUpdate, ContractUpdateStatus, Contract
+from app.models.vendor import Vendor
 try:
     import pandas as pd
     PANDAS_AVAILABLE = True
@@ -20,14 +25,10 @@ def contract_updates():
     contracts_table = None
     contract_rows = []
     
-    # Function to handle owned/backup toggle
-    
-    # Mock data for contract updates (contracts with responses from managers)
+    # Mock data fallback (for testing or if API unavailable)
     def get_mock_contract_updates():
         """
-        Simulates contracts that have received responses from Contract Managers or Backups.
-        Includes both new responses (pending approval) and returned responses (after corrections).
-        This will be replaced with actual API call when available.
+        Fallback mock data if API is unavailable.
         """
         today = datetime.now()
         
@@ -45,7 +46,12 @@ def contract_updates():
                 "has_document": True,
                 "status": "returned",
                 "previous_response": None,
-                "returned_reason": None
+                "returned_reason": "Contract requires additional documentation and signature verification.",
+                "admin_comments": "Please provide the complete signed contract document and verify vendor contact information.",
+                "initial_description": "IT Support Services",
+                "initial_vendor": "Acme Corp",
+                "initial_type": "Service Agreement",
+                "initial_expiration": today + timedelta(days=30)
             },
             {
                 "contract_id": "CTR-2024-012",
@@ -66,7 +72,12 @@ def contract_updates():
                 },
                 "returned_reason": "Missing signature on page 3",
                 "returned_date": today - timedelta(days=8),
-                "correction_date": today - timedelta(days=1)
+                "correction_date": today - timedelta(days=1),
+                "admin_comments": "The contract document is missing the authorized signature on page 3. Please obtain the signature and resubmit.",
+                "initial_description": "Enterprise Software Licensing",
+                "initial_vendor": "Beta Technologies",
+                "initial_type": "Software License",
+                "initial_expiration": today + timedelta(days=45)
             },
             {
                 "contract_id": "CTR-2024-023",
@@ -102,7 +113,12 @@ def contract_updates():
                 },
                 "returned_reason": "Incomplete vendor information",
                 "returned_date": today - timedelta(days=10),
-                "correction_date": today - timedelta(days=5)
+                "correction_date": today - timedelta(days=5),
+                "admin_comments": "Vendor contact person and address information is incomplete. Please update with complete vendor details.",
+                "initial_description": "Freight and Delivery Services",
+                "initial_vendor": "Delta Logistics",
+                "initial_type": "Transportation",
+                "initial_expiration": today + timedelta(days=15)
             },
             {
                 "contract_id": "CTR-2023-089",
@@ -117,7 +133,12 @@ def contract_updates():
                 "has_document": True,
                 "status": "returned",
                 "previous_response": None,
-                "returned_reason": None
+                "returned_reason": "Contract expiration date needs verification against vendor agreement.",
+                "admin_comments": "The expiration date in the system does not match the date on the signed contract document. Please verify and update.",
+                "initial_description": "Building Security and Monitoring",
+                "initial_vendor": "Epsilon Security",
+                "initial_type": "Security Services",
+                "initial_expiration": today + timedelta(days=90)
             },
             {
                 "contract_id": "CTR-2024-045",
@@ -153,7 +174,12 @@ def contract_updates():
                 "has_document": True,
                 "status": "returned",
                 "previous_response": None,
-                "returned_reason": None
+                "returned_reason": "Contract type classification needs correction.",
+                "admin_comments": "This contract should be classified as 'Service Agreement' rather than 'Cleaning Services'. Please update the contract type.",
+                "initial_description": "Office Cleaning and Janitorial",
+                "initial_vendor": "Eta Services",
+                "initial_type": "Cleaning Services",
+                "initial_expiration": today + timedelta(days=25)
             },
             {
                 "contract_id": "CTR-2024-067",
@@ -189,7 +215,12 @@ def contract_updates():
                 "has_document": True,
                 "status": "returned",
                 "previous_response": None,
-                "returned_reason": None
+                "returned_reason": "Vendor information and contract terms need review.",
+                "admin_comments": "Please verify vendor credentials and ensure all contract terms are properly documented before resubmission.",
+                "initial_description": "Raw Materials Supply",
+                "initial_vendor": "Iota Manufacturing",
+                "initial_type": "Supply Agreement",
+                "initial_expiration": today + timedelta(days=35)
             },
             {
                 "contract_id": "CTR-2024-089",
@@ -239,6 +270,11 @@ def contract_updates():
                 "returned_reason": contract.get("returned_reason"),
                 "returned_date": contract.get("returned_date").strftime("%Y-%m-%d") if contract.get("returned_date") else None,
                 "correction_date": contract.get("correction_date").strftime("%Y-%m-%d") if contract.get("correction_date") else None,
+                "admin_comments": contract.get("admin_comments", ""),
+                "initial_description": contract.get("initial_description", contract.get("description", "")),
+                "initial_vendor": contract.get("initial_vendor", contract.get("vendor_name", "")),
+                "initial_type": contract.get("initial_type", contract.get("contract_type", "")),
+                "initial_expiration": contract.get("initial_expiration").strftime("%Y-%m-%d") if contract.get("initial_expiration") else contract.get("expiration_date", ""),
             }
             rows.append(row_data)
         
@@ -301,7 +337,176 @@ def contract_updates():
         "headerClasses": "bg-[#144c8e] text-white",
     }
 
-    contract_rows = get_mock_contract_updates()
+    # Fetch contract updates from API (or use mock as fallback)
+    contract_rows = []
+    
+    def reload_contract_updates():
+        """Reload contract updates from database"""
+        nonlocal contract_rows
+        new_rows = load_data_sync()
+        if new_rows:
+            contract_rows = new_rows
+            # Update filter options with new data
+            vendor_options = ['All'] + sorted(list(set([row['vendor_name'] for row in contract_rows if row.get('vendor_name')])))
+            type_options = ['All'] + sorted(list(set([row['contract_type'] for row in contract_rows if row.get('contract_type')])))
+            vendor_filter.options = vendor_options
+            type_filter.options = type_options
+        else:
+            # Fallback to mock data if database returns empty
+            contract_rows = get_mock_contract_updates()
+            # Update filter options with mock data
+            vendor_options = ['All'] + sorted(list(set([row['vendor_name'] for row in contract_rows if row.get('vendor_name')])))
+            type_options = ['All'] + sorted(list(set([row['contract_type'] for row in contract_rows if row.get('contract_type')])))
+            vendor_filter.options = vendor_options
+            type_filter.options = type_options
+        if contracts_table:
+            # Update contract_data_map for action handlers
+            contract_data_map.clear()
+            contract_data_map.update({row['contract_id']: row for row in contract_rows})
+            apply_filters()
+    
+    # Fetch contract updates directly from database (like active_contracts.py)
+    def load_data_sync():
+        """
+        Load contract updates directly from the database.
+        This avoids HTTP requests and circular dependencies.
+        """
+        db = SessionLocal()
+        try:
+            # Use eager loading to prevent N+1 queries
+            query = db.query(ContractUpdate).options(
+                joinedload(ContractUpdate.contract).joinedload(Contract.vendor),
+                joinedload(ContractUpdate.contract).joinedload(Contract.contract_owner),
+                joinedload(ContractUpdate.response_provided_by)
+            ).join(Contract)
+            
+            updates = query.order_by(ContractUpdate.created_at.desc()).all()
+            
+            print(f"Found {len(updates)} contract updates from database")
+            
+            if not updates:
+                print("No contract updates found in database")
+                return []
+            
+            rows = []
+            for update in updates:
+                contract = update.contract
+                vendor = contract.vendor if contract.vendor else None
+                
+                # Get contract ID (string) and database ID (int)
+                contract_id_str = contract.contract_id if contract else "Unknown"
+                contract_db_id = contract.id if contract else None
+                
+                # Get vendor info
+                vendor_name = vendor.vendor_name if vendor else "Unknown"
+                vendor_id = vendor.id if vendor else None
+                
+                # Get contract type
+                contract_type = contract.contract_type.value if contract and hasattr(contract.contract_type, 'value') else str(contract.contract_type) if contract else "Unknown"
+                
+                # Get description
+                description = contract.contract_description if contract else "Unknown"
+                
+                # Format expiration date
+                if contract and contract.end_date:
+                    if isinstance(contract.end_date, date):
+                        exp_date = contract.end_date
+                        exp_date_str = exp_date.strftime("%Y-%m-%d")
+                        exp_timestamp = datetime.combine(exp_date, datetime.min.time()).timestamp()
+                    else:
+                        exp_date_str = str(contract.end_date)
+                        exp_timestamp = datetime.now().timestamp()
+                else:
+                    exp_date_str = "N/A"
+                    exp_timestamp = 0
+                
+                # Determine manager name and role
+                manager_name = f"{contract.contract_owner.first_name} {contract.contract_owner.last_name}" if contract and contract.contract_owner else "Unknown"
+                
+                # Determine who provided the response
+                response_provided_by = None
+                role = "owned"
+                if update.response_provided_by:
+                    response_provided_by = f"{update.response_provided_by.first_name} {update.response_provided_by.last_name}"
+                    # Determine if it's owner or backup
+                    if contract and contract.contract_owner_id == update.response_provided_by_user_id:
+                        role = "owned"
+                    elif contract and contract.contract_owner_backup_id == update.response_provided_by_user_id:
+                        role = "backup"
+                
+                # Format response date
+                response_date_str = None
+                if update.response_date:
+                    if isinstance(update.response_date, datetime):
+                        response_date_str = update.response_date.strftime("%Y-%m-%d")
+                    else:
+                        response_date_str = str(update.response_date)
+                
+                # Format returned date
+                returned_date_str = None
+                if update.returned_date:
+                    if isinstance(update.returned_date, datetime):
+                        returned_date_str = update.returned_date.strftime("%Y-%m-%d")
+                    else:
+                        returned_date_str = str(update.returned_date)
+                
+                # Format correction date
+                correction_date_str = None
+                if update.correction_date:
+                    if isinstance(update.correction_date, datetime):
+                        correction_date_str = update.correction_date.strftime("%Y-%m-%d")
+                    else:
+                        correction_date_str = str(update.correction_date)
+                
+                # Get status value
+                status_value = update.status.value if hasattr(update.status, 'value') else str(update.status)
+                
+                row_data = {
+                    "id": contract_db_id,  # Use contract DB ID for linking to contract-info page
+                    "update_id": update.id,  # Keep update ID for API calls
+                    "contract_id": contract_id_str,  # Contract ID string (e.g., "CT1")
+                    "vendor_name": vendor_name,
+                    "vendor_id": vendor_id,  # Vendor database ID for linking
+                    "contract_type": contract_type,
+                    "description": description,
+                    "expiration_date": exp_date_str,
+                    "expiration_timestamp": exp_timestamp,
+                    "manager": manager_name,
+                    "role": role,
+                    "response_provided_by": response_provided_by,
+                    "response_date": response_date_str,
+                    "has_document": update.has_document if update.has_document else False,
+                    "status": status_value,
+                    "admin_comments": update.admin_comments,
+                    "returned_reason": update.returned_reason,
+                    "returned_date": returned_date_str,
+                    "correction_date": correction_date_str,
+                    "initial_description": update.initial_description if update.initial_description else description,
+                    "initial_vendor": update.initial_vendor_name if update.initial_vendor_name else vendor_name,
+                    "initial_type": update.initial_contract_type if update.initial_contract_type else contract_type,
+                    "initial_expiration": update.initial_expiration_date.strftime("%Y-%m-%d") if update.initial_expiration_date else exp_date_str,
+                    "previous_response": {
+                        "date": returned_date_str,
+                        "response": update.initial_description if update.initial_description else description,
+                        "has_document": update.has_document if update.has_document else False
+                    } if update.returned_date else None,
+                }
+                rows.append(row_data)
+            
+            print(f"Processed {len(rows)} contract update rows")
+            return rows
+            
+        except Exception as e:
+            error_msg = f"Error loading contract updates: {str(e)}"
+            print(error_msg)
+            import traceback
+            traceback.print_exc()
+            return []
+        finally:
+            db.close()
+    
+    # Start with empty data - will be loaded asynchronously
+    contract_rows = []
     
     # Filter dropdowns
     owner_filter = None
@@ -309,9 +514,12 @@ def contract_updates():
     type_filter = None
     status_filter = None
     search_input = None
+    loading_label = None
     
     # Main container
     with ui.element("div").classes("max-w-6xl mt-8 mx-auto w-full"):
+        # Loading indicator
+        loading_label = ui.label("Loading contract updates...").classes("text-lg text-gray-500 ml-4 mb-4")
         # Section header with toggle and Generate button
         with ui.row().classes('items-center justify-between ml-4 mb-4 w-full'):
             with ui.row().classes('items-center gap-2'):
@@ -322,11 +530,16 @@ def contract_updates():
                 # Generate Report button
                 ui.button("Generate", icon="description", on_click=lambda: open_generate_dialog()).props('color=primary')
         
-        # Description row
-        with ui.row().classes('ml-4 mb-4 w-full'):
-            ui.label("Review responses provided by Contract Managers or Backups").classes(
-                "text-sm text-gray-500"
-            )
+        # Tab system for All Updates vs Returned Contracts
+        with ui.row().classes('ml-4 mb-4 w-full gap-2 border-b-2 border-gray-200 pb-2'):
+            # Tab buttons
+            all_tab_button = ui.button("All Contract Updates", icon="list", on_click=lambda: switch_tab('all')).props('flat').classes('tab-button')
+            returned_tab_button = ui.button("Returned Contracts", icon="undo", on_click=lambda: switch_tab('returned')).props('flat color=negative').classes('tab-button')
+        
+        # Description row (dynamic based on tab)
+        description_label = ui.label("Review responses provided by Contract Managers or Backups").classes(
+            "text-sm text-gray-500 ml-4 mb-4"
+        )
         
         # Filter section with dropdowns
         with ui.row().classes('w-full ml-4 mr-4 mb-4 gap-4 px-2 flex-wrap'):
@@ -442,6 +655,104 @@ def contract_updates():
         
         search_input.on_value_change(apply_filters)
         
+        # Function to load data asynchronously and update UI
+        def load_data_and_update():
+            """Load data from database and update the table"""
+            nonlocal contract_rows, loading_label
+            
+            try:
+                print("Loading contract updates from database...")
+                new_rows = load_data_sync()
+                print(f"Received {len(new_rows) if new_rows else 0} rows from database")
+                
+                if new_rows and len(new_rows) > 0:
+                    contract_rows = new_rows
+                    # Update filter options with new data
+                    vendor_options = ['All'] + sorted(list(set([row['vendor_name'] for row in contract_rows if row.get('vendor_name')])))
+                    type_options = ['All'] + sorted(list(set([row['contract_type'] for row in contract_rows if row.get('contract_type')])))
+                    vendor_filter.options = vendor_options
+                    type_filter.options = type_options
+                    print(f"Loaded {len(contract_rows)} contract updates from database")
+                else:
+                    # Fallback to mock data if database returns empty
+                    print("Database returned no data, using mock data as fallback")
+                    contract_rows = get_mock_contract_updates()
+                    # Update filter options with mock data
+                    vendor_options = ['All'] + sorted(list(set([row['vendor_name'] for row in contract_rows if row.get('vendor_name')])))
+                    type_options = ['All'] + sorted(list(set([row['contract_type'] for row in contract_rows if row.get('contract_type')])))
+                    vendor_filter.options = vendor_options
+                    type_filter.options = type_options
+                
+                # Update table with new data
+                if contracts_table:
+                    apply_filters()
+                    # Update contract_data_map for action handlers
+                    contract_data_map.clear()
+                    contract_data_map.update({row['contract_id']: row for row in contract_rows})
+                
+                # Hide loading indicator
+                if loading_label:
+                    loading_label.visible = False
+                    
+            except Exception as e:
+                print(f"Error loading contract updates: {e}")
+                import traceback
+                traceback.print_exc()
+                # Fallback to mock data
+                contract_rows = get_mock_contract_updates()
+                # Update filter options with mock data
+                vendor_options = ['All'] + sorted(list(set([row['vendor_name'] for row in contract_rows if row.get('vendor_name')])))
+                type_options = ['All'] + sorted(list(set([row['contract_type'] for row in contract_rows if row.get('contract_type')])))
+                vendor_filter.options = vendor_options
+                type_filter.options = type_options
+                if contracts_table:
+                    apply_filters()
+                    # Update contract_data_map for action handlers
+                    contract_data_map.clear()
+                    contract_data_map.update({row['contract_id']: row for row in contract_rows})
+                if loading_label:
+                    loading_label.visible = False
+        
+        # Load data asynchronously after a short delay to allow page to render
+        # The timer will call the function once after 200ms to avoid blocking page render
+        ui.timer(0.2, load_data_and_update, once=True)
+        
+        # Tab switching functionality
+        current_tab = {'value': 'all'}  # Track current tab
+        
+        def switch_tab(tab_type):
+            """Switch between All Updates and Returned Contracts tabs"""
+            current_tab['value'] = tab_type
+            
+            # Update tab button styles
+            if tab_type == 'all':
+                all_tab_button.props('color=primary')
+                returned_tab_button.props('flat')
+                description_label.text = "Review responses provided by Contract Managers or Backups"
+            else:
+                all_tab_button.props('flat')
+                returned_tab_button.props('color=negative')
+                description_label.text = "Contracts returned to Contract Managers after review by Contract Admin"
+            
+            # Filter and update table
+            if tab_type == 'returned':
+                # Show only returned contracts
+                returned_rows = [row for row in contract_rows if row.get('status') == 'returned']
+                contracts_table.rows = returned_rows
+                # Update count
+                if hasattr(contracts_table, 'count_label'):
+                    contracts_table.count_label.text = f"Returned Contracts: {len(returned_rows)}"
+            else:
+                # Show all contracts
+                contracts_table.rows = contract_rows
+                if hasattr(contracts_table, 'count_label'):
+                    contracts_table.count_label.text = f"Total: {len(contract_rows)}"
+            
+            contracts_table.update()
+        
+        # Initialize tab
+        switch_tab('all')
+        
         # Add custom CSS for visual highlighting and toggle styling
         ui.add_css("""
             .contracts-table thead tr {
@@ -454,8 +765,25 @@ def contract_updates():
             /* Highlight returned contracts with light red background */
             .contracts-table tbody tr:has(.q-btn[label="Returned"]) {
                 background-color: #fee2e2 !important;
+                border-left: 4px solid #dc2626 !important;
+            }
+            
+            /* Tab button styling */
+            .tab-button {
+                border-radius: 4px 4px 0 0 !important;
+                margin-bottom: -2px !important;
             }
         """)
+        
+        # Add slot for contract ID with clickable link
+        contracts_table.add_slot('body-cell-contract_id', '''
+            <q-td :props="props">
+                <a v-if="props.row.id" :href="'/contract-info/' + props.row.id" class="text-blue-600 hover:text-blue-800 underline cursor-pointer font-semibold">
+                    {{ props.value }}
+                </a>
+                <span v-else class="text-gray-600 font-semibold">{{ props.value }}</span>
+            </q-td>
+        ''')
         
         # Add slot for vendor name with clickable link
         contracts_table.add_slot('body-cell-vendor_name', '''
@@ -648,22 +976,45 @@ def contract_updates():
                 ui.label(f"Edit Contract Information: {row['contract_id']}").classes("text-h6 font-bold mb-4")
                 
                 # Show note about retaining previous information if this is a returned contract
-                if row.get('status') == 'returned' and row.get('previous_response'):
-                    with ui.card().classes('p-3 bg-blue-50 border border-blue-200 mb-4'):
-                        ui.label("Note: Previous information and documents are retained if unchanged.").classes("text-sm text-blue-700")
+                is_returned = row.get('status') == 'returned'
+                if is_returned:
+                    with ui.card().classes('p-3 bg-red-50 border border-red-200 mb-4'):
+                        ui.label("⚠️ This contract has been returned for revision. All fields are pre-populated with your initial submission.").classes("text-sm text-red-700 font-semibold")
                 
                 with ui.column().classes('gap-4 w-full'):
-                    contract_id_input = ui.input("Contract ID", value=row['contract_id']).classes('w-full')
-                    vendor_input = ui.input("Vendor Name", value=row['vendor_name']).classes('w-full')
-                    type_input = ui.input("Contract Type", value=row['contract_type']).classes('w-full')
-                    description_input = ui.textarea("Description", value=row['description']).classes('w-full')
-                    expiration_input = ui.input("Expiration Date", value=row['expiration_date']).props('type=date').classes('w-full')
-                    manager_input = ui.input("Contract Owner", value=row['manager']).classes('w-full')
+                    # Pre-populate with initial values for returned contracts, otherwise use current values
+                    initial_vendor = row.get('initial_vendor', row.get('vendor_name', ''))
+                    initial_type = row.get('initial_type', row.get('contract_type', ''))
+                    initial_desc = row.get('initial_description', row.get('description', ''))
+                    initial_exp = row.get('initial_expiration', row.get('expiration_date', ''))
                     
-                    # Show previous values if this is a returned contract
-                    if row.get('status') == 'returned' and row.get('previous_response'):
+                    contract_id_input = ui.input("Contract ID", value=row['contract_id']).classes('w-full').props('readonly')
+                    vendor_input = ui.input("Vendor Name", value=initial_vendor if is_returned else row.get('vendor_name', '')).classes('w-full')
+                    type_input = ui.input("Contract Type", value=initial_type if is_returned else row.get('contract_type', '')).classes('w-full')
+                    description_input = ui.textarea("Description", value=initial_desc if is_returned else row.get('description', '')).classes('w-full')
+                    expiration_input = ui.input("Expiration Date", value=initial_exp if is_returned else row.get('expiration_date', '')).props('type=date').classes('w-full')
+                    manager_input = ui.input("Contract Owner", value=row['manager']).classes('w-full').props('readonly')
+                    
+                    # Show Contract Admin comments for returned contracts (view-only)
+                    if is_returned:
                         ui.separator()
-                        ui.label("Previous Values (for reference):").classes("text-sm font-semibold text-gray-600")
+                        with ui.card().classes('p-4 bg-yellow-50 border-2 border-yellow-300'):
+                            with ui.row().classes('items-center gap-2 mb-2'):
+                                ui.icon('comment', color='yellow-800', size='sm')
+                                ui.label("Contract Admin Comments (View Only):").classes("text-sm font-semibold text-yellow-800")
+                            admin_comments_text = row.get('admin_comments', 'No comments provided by Contract Admin.')
+                            ui.textarea("", value=admin_comments_text).classes('w-full').props('readonly outlined').style('background-color: white; min-height: 80px;')
+                    
+                    # Show returned reason if available
+                    if is_returned and row.get('returned_reason'):
+                        with ui.card().classes('p-3 bg-orange-50 border border-orange-200 mt-2'):
+                            ui.label("Reason for Return:").classes("text-sm font-semibold text-orange-700 mb-1")
+                            ui.label(row.get('returned_reason', '')).classes("text-sm text-orange-900")
+                    
+                    # Show previous values if this is a returned contract with previous response
+                    if is_returned and row.get('previous_response'):
+                        ui.separator()
+                        ui.label("Previous Response (for reference):").classes("text-sm font-semibold text-gray-600")
                         prev_info = row.get('previous_response', {})
                         ui.label(f"Previous Description: {prev_info.get('response', 'N/A')}").classes("text-xs text-gray-500")
                     
@@ -682,36 +1033,111 @@ def contract_updates():
         
         def save_contract_changes(original_row, new_data, dialog):
             """Save changes to contract"""
-            # TODO: Implement API call to save changes
-            # Update the row data with new values
-            for key, value in new_data.items():
-                if key in original_row:
-                    original_row[key] = value
-            ui.notify(f"Changes saved for contract {original_row['contract_id']}", type="positive")
-            dialog.close()
-            # Refresh table
-            apply_filters()
+            try:
+                update_id = original_row.get('update_id') or original_row.get('id')
+                if not update_id:
+                    ui.notify("Error: Contract update ID not found", type="negative")
+                    return
+                
+                # Prepare update data
+                update_payload = {
+                    "initial_vendor_name": new_data.get('vendor_name', original_row.get('vendor_name')),
+                    "initial_contract_type": new_data.get('contract_type', original_row.get('contract_type')),
+                    "initial_description": new_data.get('description', original_row.get('description')),
+                    "initial_expiration_date": new_data.get('expiration_date', original_row.get('expiration_date')),
+                }
+                
+                # If this is a returned contract being corrected, mark as updated
+                if original_row.get('status') == 'returned':
+                    update_payload["status"] = "updated"
+                
+                with httpx.Client(timeout=30.0) as client:
+                    response = client.patch(
+                        f"http://localhost:8000/api/v1/contract-updates/{update_id}",
+                        json=update_payload
+                    )
+                    
+                    if response.status_code == 200:
+                        # Also update the contract itself if needed
+                        # TODO: Add API call to update contract details if contract_id is available
+                        
+                        ui.notify(f"Changes saved for contract {original_row['contract_id']}", type="positive")
+                        dialog.close()
+                        # Reload data
+                        reload_contract_updates()
+                        apply_filters()
+                        # Refresh tab if we're on returned contracts tab
+                        if current_tab['value'] == 'returned':
+                            switch_tab('returned')
+                    else:
+                        ui.notify(f"Error saving changes: {response.status_code}", type="negative")
+            except Exception as e:
+                print(f"Error saving contract changes: {e}")
+                ui.notify(f"Error saving changes: {str(e)}", type="negative")
         
         def complete_contract(row):
-            """Complete and approve contract update"""
+            """Complete and approve contract update, or process returned contract"""
+            is_returned_contract = row.get('status') == 'returned'
+            
             with ui.dialog() as dialog, ui.card().classes('p-6'):
-                ui.label("Complete Contract Update").classes("text-h6 font-bold mb-4")
-                ui.label(f"Are you sure you want to complete and approve the update for contract {row['contract_id']}?").classes("mb-4")
+                if is_returned_contract:
+                    ui.label("Process Returned Contract").classes("text-h6 font-bold mb-4")
+                    ui.label(f"Process contract {row['contract_id']} and route it to the next step in the workflow?").classes("mb-4")
+                    button_text = "Process & Route"
+                    button_icon = "forward"
+                else:
+                    ui.label("Complete Contract Update").classes("text-h6 font-bold mb-4")
+                    ui.label(f"Are you sure you want to complete and approve the update for contract {row['contract_id']}?").classes("mb-4")
+                    button_text = "Complete"
+                    button_icon = "check_circle"
                 
                 with ui.row().classes('gap-2 justify-end'):
                     ui.button("Cancel", on_click=dialog.close).props('flat')
-                    ui.button("Complete", icon="check_circle", on_click=lambda: confirm_complete(row, dialog)).props('color=positive')
+                    ui.button(button_text, icon=button_icon, on_click=lambda: confirm_complete(row, dialog)).props('color=positive')
                 
                 dialog.open()
         
         def confirm_complete(row, dialog):
-            """Confirm completion"""
-            # TODO: Implement API call to complete contract
-            ui.notify(f"Contract {row['contract_id']} has been completed and approved", type="positive")
-            dialog.close()
-            # Remove from list (or mark as completed)
-            contract_rows[:] = [r for r in contract_rows if r['contract_id'] != row['contract_id']]
-            apply_filters()
+            """Confirm completion - process task and route to next workflow step"""
+            try:
+                update_id = row.get('update_id') or row.get('id')
+                if not update_id:
+                    ui.notify("Error: Contract update ID not found", type="negative")
+                    return
+                
+                is_returned_contract = row.get('status') == 'returned'
+                
+                # Update status to completed
+                with httpx.Client(timeout=30.0) as client:
+                    response = client.patch(
+                        f"http://localhost:8000/api/v1/contract-updates/{update_id}",
+                        json={"status": "completed"}
+                    )
+                    
+                    if response.status_code == 200:
+                        # Optionally delete the update entry to remove it from the list
+                        client.delete(
+                            f"http://localhost:8000/api/v1/contract-updates/{update_id}"
+                        )
+                        
+                        if is_returned_contract:
+                            message = f"Contract {row['contract_id']} has been processed and routed to the next workflow step"
+                        else:
+                            message = f"Contract {row['contract_id']} has been completed and approved"
+                        
+                        ui.notify(message, type="positive")
+                        dialog.close()
+                        # Reload data
+                        reload_contract_updates()
+                        apply_filters()
+                        # Refresh tab if we're on returned contracts tab
+                        if current_tab['value'] == 'returned':
+                            switch_tab('returned')
+                    else:
+                        ui.notify(f"Error processing contract: {response.status_code}", type="negative")
+            except Exception as e:
+                print(f"Error completing contract: {e}")
+                ui.notify(f"Error processing contract: {str(e)}", type="negative")
         
         def send_back_contract(row):
             """Send contract back for revision"""
@@ -740,7 +1166,8 @@ def contract_updates():
             apply_filters()
         
         # Create a mapping of contract IDs to row data for action handlers
-        contract_data_map = {row['contract_id']: row for row in contract_rows}
+        # Initialize as empty dict, will be populated when data loads
+        contract_data_map = {}
         
         def open_actions_for_contract(contract_id):
             """Open actions dialog for a specific contract"""
@@ -838,11 +1265,24 @@ def contract_updates():
                     
                     ui.separator()
                     
+                    # Show Contract Admin comments if this is a returned contract
+                    if is_returned and row.get('admin_comments'):
+                        ui.label("Contract Admin Comments:").classes("text-base font-semibold mt-2")
+                        with ui.card().classes('p-3 bg-yellow-50 border border-yellow-200 mb-2'):
+                            ui.label(row.get('admin_comments', 'No comments provided.')).classes("text-sm text-yellow-900")
+                    
+                    ui.separator()
+                    
                     ui.label("Actions:").classes("text-base font-semibold mt-2")
                     with ui.column().classes('gap-2 w-full'):
                         ui.button("Edit Information", icon="edit", on_click=lambda: [edit_contract_info(row, dialog), dialog.close()]).props('color=secondary full-width')
-                        ui.button("Complete", icon="check_circle", on_click=lambda: [complete_contract(row), dialog.close()]).props('color=positive full-width')
-                        ui.button("Send Back", icon="undo", on_click=lambda: [send_back_contract(row), dialog.close()]).props('color=negative full-width')
+                        # For returned contracts, "Process Task" routes to next workflow step
+                        if is_returned:
+                            ui.button("Process Task & Route", icon="forward", on_click=lambda: [complete_contract(row), dialog.close()]).props('color=positive full-width')
+                        else:
+                            ui.button("Complete", icon="check_circle", on_click=lambda: [complete_contract(row), dialog.close()]).props('color=positive full-width')
+                        if not is_returned:  # Only show Send Back for non-returned contracts
+                            ui.button("Send Back", icon="undo", on_click=lambda: [send_back_contract(row), dialog.close()]).props('color=negative full-width')
                     
                     with ui.row().classes('gap-2 justify-end w-full mt-4'):
                         ui.button("Close", on_click=dialog.close).props('flat')
