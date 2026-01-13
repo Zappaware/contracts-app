@@ -372,8 +372,8 @@ class ContractService:
         # Get total count before pagination
         total_count = query.count()
         
-        # Apply pagination
-        contracts = query.offset(skip).limit(limit).all()
+       # Apply pagination - MSSQL requires ORDER BY when using OFFSET
+        contracts = query.order_by(Contract.id).offset(skip).limit(limit).all()
         
         return contracts, total_count
 
@@ -420,8 +420,8 @@ class ContractService:
         # Get total count before pagination
         total_count = query.count()
         
-        # Apply pagination
-        contracts = query.offset(skip).limit(limit).all()
+        # Apply pagination - MSSQL requires ORDER BY when using OFFSET
+        contracts = query.order_by(Contract.id).offset(skip).limit(limit).all()
         
         return contracts, total_count
     
@@ -448,8 +448,8 @@ class ContractService:
         # Get total count before pagination
         total_count = query.count()
         
-        # Apply pagination
-        contracts = query.offset(skip).limit(limit).all()
+        # Apply pagination - MSSQL requires ORDER BY when using OFFSET
+        contracts = query.order_by(Contract.id).offset(skip).limit(limit).all()
         
         return contracts, total_count
 

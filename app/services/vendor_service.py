@@ -401,65 +401,6 @@ class VendorService:
         
         return document
 
-    def update_vendor_document(
-        self,
-        document_id: int,
-        custom_document_name: Optional[str] = None,
-        document_signed_date: Optional[datetime] = None
-    ) -> VendorDocument:
-        """
-        Update vendor document metadata.
-        """
-        document = self.db.query(VendorDocument).filter(VendorDocument.id == document_id).first()
-        if not document:
-            raise HTTPException(
-                status_code=HTTPStatus.NOT_FOUND,
-                detail="Document not found"
-            )
-        
-        if custom_document_name is not None:
-            if not self.validate_custom_document_name(custom_document_name):
-                raise HTTPException(
-                    status_code=HTTPStatus.BAD_REQUEST,
-                    detail="Document name can only contain letters, numbers, spaces, and the characters: - | &"
-                )
-            document.custom_document_name = custom_document_name.strip()
-        
-        if document_signed_date is not None:
-            document.document_signed_date = document_signed_date
-        
-        document.updated_at = datetime.now()
-        self.db.commit()
-        self.db.refresh(document)
-        
-        return document
-
-    def delete_vendor_document(self, document_id: int) -> bool:
-        """
-        Delete a vendor document and its associated file.
-        Returns True if successful, False otherwise.
-        """
-        document = self.db.query(VendorDocument).filter(VendorDocument.id == document_id).first()
-        if not document:
-            raise HTTPException(
-                status_code=HTTPStatus.NOT_FOUND,
-                detail="Document not found"
-            )
-        
-        # Delete the physical file if it exists
-        if document.file_path and os.path.exists(document.file_path):
-            try:
-                os.remove(document.file_path)
-            except Exception as e:
-                print(f"Warning: Could not delete file {document.file_path}: {e}")
-                # Continue with database deletion even if file deletion fails
-        
-        # Delete from database
-        self.db.delete(document)
-        self.db.commit()
-        
-        return True
-
     def get_vendor_by_id(self, vendor_id: int) -> Optional[Vendor]:
         return (
             self.db.query(Vendor)
@@ -618,8 +559,8 @@ class VendorService:
         # Get total count
         total_count = query.count()
         
-        # Apply pagination
-        vendors = query.offset(skip).limit(limit).all()
+         # Apply pagination - MSSQL requires ORDER BY when using OFFSET
+        vendors = query.order_by(Vendor.id).offset(skip).limit(limit).all()
         
         return vendors, total_count
 
