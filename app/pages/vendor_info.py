@@ -16,7 +16,7 @@ def vendor_info(vendor_id: int):
     try:
         # Eagerly load all relationships to avoid DetachedInstanceError
         from app.models.vendor import Vendor
-        from app.models.contract import Contract, ContractDocument
+        from app.models.contract import Contract, ContractDocument, ContractUpdate, ContractUpdateStatus, User
         vendor = db.query(Vendor).options(
             joinedload(Vendor.emails),
             joinedload(Vendor.addresses),
@@ -55,8 +55,6 @@ def vendor_info(vendor_id: int):
             if vendor:
                 with ui.row().classes("items-center gap-2"):
                     edit_btn = ui.button(icon="edit").props('flat round color=primary size=sm').tooltip('Edit Vendor Info')
-                    with ui.link(target=f'/vendor-contracts/{vendor.id}').classes('no-underline'):
-                        ui.button("View Contracts", icon="description").props('flat color=primary')
         
         if not vendor:
             ui.label("No vendor selected. Please select a vendor from the vendors list.").classes("text-red-600")
@@ -420,11 +418,11 @@ def vendor_info(vendor_id: int):
                         else:
                             ui.label("No documents available").classes("text-gray-500 italic text-sm")
                 
-                # Click handler for contracts - open contracts dialog popup
-                def open_contracts_documents():
-                    contracts_dialog.open()
+                # Click handler for contracts - navigate to contracts overview page
+                def navigate_to_contracts():
+                    ui.navigate.to(f'/vendor-contracts/{vendor.id}')
                 
-                contracts_card.on("click", open_contracts_documents)
+                contracts_card.on("click", navigate_to_contracts)
                 
                 # Supporting Documents Category
                 supporting_card = ui.card().classes("flex-1 p-6 border-2 border-green-300 hover:border-green-500 cursor-pointer transition-all")
@@ -458,69 +456,6 @@ def vendor_info(vendor_id: int):
                     supporting_docs_dialog.open()
                 
                 supporting_card.on("click", open_supporting_documents)
-            
-            # Vendor Contracts Dialog
-            with ui.dialog() as contracts_dialog, ui.card().classes("min-w-[800px] max-w-4xl max-h-[80vh] overflow-y-auto"):
-                ui.label("Vendor Contracts").classes("text-h5 mb-4 text-blue-600 font-bold")
-                
-                if contract_documents_count > 0:
-                    # Group contracts by contract
-                    for contract in contracts:
-                        if contract.documents:
-                            with ui.card().classes("w-full mb-4 p-4 border-l-4 border-blue-400"):
-                                with ui.row().classes("items-center justify-between w-full mb-2"):
-                                    ui.label(f"{contract.contract_description} ({contract.contract_id})").classes("text-lg font-bold text-gray-800")
-                                    ui.badge(f"{len(contract.documents)} document(s)", color="blue").classes("text-sm")
-                                
-                                # Display each contract document
-                                for doc in contract.documents:
-                                    with ui.row().classes("items-center gap-4 p-3 bg-gray-50 rounded-lg mb-2 w-full"):
-                                        with ui.column().classes("flex-1"):
-                                            ui.label(doc.custom_document_name).classes("font-medium text-gray-800")
-                                            issue_date = doc.document_signed_date.strftime("%Y-%m-%d") if doc.document_signed_date else "N/A"
-                                            ui.label(f"Issue Date: {issue_date}").classes("text-sm text-gray-600")
-                                        
-                                        # View/Download buttons
-                                        with ui.row().classes("gap-2"):
-                                            view_btn = ui.button("View", icon="visibility").props('color=primary flat size=sm')
-                                            download_btn = ui.button("Download", icon="download").props('color=secondary flat size=sm')
-                                            
-                                            def make_view_handler(doc_path, doc_name, file_name):
-                                                def view_document():
-                                                    ui.notify(f"Opening {doc_name}...", type="info")
-                                                    make_download_handler(doc_path, doc_name, file_name)()
-                                                return view_document
-                                            
-                                            def make_download_handler(doc_path, doc_name, file_name):
-                                                def download_document():
-                                                    import os
-                                                    if os.path.exists(doc_path):
-                                                        with open(doc_path, 'rb') as f:
-                                                            file_content = f.read()
-                                                        import base64
-                                                        b64_content = base64.b64encode(file_content).decode()
-                                                        ui.run_javascript(f'''
-                                                            const link = document.createElement('a');
-                                                            link.href = 'data:application/pdf;base64,{b64_content}';
-                                                            link.download = '{file_name}';
-                                                            document.body.appendChild(link);
-                                                            link.click();
-                                                            document.body.removeChild(link);
-                                                        ''')
-                                                        ui.notify(f"Downloaded {doc_name}", type="positive")
-                                                    else:
-                                                        ui.notify(f"File not found: {doc_name}", type="negative")
-                                                return download_document
-                                            
-                                            view_btn.on_click(make_view_handler(doc.file_path, doc.custom_document_name, doc.file_name))
-                                            download_btn.on_click(make_download_handler(doc.file_path, doc.custom_document_name, doc.file_name))
-                else:
-                    with ui.row().classes("p-6 w-full justify-center"):
-                        ui.label("No contract documents available").classes("text-gray-500 italic text-lg")
-                
-                # Close button
-                with ui.row().classes("justify-end mt-4 w-full"):
-                    ui.button("Close", icon="close", on_click=contracts_dialog.close).props('color=primary')
             
             # Supporting Documents Dialog
             with ui.dialog() as supporting_docs_dialog, ui.card().classes("min-w-[800px] max-w-4xl max-h-[80vh] overflow-y-auto") as dialog_card:
@@ -805,123 +740,6 @@ def vendor_info(vendor_id: int):
                 # Build initial content
                 build_supporting_docs_content()
     
-    # Additional Documents Section
-    if vendor:
-        with ui.card().classes("w-full max-w-3xl mx-auto mt-6 p-6"):
-            with ui.row().classes("items-center justify-between w-full mb-4"):
-                ui.label("Additional Documents").classes("text-h5 mb-4 text-blue-600")
-                additional_docs_btn = ui.button("View Additional Documents", icon="description").props('color=primary size=lg')
-            
-            # Additional Documents Dialog
-            with ui.dialog() as additional_docs_dialog, ui.card().classes("min-w-[800px] max-w-4xl max-h-[80vh] overflow-y-auto"):
-                ui.label("Additional Vendor Documents").classes("text-h5 mb-4 text-blue-600 font-bold")
-                
-                # Organize documents by type
-                documents_by_type = {}
-                for doc in vendor.documents:
-                    doc_type = doc.document_type.value
-                    if doc_type not in documents_by_type:
-                        documents_by_type[doc_type] = []
-                    documents_by_type[doc_type].append(doc)
-                
-                # Define the document types to display (in order)
-                document_types_to_show = [
-                    DocumentType.DUE_DILIGENCE.value,
-                    DocumentType.NON_DISCLOSURE_AGREEMENT.value,
-                    DocumentType.RISK_ASSESSMENT_FORM.value,
-                    DocumentType.BUSINESS_CONTINUITY_PLAN.value,
-                    DocumentType.DISASTER_RECOVERY_PLAN.value,
-                    DocumentType.INSURANCE_POLICY.value,
-                ]
-                
-                # Display each document type section
-                for doc_type in document_types_to_show:
-                    with ui.card().classes("w-full mb-4 p-4 border-l-4 border-blue-400"):
-                        with ui.row().classes("items-center justify-between w-full mb-2"):
-                            ui.label(doc_type).classes("text-lg font-bold text-gray-800")
-                            
-                            # Check if documents exist for this type
-                            docs_for_type = documents_by_type.get(doc_type, [])
-                            if docs_for_type:
-                                # Show indicator that document exists
-                                ui.badge(f"{len(docs_for_type)} document(s)", color="green").classes("text-sm")
-                            else:
-                                # Show "No document available" indicator
-                                ui.badge("No document available", color="gray").classes("text-sm")
-                        
-                        if docs_for_type:
-                            # Display each document for this type
-                            for doc in docs_for_type:
-                                with ui.row().classes("items-center gap-4 p-3 bg-gray-50 rounded-lg mb-2 w-full"):
-                                    with ui.column().classes("flex-1"):
-                                        ui.label(doc.custom_document_name).classes("font-medium text-gray-800")
-                                        # Display issue date (document_signed_date)
-                                        issue_date = doc.document_signed_date.strftime("%Y-%m-%d") if doc.document_signed_date else "N/A"
-                                        ui.label(f"Issue Date: {issue_date}").classes("text-sm text-gray-600")
-                                    
-                                    # View/Download buttons
-                                    with ui.row().classes("gap-2"):
-                                        # View button - opens file in new tab
-                                        view_btn = ui.button("View", icon="visibility").props('color=primary flat size=sm')
-                                        # Download button
-                                        download_btn = ui.button("Download", icon="download").props('color=secondary flat size=sm')
-                                        
-                                        # View/Download document function - using file path
-                                        def make_view_handler(doc_path, doc_name, file_name):
-                                            def view_document():
-                                                # For PDFs, try to open in browser
-                                                # Note: This requires the file to be accessible via a static file server
-                                                # For now, we'll trigger download which works universally
-                                                ui.notify(f"Opening {doc_name}...", type="info")
-                                                # Fallback to download if view not available
-                                                make_download_handler(doc_path, doc_name, file_name)()
-                                            return view_document
-                                        
-                                        def make_download_handler(doc_path, doc_name, file_name):
-                                            def download_document():
-                                                # Read file and create download
-                                                import os
-                                                if os.path.exists(doc_path):
-                                                    # Read file content
-                                                    with open(doc_path, 'rb') as f:
-                                                        file_content = f.read()
-                                                    
-                                                    # Convert to base64 for download
-                                                    import base64
-                                                    b64_content = base64.b64encode(file_content).decode()
-                                                    
-                                                    # Trigger download
-                                                    ui.run_javascript(f'''
-                                                        const link = document.createElement('a');
-                                                        link.href = 'data:application/pdf;base64,{b64_content}';
-                                                        link.download = '{file_name}';
-                                                        document.body.appendChild(link);
-                                                        link.click();
-                                                        document.body.removeChild(link);
-                                                    ''')
-                                                    ui.notify(f"Downloaded {doc_name}", type="positive")
-                                                else:
-                                                    ui.notify(f"File not found: {doc_name}", type="negative")
-                                            return download_document
-                                        
-                                        view_btn.on_click(make_view_handler(doc.file_path, doc.custom_document_name, doc.file_name))
-                                        download_btn.on_click(make_download_handler(doc.file_path, doc.custom_document_name, doc.file_name))
-                        else:
-                            # Show "No document available" message
-                            with ui.row().classes("p-3 bg-gray-50 rounded-lg w-full"):
-                                ui.label("No document available").classes("text-gray-500 italic")
-                
-                # Close button
-                with ui.row().classes("justify-end mt-4 w-full"):
-                    ui.button("Close", icon="close", on_click=additional_docs_dialog.close).props('color=primary')
-            
-            # Function to open additional documents dialog
-            def open_additional_docs():
-                additional_docs_dialog.open()
-            
-            additional_docs_btn.on_click(open_additional_docs)
-
-
     # Action Buttons Section
     with ui.card().classes("w-full max-w-3xl mx-auto mt-6 p-6"):
         ui.label("Contract Actions").classes("text-h5 mb-4 text-blue-600")
@@ -933,53 +751,172 @@ def vendor_info(vendor_id: int):
             # Pending Documents Button
             pending_docs_btn = ui.button("Pending Documents", icon="upload").props('color=orange size=lg')
         
-        # Contract Termination Dialog
-        with ui.dialog() as contract_actions_dialog, ui.card().classes("min-w-[600px] max-w-3xl"):
-            ui.label("Contract Termination Decision").classes("text-h5 mb-4 text-red-600")
+        # Contract Actions Dialog (shows vendor contracts + Pending Review popup)
+        selected_contract: dict = {}
+
+        # Contract Decision popup (AC: renamed header + sections, show decision + docs + comments + actor)
+        with ui.dialog() as contract_decision_dialog, ui.card().classes("min-w-[900px] max-w-5xl max-h-[85vh] overflow-y-auto"):
+            ui.label("Contract Decision").classes("text-h5 mb-4 text-blue-600")
             
-            # Contract details
-            with ui.row().classes("mb-4 p-4 bg-gray-50 rounded-lg w-full"):
-                with ui.column():
-                    ui.label("Contract ID: CTR-2024-001").classes("font-bold text-lg")
-                    ui.label("Vendor: Acme Corp").classes("text-gray-600")
-                    ui.label("Expiration Date: 2024-01-15").classes("text-gray-600")
-                    ui.label("Status: Expired (5 days past due)").classes("text-red-600 font-bold")
+            # Container for dynamic content that gets populated when dialog opens
+            dialog_content = ui.column().classes("w-full gap-4")
+        
+        # Define populate function after dialog is created
+        def populate_dialog_content():
+            """Populate dialog content with contract data when opened."""
+            dialog_content.clear()
             
-            # Termination decision form
-            with ui.column().classes("space-y-4 w-full"):
-                ui.label("Termination Decision").classes("text-lg font-bold")
-                
-                # Decision options
-                with ui.row().classes("gap-4"):
-                    terminate_radio = ui.radio(['Terminate', 'Renew', 'Extend'], value='Terminate').props('inline')
-                
-                # Termination reason
-                with ui.column().classes("w-full"):
-                    ui.label("Termination Reason").classes("font-medium")
-                    termination_reason = ui.textarea(placeholder="Enter reason for termination...").classes("w-full").props('outlined')
-                
-                # Action buttons
-                with ui.row().classes("gap-4 mt-6"):
-                    save_decision_btn = ui.button("Save Termination Decision", icon="save").props('color=red')
-                    cancel_actions_btn = ui.button("Cancel", icon="cancel").props('color=grey')
+            # Fetch latest update for this contract (if any)
+            update: ContractUpdate | None = None
+            contract_obj: Contract | None = None
+            acted_by_name = "N/A"
+            manager_comments = ""
+            
+            try:
+                db2 = SessionLocal()
+                try:
+                    contract_obj = db2.query(Contract).options(joinedload(Contract.documents)).filter(Contract.id == selected_contract.get("contract_db_id")).first()
+                    update = (
+                        db2.query(ContractUpdate)
+                        .filter(ContractUpdate.contract_id == selected_contract.get("contract_db_id"))
+                        .order_by(ContractUpdate.created_at.desc())
+                        .first()
+                    )
+                    if update and update.response_provided_by_user_id:
+                        acted_user = db2.query(User).filter(User.id == update.response_provided_by_user_id).first()
+                        if acted_user:
+                            acted_by_name = f"{acted_user.first_name} {acted_user.last_name}"
+                    if update and update.decision_comments:
+                        manager_comments = update.decision_comments
+                finally:
+                    db2.close()
+            except Exception as e:
+                print(f"Error loading contract data: {e}")
+            
+            with dialog_content:
+                    # Contract details
+                    with ui.row().classes("mb-4 p-4 bg-gray-50 rounded-lg w-full"):
+                        with ui.column().classes("gap-1"):
+                            ui.label(f"Contract ID: {selected_contract.get('contract_id', 'N/A')}").classes("font-bold text-lg")
+                            ui.label(f"Vendor: {selected_contract.get('vendor_name', 'N/A')}").classes("text-gray-600")
+                            ui.label(f"Expiration Date: {selected_contract.get('expiration_date', 'N/A')}").classes("text-gray-600")
+                            ui.label(f"Action Taken By: {acted_by_name}").classes("text-gray-600")
                     
-                    # Action buttons (initially hidden)
-                    with ui.row().classes("gap-2 mt-4"):
-                        complete_btn = ui.button("COMPLETE", icon="check_circle").props('color=green')
-                        send_back_btn = ui.button("SEND BACK", icon="arrow_back").props('color=orange')
-                    complete_btn.visible = False
-                    send_back_btn.visible = False
-            
-            # Status indicator
-            status_indicator = ui.element("div").classes("mt-4 p-4 rounded-lg hidden")
-            
-            # Instructions
-            with ui.card().classes("mt-6 p-4 bg-blue-50 border-l-4 border-blue-400 w-full"):
-                ui.label("Instructions:").classes("font-bold text-blue-800")
-                ui.label("• Select 'Terminate' to save your termination decision").classes("text-blue-700")
-                ui.label("• You can optionally provide a reason for termination").classes("text-blue-700")
-                ui.label("• After saving, the contract will be marked as 'Termination Pending – Documents Required'").classes("text-blue-700")
-                ui.label("• Required documents can be uploaded later from the Pending Documents for Termination workbasket").classes("text-blue-700")
+                    # Decision section (renamed from Termination Decision -> Decision)
+                    ui.label("Decision").classes("text-lg font-bold")
+                    decision_select = ui.select(options=["Extend", "Terminate"], value=(update.decision if update and update.decision else "Extend")).props("outlined dense")
+                    
+                    # Show manager/backup/owner comments + docs
+                    ui.label("Documents & Comments").classes("text-lg font-bold mt-2")
+                    with ui.card().classes("p-4 bg-white border w-full"):
+                        ui.label("Comments from Contract Manager / Backup / Owner:").classes("font-medium")
+                        ui.textarea(value=manager_comments or "N/A").classes("w-full").props("outlined readonly")
+                        
+                        ui.separator()
+                        ui.label("Contract Documents:").classes("font-medium mt-2")
+                        if contract_obj and contract_obj.documents:
+                            for doc in contract_obj.documents:
+                                with ui.row().classes("items-center justify-between w-full"):
+                                    ui.label(doc.custom_document_name or doc.file_name).classes("text-sm")
+                                    with ui.row().classes("gap-2"):
+                                        ui.button("Download", icon="download", on_click=lambda p=doc.file_path, n=doc.file_name: ui.download(p, filename=n)).props("flat color=primary")
+                        else:
+                            ui.label("No contract documents uploaded.").classes("text-gray-500 italic")
+                    
+                    # Admin remarks (optional)
+                    ui.label("Contract Admin Remarks (optional)").classes("font-medium mt-2")
+                    admin_remarks = ui.textarea(value=(update.admin_comments if update and update.admin_comments else "")).classes("w-full").props("outlined")
+                    
+                    # Actions
+                    with ui.row().classes("gap-3 justify-end mt-4 w-full"):
+                        def do_complete():
+                            """Complete review: mark update completed and save admin remarks + decision."""
+                            try:
+                                db3 = SessionLocal()
+                                try:
+                                    upd = (
+                                        db3.query(ContractUpdate)
+                                        .filter(ContractUpdate.contract_id == selected_contract.get("contract_db_id"))
+                                        .order_by(ContractUpdate.created_at.desc())
+                                        .first()
+                                    )
+                                    if not upd:
+                                        # Create one if missing
+                                        upd = ContractUpdate(contract_id=selected_contract.get("contract_db_id"), status=ContractUpdateStatus.COMPLETED)
+                                        db3.add(upd)
+                                    upd.status = ContractUpdateStatus.COMPLETED
+                                    upd.decision = decision_select.value
+                                    upd.admin_comments = admin_remarks.value
+                                    upd.updated_at = datetime.utcnow()
+                                    db3.commit()
+                                    ui.notify("Review completed", type="positive")
+                                finally:
+                                    db3.close()
+                            except Exception as e:
+                                ui.notify(f"Error completing review: {e}", type="negative")
+                            contract_decision_dialog.close()
+                        
+                        def do_send_back():
+                            """Send back: mark update returned and save admin remarks."""
+                            try:
+                                db3 = SessionLocal()
+                                try:
+                                    upd = (
+                                        db3.query(ContractUpdate)
+                                        .filter(ContractUpdate.contract_id == selected_contract.get("contract_db_id"))
+                                        .order_by(ContractUpdate.created_at.desc())
+                                        .first()
+                                    )
+                                    if not upd:
+                                        upd = ContractUpdate(contract_id=selected_contract.get("contract_db_id"), status=ContractUpdateStatus.RETURNED)
+                                        db3.add(upd)
+                                    upd.status = ContractUpdateStatus.RETURNED
+                                    upd.decision = decision_select.value
+                                    upd.admin_comments = admin_remarks.value
+                                    upd.returned_date = datetime.utcnow()
+                                    db3.commit()
+                                    ui.notify("Sent back to Contract Manager / Backup / Owner", type="info")
+                                finally:
+                                    db3.close()
+                            except Exception as e:
+                                ui.notify(f"Error sending back: {e}", type="negative")
+                            contract_decision_dialog.close()
+                        
+                        ui.button("Complete", icon="check_circle", on_click=do_complete).props("color=positive")
+                        ui.button("Send Back", icon="arrow_back", on_click=do_send_back).props("color=orange")
+                        ui.button("Cancel", icon="cancel", on_click=contract_decision_dialog.close).props("flat color=grey")
+
+        with ui.dialog() as contract_actions_dialog, ui.card().classes("min-w-[900px] max-w-5xl max-h-[85vh] overflow-y-auto"):
+            ui.label("Contract Actions").classes("text-h5 mb-4 text-blue-600")
+
+            if not contracts:
+                ui.label("No contracts found for this vendor.").classes("text-gray-500")
+            else:
+                # Show simple list of contracts for this vendor; admin can open "Pending Review" popup from here
+                with ui.column().classes("gap-2 w-full"):
+                    ui.label("Contracts for this Vendor").classes("text-lg font-bold")
+
+                    def open_contract_decision_popup(contract_obj: Contract):
+                        """Open the Contract Decision popup for a specific contract."""
+                        selected_contract.clear()
+                        selected_contract["contract_id"] = contract_obj.contract_id
+                        selected_contract["contract_db_id"] = contract_obj.id
+                        selected_contract["vendor_name"] = vendor.vendor_name if vendor else "Unknown"
+                        selected_contract["expiration_date"] = contract_obj.end_date.strftime("%Y-%m-%d") if contract_obj.end_date else "N/A"
+                        
+                        # Populate dialog content before opening
+                        populate_dialog_content()
+                        contract_decision_dialog.open()
+
+                    for c in contracts[:20]:  # keep UI light
+                        with ui.row().classes("items-center justify-between p-3 bg-gray-50 rounded-lg w-full"):
+                            with ui.column().classes("gap-1"):
+                                ui.label(f"Contract ID: {c.contract_id}").classes("font-bold")
+                                ui.label(f"Expiration Date: {c.end_date.strftime('%Y-%m-%d') if c.end_date else 'N/A'}").classes("text-sm text-gray-600")
+                            ui.button("Pending Review", icon="rate_review", on_click=lambda cc=c: open_contract_decision_popup(cc)).props("color=primary")
+
+            with ui.row().classes("justify-end mt-4 w-full"):
+                ui.button("Close", icon="close", on_click=contract_actions_dialog.close).props("color=primary")
         
         # Pending Documents Dialog
         with ui.dialog() as pending_docs_dialog, ui.card().classes("w-96"):
@@ -1016,52 +953,6 @@ def vendor_info(vendor_id: int):
         def open_pending_docs():
             pending_docs_dialog.open()
         
-        # Function to handle termination decision save
-        def save_termination_decision():
-            if terminate_radio.value == 'Terminate':
-                # Save the termination decision
-                current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                
-                # Show success message
-                status_indicator.classes(remove="hidden")
-                status_indicator.classes("bg-green-100 border border-green-400 text-green-700")
-                status_indicator.clear()
-                with status_indicator:
-                    ui.icon('check_circle', color='green').classes('text-2xl')
-                    ui.label("Termination Decision Saved Successfully!").classes("ml-2 font-bold")
-                    ui.label(f"Saved on: {current_time}").classes("ml-2 text-sm")
-                    ui.label("Status: Termination Pending – Documents Required").classes("ml-2 text-sm font-bold text-orange-600")
-                
-                # Show action buttons
-                complete_btn.visible = True
-                send_back_btn.visible = True
-                
-                # Hide the form
-                terminate_radio.visible = False
-                termination_reason.visible = False
-                save_decision_btn.visible = False
-                cancel_actions_btn.visible = False
-                
-                ui.notify("Termination decision saved! Contract marked as 'Termination Pending – Documents Required'", type="positive")
-            else:
-                ui.notify("Please select 'Terminate' to save a termination decision", type="warning")
-        
-        # Function to handle cancel
-        def cancel_termination():
-            terminate_radio.value = 'Terminate'
-            termination_reason.value = ""
-            contract_actions_dialog.close()
-        
-        # Function to handle complete action
-        def handle_complete():
-            ui.notify("Contract marked as complete", type="positive")
-            contract_actions_dialog.close()
-        
-        # Function to handle send back action
-        def handle_send_back():
-            ui.notify("Contract sent back for review", type="info")
-            contract_actions_dialog.close()
-        
         def upload_pending_documents():
             if not pending_file_upload.value:
                 ui.notify("No documents selected", type="warning")
@@ -1075,10 +966,6 @@ def vendor_info(vendor_id: int):
         # Bind button events
         contract_actions_btn.on_click(open_contract_actions)
         pending_docs_btn.on_click(open_pending_docs)
-        save_decision_btn.on_click(save_termination_decision)
-        cancel_actions_btn.on_click(cancel_termination)
-        complete_btn.on_click(handle_complete)
-        send_back_btn.on_click(handle_send_back)
         upload_btn.on_click(upload_pending_documents)
         cancel_upload_btn.on_click(cancel_pending_docs)
 
