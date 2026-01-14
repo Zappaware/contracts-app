@@ -419,17 +419,6 @@ def vendors_list():
         # Apply initial filters
         apply_filters()
         
-        # Refresh function (defined after table is created)
-        def refresh_vendors():
-            nonlocal vendor_rows
-            vendor_rows = fetch_vendors()
-            # Reapply current filters
-            apply_filters()
-            ui.notify(f"Refreshed: {len(vendor_rows)} vendors loaded", type="info")
-        
-        # Add refresh button to header
-        refresh_btn = ui.button("Refresh", icon="refresh", on_click=refresh_vendors).props('color=primary flat').classes('ml-4')
-        
         # Add custom CSS
         ui.add_css("""
             .vendors-table thead tr {
