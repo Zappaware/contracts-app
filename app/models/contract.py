@@ -93,6 +93,7 @@ class UserRole(str, enum.Enum):
     CONTRACT_ADMIN = "Contract Admin"
     CONTRACT_MANAGER = "Contract Manager"
     CONTRACT_MANAGER_BACKUP = "Contract Manager Backup"
+    CONTRACT_MANAGER_OWNER = "Contract Manager Owner"
 
 
 class ContractUpdateStatus(str, enum.Enum):
@@ -224,6 +225,10 @@ class ContractUpdate(Base):
     response_provided_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)  # Contract Manager or Backup
     response_date = Column(DateTime, nullable=True)
     has_document = Column(Boolean, default=False)
+
+    # Decision provided by Contract Manager / Backup / Owner
+    decision = Column(String(50), nullable=True)  # e.g., "Extend" / "Terminate"
+    decision_comments = Column(Text, nullable=True)  # comments provided by the user who took action
     
     # Admin review (if returned)
     admin_comments = Column(Text, nullable=True)  # View-only comments from Contract Admin
