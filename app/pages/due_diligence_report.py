@@ -186,15 +186,11 @@ def due_diligence_report():
     
     # Main container
     with ui.element("div").classes("max-w-6xl mt-8 mx-auto w-full"):
-        # Section header with Generate button
+        # Section header
         with ui.row().classes('items-center justify-between ml-4 mb-4 w-full'):
             with ui.row().classes('items-center gap-2'):
                 ui.icon('assignment', color='orange').style('font-size: 32px')
                 ui.label("Vendors Due Diligence Report").classes("text-h5 font-bold")
-            
-            with ui.row().classes('items-center gap-3'):
-                # Generate Report button
-                ui.button("Generate", icon="description", on_click=lambda: open_generate_dialog()).props('color=primary')
         
         # Description row
         with ui.row().classes('ml-4 mb-4 w-full'):
@@ -251,6 +247,9 @@ def due_diligence_report():
         )
         
         search_input.on_value_change(filter_vendors)
+        
+        # Generate button (moved from header to after table)
+        ui.button("Generate", icon="description", on_click=lambda: open_generate_dialog()).props('color=primary').classes('ml-4 mt-4')
         
         # Add custom CSS for visual highlighting
         ui.add_css("""

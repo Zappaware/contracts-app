@@ -520,15 +520,11 @@ def contract_updates():
     with ui.element("div").classes("max-w-6xl mt-8 mx-auto w-full"):
         # Loading indicator
         loading_label = ui.label("Loading contract updates...").classes("text-lg text-gray-500 ml-4 mb-4")
-        # Section header with toggle and Generate button
+        # Section header
         with ui.row().classes('items-center justify-between ml-4 mb-4 w-full'):
             with ui.row().classes('items-center gap-2'):
                 ui.icon('update', color='primary').style('font-size: 32px')
                 ui.label("Contract Updates").classes("text-h5 font-bold")
-            
-            with ui.row().classes('items-center gap-3'):
-                # Generate Report button
-                ui.button("Generate", icon="description", on_click=lambda: open_generate_dialog()).props('color=primary')
         
         # Tab system for All Updates vs Returned Contracts
         with ui.row().classes('ml-4 mb-4 w-full gap-2 border-b-2 border-gray-200 pb-2'):
@@ -654,6 +650,9 @@ def contract_updates():
         )
         
         search_input.on_value_change(apply_filters)
+        
+        # Generate button (moved from header to after table)
+        ui.button("Generate", icon="description", on_click=lambda: open_generate_dialog()).props('color=primary').classes('ml-4 mt-4')
         
         # Function to load data asynchronously and update UI
         def load_data_and_update():
