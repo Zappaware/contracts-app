@@ -1,10 +1,10 @@
 from datetime import datetime, timedelta, date
-from nicegui import ui
+from nicegui import ui, app
 import io
 import base64
 from app.db.database import SessionLocal
 from app.services.contract_service import ContractService
-from app.models.contract import ContractStatusType
+from app.models.contract import ContractStatusType, User
 try:
     import pandas as pd
     PANDAS_AVAILABLE = True
@@ -13,6 +13,46 @@ except ImportError:
 
 
 def pending_reviews():
+    # Get current logged-in user - use stored user_id first (from login)
+    current_user_id = app.storage.user.get('user_id', None)
+    
+    # If user_id is not stored, try to look it up by username
+    if not current_user_id:
+        current_username = app.storage.user.get('username', None)
+        try:
+            db = SessionLocal()
+            try:
+                if current_username:
+                    # Try multiple matching strategies
+                    current_user = db.query(User).filter(User.email == current_username).first()
+                    if not current_user:
+                        current_user = db.query(User).filter(User.email.ilike(f"%{current_username}%")).first()
+                    if not current_user:
+                        current_user = db.query(User).filter(User.first_name.ilike(f"%{current_username}%")).first()
+                    if not current_user:
+                        current_user = db.query(User).filter(User.last_name.ilike(f"%{current_username}%")).first()
+                    if not current_user and ' ' in current_username:
+                        parts = current_username.split()
+                        if len(parts) >= 2:
+                            current_user = db.query(User).filter(
+                                User.first_name.ilike(f"%{parts[0]}%"),
+                                User.last_name.ilike(f"%{parts[-1]}%")
+                            ).first()
+                    
+                    if current_user:
+                        current_user_id = current_user.id
+                        print(f"Found current user: {current_user.first_name} {current_user.last_name} (ID: {current_user_id})")
+                    else:
+                        print(f"Could not find user matching: {current_username}")
+            finally:
+                db.close()
+        except Exception as e:
+            print(f"Error fetching current user: {e}")
+            import traceback
+            traceback.print_exc()
+    
+    if current_user_id:
+        print(f"Using stored user_id: {current_user_id}")
     # Navigation
     with ui.row().classes("max-w-6xl mx-auto mt-4"):
         with ui.link(target='/').classes('no-underline'):
@@ -72,15 +112,27 @@ def pending_reviews():
                     formatted_date = "N/A"
                     exp_timestamp = 0
                 
-                # Determine role based on user (for demo, using contract owner ID)
-                # Odd IDs = William Defoe (owned), Even IDs = John Doe (backup)
-                # In real app, you'd check against current logged-in user
-                if contract.contract_owner_id % 2 == 1:
-                    manager = owner_name
-                    role = "owned"
+                # Determine user's role for this contract
+                my_role = "N/A"
+                if current_user_id:
+                    if contract.contract_owner_id == current_user_id:
+                        my_role = "Contract Manager"
+                    elif contract.contract_owner_backup_id == current_user_id:
+                        my_role = "Backup"
+                    elif contract.contract_owner_manager_id == current_user_id:
+                        my_role = "Owner"
                 else:
-                    manager = backup_name
-                    role = "backup"
+                    # Simulation mode: Cycle through users to show different roles
+                    all_users = db.query(User).order_by(User.id).limit(3).all()
+                    if all_users:
+                        user_index = (contract.id - 1) % len(all_users)
+                        sim_user_id = all_users[user_index].id
+                        if contract.contract_owner_id == sim_user_id:
+                            my_role = "Contract Manager"
+                        elif contract.contract_owner_backup_id == sim_user_id:
+                            my_role = "Backup"
+                        elif contract.contract_owner_manager_id == sim_user_id:
+                            my_role = "Owner"
                 
                 row_data = {
                     "id": int(contract.id),
@@ -92,8 +144,7 @@ def pending_reviews():
                     "expiration_date": str(formatted_date),
                     "expiration_timestamp": float(exp_timestamp),
                     "status": "Pending review",  # Display status (not from DB)
-                    "manager": str(manager),
-                    "role": str(role),
+                    "my_role": str(my_role),
                 }
                 rows.append(row_data)
             
@@ -153,9 +204,9 @@ def pending_reviews():
             "align": "left",
         },
         {
-            "name": "manager",
-            "label": "Manager",
-            "field": "manager",
+            "name": "my_role",
+            "label": "My Role",
+            "field": "my_role",
             "align": "left",
             "sortable": True,
         },
@@ -180,15 +231,11 @@ def pending_reviews():
     
     # Main container
     with ui.element("div").classes("max-w-6xl mt-8 mx-auto w-full"):
-        # Section header with toggle and Generate button
+        # Section header
         with ui.row().classes('items-center justify-between ml-4 mb-4 w-full'):
             with ui.row().classes('items-center gap-2'):
                 ui.icon('edit', color='orange').style('font-size: 32px')
                 ui.label("Pending Reviews").classes("text-h5 font-bold")
-            
-            with ui.row().classes('items-center gap-3'):
-                # Generate Report button
-                ui.button("Generate", icon="description", on_click=lambda: open_generate_dialog()).props('color=primary')
         
         # Description row
         with ui.row().classes('ml-4 mb-4 w-full'):
@@ -215,7 +262,7 @@ def pending_reviews():
                     or search_term in (row['vendor_name'] or "").lower()
                     or search_term in (row['contract_type'] or "").lower()
                     or search_term in (row['description'] or "").lower()
-                    or search_term in (row['manager'] or "").lower()
+                    or search_term in (row['my_role'] or "").lower()
                 ]
                 contracts_table.rows = filtered
             contracts_table.update()
@@ -226,7 +273,7 @@ def pending_reviews():
         
         # Search input for filtering contracts (above the table)
         with ui.row().classes('w-full ml-4 mr-4 mb-6 gap-2 px-2'):
-            search_input = ui.input(placeholder='Search by Contract ID, Vendor, Type, Description, or Manager...').classes(
+            search_input = ui.input(placeholder='Search by Contract ID, Vendor, Type, Description, or My Role...').classes(
                 'flex-1'
             ).props('outlined dense clearable')
             with search_input.add_slot('prepend'):
@@ -258,17 +305,8 @@ def pending_reviews():
         if initial_rows:
             contracts_table.update()
         
-        # Refresh function (defined after table is created)
-        def refresh_contracts():
-            nonlocal contract_rows
-            contract_rows = fetch_contracts_needing_review()
-            count_label.set_text(f"Total: {len(contract_rows)} contracts")
-            # Reapply current filters
-            filter_contracts()
-            ui.notify(f"Refreshed: {len(contract_rows)} contracts needing review loaded", type="info")
-        
-        # Add refresh button
-        ui.button("Refresh", icon="refresh", on_click=refresh_contracts).props('color=primary flat').classes('ml-4')
+        # Generate button (moved from header to after table)
+        ui.button("Generate", icon="description", on_click=lambda: open_generate_dialog()).props('color=primary').classes('ml-4 mt-4')
         
         search_input.on_value_change(filter_contracts)
         
@@ -308,6 +346,18 @@ def pending_reviews():
                     <q-icon name="pending" color="orange" size="sm" />
                     {{ props.value }}
                 </div>
+            </q-td>
+        ''')
+        
+        # Add slot for My Role column with badge styling
+        contracts_table.add_slot('body-cell-my_role', '''
+            <q-td :props="props">
+                <q-badge 
+                    v-if="props.value && props.value !== 'N/A'"
+                    :color="props.value === 'Owner' ? 'primary' : (props.value === 'Contract Manager' ? 'blue' : 'orange')" 
+                    :label="props.value"
+                />
+                <span v-else class="text-gray-500">{{ props.value || 'N/A' }}</span>
             </q-td>
         ''')
         
@@ -362,7 +412,7 @@ def pending_reviews():
                         "Vendor": contract.get('vendor_name', ''),
                         "Expiration Date": contract.get('expiration_date', ''),
                         "Status": contract.get('status', ''),
-                        "Manager": contract.get('manager', ''),
+                        "My Role": contract.get('my_role', ''),
                     })
                 
                 # Create DataFrame
