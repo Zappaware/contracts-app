@@ -1,8 +1,8 @@
 from datetime import datetime, timedelta, date
-from nicegui import ui
+from nicegui import ui, app
 from app.db.database import SessionLocal
 from app.services.contract_service import ContractService
-from app.models.contract import ContractStatusType
+from app.models.contract import ContractStatusType, User, UserRole
 import io
 import base64
 try:
@@ -13,6 +13,53 @@ except ImportError:
 
 
 def active_contracts():
+    # Get current logged-in user - use stored user_id first (from login)
+    current_user_id = app.storage.user.get('user_id', None)
+    current_user_role = app.storage.user.get('user_role', None)
+    
+    # If user_id is not stored, try to look it up by username
+    if not current_user_id:
+        current_username = app.storage.user.get('username', None)
+        try:
+            db = SessionLocal()
+            try:
+                if current_username:
+                    # Try multiple matching strategies
+                    # 1. Exact email match
+                    current_user = db.query(User).filter(User.email == current_username).first()
+                    # 2. Email contains username
+                    if not current_user:
+                        current_user = db.query(User).filter(User.email.ilike(f"%{current_username}%")).first()
+                    # 3. First name match
+                    if not current_user:
+                        current_user = db.query(User).filter(User.first_name.ilike(f"%{current_username}%")).first()
+                    # 4. Last name match
+                    if not current_user:
+                        current_user = db.query(User).filter(User.last_name.ilike(f"%{current_username}%")).first()
+                    # 5. Full name match (e.g., "William Defoe")
+                    if not current_user and ' ' in current_username:
+                        parts = current_username.split()
+                        if len(parts) >= 2:
+                            current_user = db.query(User).filter(
+                                User.first_name.ilike(f"%{parts[0]}%"),
+                                User.last_name.ilike(f"%{parts[-1]}%")
+                            ).first()
+                    
+                    if current_user:
+                        current_user_id = current_user.id
+                        current_user_role = current_user.role.value if current_user.role else None
+                        print(f"Found current user: {current_user.first_name} {current_user.last_name} (ID: {current_user_id}, Role: {current_user_role})")
+                    else:
+                        print(f"Could not find user matching: {current_username}")
+            finally:
+                db.close()
+        except Exception as e:
+            print(f"Error fetching current user: {e}")
+            import traceback
+            traceback.print_exc()
+    
+    if current_user_id:
+        print(f"Using stored user_id: {current_user_id}, role: {current_user_role}")
     # Navigation
     with ui.row().classes("max-w-6xl mx-auto mt-4"):
         with ui.link(target='/').classes('no-underline'):
@@ -28,6 +75,9 @@ def active_contracts():
         """
         Fetches active contracts directly from the database service.
         This avoids HTTP requests and circular dependencies.
+        Filters contracts based on user role:
+        - Contract Admin: sees all contracts
+        - Contract Manager/Backup/Owner: sees only contracts they are assigned to
         """
         db = SessionLocal()
         try:
@@ -46,7 +96,34 @@ def active_contracts():
                 expiring_soon=None
             )
             
-            print(f"Found {len(contracts)} active contracts from database")
+            # Apply role-based filtering
+            total_contracts_before_filter = len(contracts)
+            
+            if current_user_role == UserRole.CONTRACT_ADMIN.value:
+                # Contract Admin sees all contracts
+                print(f"User is Contract Admin - showing all {len(contracts)} active contracts")
+            elif current_user_role in [UserRole.CONTRACT_MANAGER.value, UserRole.CONTRACT_MANAGER_BACKUP.value, UserRole.CONTRACT_MANAGER_OWNER.value]:
+                # Contract Manager/Backup/Owner sees only contracts they are assigned to
+                if current_user_id:
+                    filtered_contracts = []
+                    for contract in contracts:
+                        # Check if user is assigned to this contract in any role
+                        if (contract.contract_owner_id == current_user_id or
+                            contract.contract_owner_backup_id == current_user_id or
+                            contract.contract_owner_manager_id == current_user_id):
+                            filtered_contracts.append(contract)
+                    contracts = filtered_contracts
+                    print(f"User is {current_user_role} - showing {len(contracts)} assigned contracts out of {total_contracts_before_filter} total")
+                else:
+                    # No user ID, show empty list
+                    contracts = []
+                    print(f"User is {current_user_role} but no user_id found - showing 0 contracts")
+            else:
+                # Unknown role or no role - show empty list for safety
+                contracts = []
+                print(f"User has unknown role '{current_user_role}' - showing 0 contracts")
+            
+            print(f"Found {len(contracts)} active contracts from database (after role filtering)")
             
             if not contracts:
                 print("No active contracts found in database")
@@ -111,15 +188,32 @@ def active_contracts():
                     exp_timestamp = 0
                     ending_quarter = "N/A"
                 
-                # Determine role based on user (for demo, using contract owner ID)
-                # Odd IDs = William Defoe (owned), Even IDs = John Doe (backup)
-                # In real app, you'd check against current logged-in user
-                if contract.contract_owner_id % 2 == 1:
-                    manager = owner_name
-                    role = "owned"
+                # Determine user's role for this contract
+                my_role = "N/A"
+                if current_user_id:
+                    # Check if logged-in user has a role in this contract
+                    if contract.contract_owner_id == current_user_id:
+                        my_role = "Contract Manager"
+                    elif contract.contract_owner_backup_id == current_user_id:
+                        my_role = "Backup"
+                    elif contract.contract_owner_manager_id == current_user_id:
+                        my_role = "Owner"
                 else:
-                    manager = backup_name
-                    role = "backup"
+                    # Simulation mode: Cycle through users to show different roles
+                    # This demonstrates how different users see different roles
+                    all_users = db.query(User).order_by(User.id).limit(3).all()
+                    if all_users:
+                        # Cycle through users: CT1 -> user[0], CT2 -> user[1], CT3 -> user[2], CT4 -> user[0], etc.
+                        user_index = (contract.id - 1) % len(all_users)
+                        sim_user_id = all_users[user_index].id
+                        
+                        # Check what role this simulated user has in the contract
+                        if contract.contract_owner_id == sim_user_id:
+                            my_role = "Contract Manager"
+                        elif contract.contract_owner_backup_id == sim_user_id:
+                            my_role = "Backup"
+                        elif contract.contract_owner_manager_id == sim_user_id:
+                            my_role = "Owner"
                 
                 # Determine status color (Active = green, others = black/gray)
                 status_color = "green" if contract.status == ContractStatusType.ACTIVE else "black"
@@ -140,9 +234,8 @@ def active_contracts():
                     "department": str(department),
                     "status": str(status or "Unknown"),
                     "status_color": str(status_color),
-                    "manager": str(manager),
+                    "my_role": str(my_role),
                     "backup": str(backup_name),
-                    "role": str(role),
                 }
                 rows.append(row_data)
             
@@ -202,9 +295,9 @@ def active_contracts():
             "align": "left",
         },
         {
-            "name": "manager",
-            "label": "Manager",
-            "field": "manager",
+            "name": "my_role",
+            "label": "My Role",
+            "field": "my_role",
             "align": "left",
             "sortable": True,
         },
@@ -230,14 +323,11 @@ def active_contracts():
     
     # Main container
     with ui.element("div").classes("max-w-6xl mt-8 mx-auto w-full"):
-        # Section header with Generate button
+        # Section header
         with ui.row().classes('items-center justify-between ml-4 mb-4 w-full'):
             with ui.row().classes('items-center gap-2'):
                 ui.icon('check_circle', color='green').style('font-size: 32px')
                 ui.label("Active Contracts").classes("text-h5 font-bold")
-            
-            # Generate Report button
-            ui.button("Generate", icon="description", on_click=lambda: open_generate_dialog()).props('color=primary')
         
         # Description row
         with ui.row().classes('ml-4 mb-4 w-full'):
@@ -264,7 +354,7 @@ def active_contracts():
                     or search_term in (row['vendor_name'] or "").lower()
                     or search_term in (row['contract_type'] or "").lower()
                     or search_term in (row['description'] or "").lower()
-                    or search_term in (row['manager'] or "").lower()
+                    or search_term in (row['my_role'] or "").lower()
                 ]
                 contracts_table.rows = filtered
             contracts_table.update()
@@ -275,7 +365,7 @@ def active_contracts():
         
         # Search input for filtering contracts (above the table)
         with ui.row().classes('w-full ml-4 mr-4 mb-6 gap-2 px-2'):
-            search_input = ui.input(placeholder='Search by Contract ID, Vendor, Type, Description, or Manager...').classes(
+            search_input = ui.input(placeholder='Search by Contract ID, Vendor, Type, Description, or My Role...').classes(
                 'flex-1'
             ).props('outlined dense clearable')
             with search_input.add_slot('prepend'):
@@ -307,17 +397,8 @@ def active_contracts():
         if initial_rows:
             contracts_table.update()
         
-        # Refresh function (defined after table is created)
-        def refresh_contracts():
-            nonlocal contract_rows
-            contract_rows = fetch_active_contracts()
-            count_label.set_text(f"Total: {len(contract_rows)} contracts")
-            # Reapply current filters
-            filter_contracts()
-            ui.notify(f"Refreshed: {len(contract_rows)} active contracts loaded", type="info")
-        
-        # Add refresh button
-        ui.button("Refresh", icon="refresh", on_click=refresh_contracts).props('color=primary flat').classes('ml-4')
+        # Generate button (moved from header to after table)
+        ui.button("Generate", icon="description", on_click=lambda: open_generate_dialog()).props('color=primary').classes('ml-4 mt-4')
         
         search_input.on_value_change(filter_contracts)
         
@@ -358,6 +439,18 @@ def active_contracts():
                 <div v-else class="text-black font-semibold">
                     {{ props.value }}
                 </div>
+            </q-td>
+        ''')
+        
+        # Add slot for My Role column with badge styling
+        contracts_table.add_slot('body-cell-my_role', '''
+            <q-td :props="props">
+                <q-badge 
+                    v-if="props.value && props.value !== 'N/A'"
+                    :color="props.value === 'Owner' ? 'primary' : (props.value === 'Contract Manager' ? 'blue' : 'orange')" 
+                    :label="props.value"
+                />
+                <span v-else class="text-gray-500">{{ props.value || 'N/A' }}</span>
             </q-td>
         ''')
         
@@ -427,7 +520,7 @@ def active_contracts():
                         "Ending in Quarter": contract.get('ending_quarter', ''),
                         "Automatic Renewal": contract.get('automatic_renewal', ''),
                         "Department": contract.get('department', ''),
-                        "Contract Manager": contract.get('manager', ''),
+                        "My Role": contract.get('my_role', ''),
                         "Contract Backups": contract.get('backup', ''),
                         "Latest Extension/Renewal": "N/A",  # Not yet implemented in database
                         "Previous Extension/Renewal 1": "N/A",  # Not yet implemented in database

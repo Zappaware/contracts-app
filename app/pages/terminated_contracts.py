@@ -1,8 +1,10 @@
 from datetime import datetime, timedelta
-from nicegui import ui
+from nicegui import ui, app
 import io
 import base64
 from app.utils.vendor_lookup import get_vendor_id_by_name
+from app.db.database import SessionLocal
+from app.models.contract import User
 try:
     import pandas as pd
     PANDAS_AVAILABLE = True
@@ -11,6 +13,46 @@ except ImportError:
 
 
 def terminated_contracts():
+    # Get current logged-in user
+    current_username = app.storage.user.get('username', None)
+    current_user_id = None
+    
+    # Fetch current user from database
+    try:
+        db = SessionLocal()
+        try:
+            if current_username:
+                # Try multiple matching strategies
+                current_user = db.query(User).filter(User.email == current_username).first()
+                if not current_user:
+                    current_user = db.query(User).filter(User.email.ilike(f"%{current_username}%")).first()
+                if not current_user:
+                    current_user = db.query(User).filter(User.first_name.ilike(f"%{current_username}%")).first()
+                if not current_user:
+                    current_user = db.query(User).filter(User.last_name.ilike(f"%{current_username}%")).first()
+                if not current_user and ' ' in current_username:
+                    parts = current_username.split()
+                    if len(parts) >= 2:
+                        current_user = db.query(User).filter(
+                            User.first_name.ilike(f"%{parts[0]}%"),
+                            User.last_name.ilike(f"%{parts[-1]}%")
+                        ).first()
+                
+                if current_user:
+                    current_user_id = current_user.id
+                    print(f"Found current user: {current_user.first_name} {current_user.last_name} (ID: {current_user_id})")
+                else:
+                    print(f"Could not find user matching: {current_username}")
+                    default_user = db.query(User).first()
+                    if default_user:
+                        current_user_id = default_user.id
+                        print(f"Using default user for simulation: {default_user.first_name} {default_user.last_name} (ID: {current_user_id})")
+        finally:
+            db.close()
+    except Exception as e:
+        print(f"Error fetching current user: {e}")
+        import traceback
+        traceback.print_exc()
     # Navigation
     with ui.row().classes("max-w-6xl mx-auto mt-4"):
         with ui.link(target='/').classes('no-underline'):
@@ -154,6 +196,45 @@ def terminated_contracts():
             # Look up vendor_id from vendor_name
             vendor_id = get_vendor_id_by_name(contract["vendor_name"])
             
+            # Determine user's role for this contract (mock data - simulate based on role field)
+            my_role = "N/A"
+            if current_user_id:
+                # Since this is mock data, we'll simulate based on the role field
+                # "owned" means Contract Manager, "backup" means Backup
+                # Try to match current user with manager or backup name
+                db_temp = SessionLocal()
+                try:
+                    if contract["role"] == "owned" and contract["manager"]:
+                        # Check if current user matches the manager name
+                        manager_parts = contract["manager"].split()
+                        if len(manager_parts) >= 2:
+                            manager_user = db_temp.query(User).filter(
+                                User.first_name.ilike(f"%{manager_parts[0]}%"),
+                                User.last_name.ilike(f"%{manager_parts[-1]}%")
+                            ).first()
+                            if manager_user and manager_user.id == current_user_id:
+                                my_role = "Contract Manager"
+                    elif contract["role"] == "backup" and contract["backup"]:
+                        # Check if current user matches the backup name
+                        backup_parts = contract["backup"].split()
+                        if len(backup_parts) >= 2:
+                            backup_user = db_temp.query(User).filter(
+                                User.first_name.ilike(f"%{backup_parts[0]}%"),
+                                User.last_name.ilike(f"%{backup_parts[-1]}%")
+                            ).first()
+                            if backup_user and backup_user.id == current_user_id:
+                                my_role = "Backup"
+                except:
+                    pass
+                finally:
+                    db_temp.close()
+            else:
+                # Simulation mode: show role based on contract role field
+                if contract["role"] == "owned":
+                    my_role = "Contract Manager"
+                elif contract["role"] == "backup":
+                    my_role = "Backup"
+            
             rows.append({
                 "contract_id": contract["contract_id"],
                 "vendor_name": contract["vendor_name"],
@@ -167,10 +248,9 @@ def terminated_contracts():
                 "date_terminated": date_terminated.strftime("%Y-%m-%d"),
                 "date_terminated_timestamp": date_terminated.timestamp(),  # For sorting
                 "status": "Terminated",
-                "manager": contract["manager"],
+                "my_role": str(my_role),
                 "backup": contract["backup"],
                 "department": contract["department"],
-                "role": contract["role"],
             })
         
         return rows
@@ -218,9 +298,9 @@ def terminated_contracts():
             "align": "left",
         },
         {
-            "name": "manager",
-            "label": "Manager",
-            "field": "manager",
+            "name": "my_role",
+            "label": "My Role",
+            "field": "my_role",
             "align": "left",
             "sortable": True,
         },
@@ -235,15 +315,11 @@ def terminated_contracts():
     
     # Main container
     with ui.element("div").classes("max-w-6xl mt-8 mx-auto w-full"):
-        # Section header with toggle and Generate button
+        # Section header
         with ui.row().classes('items-center justify-between ml-4 mb-4 w-full'):
             with ui.row().classes('items-center gap-2'):
                 ui.icon('cancel', color='grey').style('font-size: 32px')
                 ui.label("Terminated Contracts").classes("text-h5 font-bold")
-            
-            with ui.row().classes('items-center gap-3'):
-                # Generate Report button
-                ui.button("Generate", icon="description", on_click=lambda: open_generate_dialog()).props('color=primary')
         
         # Description row
         with ui.row().classes('ml-4 mb-4 w-full'):
@@ -266,7 +342,7 @@ def terminated_contracts():
                     or search_term in (row['vendor_name'] or "").lower()
                     or search_term in (row['contract_type'] or "").lower()
                     or search_term in (row['description'] or "").lower()
-                    or search_term in (row['manager'] or "").lower()
+                    or search_term in (row['my_role'] or "").lower()
                 ]
                 contracts_table.rows = filtered
             contracts_table.update()
@@ -277,7 +353,7 @@ def terminated_contracts():
         
         # Search input for filtering contracts (above the table)
         with ui.row().classes('w-full ml-4 mr-4 mb-6 gap-2 px-2'):
-            search_input = ui.input(placeholder='Search by Contract ID, Vendor, Type, Description, or Manager...').classes(
+            search_input = ui.input(placeholder='Search by Contract ID, Vendor, Type, Description, or My Role...').classes(
                 'flex-1'
             ).props('outlined dense clearable')
             with search_input.add_slot('prepend'):
@@ -298,6 +374,9 @@ def terminated_contracts():
         )
         
         search_input.on_value_change(filter_contracts)
+        
+        # Generate button (moved from header to after table)
+        ui.button("Generate", icon="description", on_click=lambda: open_generate_dialog()).props('color=primary').classes('ml-4 mt-4')
         
         # Add custom CSS for visual highlighting and toggle styling
         ui.add_css("""
@@ -334,6 +413,18 @@ def terminated_contracts():
                 <div class="text-gray-700">
                     {{ props.value }}
                 </div>
+            </q-td>
+        ''')
+        
+        # Add slot for My Role column with badge styling
+        contracts_table.add_slot('body-cell-my_role', '''
+            <q-td :props="props">
+                <q-badge 
+                    v-if="props.value && props.value !== 'N/A'"
+                    :color="props.value === 'Owner' ? 'primary' : (props.value === 'Contract Manager' ? 'blue' : 'orange')" 
+                    :label="props.value"
+                />
+                <span v-else class="text-gray-500">{{ props.value || 'N/A' }}</span>
             </q-td>
         ''')
         
@@ -410,7 +501,7 @@ def terminated_contracts():
                         "Start Date": contract.get('start_date', ''),
                         "End Date": contract.get('end_date', ''),
                         "Department": contract.get('department', ''),
-                        "Contract Manager": contract.get('manager', ''),
+                        "My Role": contract.get('my_role', ''),
                         "Contract Backups": contract.get('backup', ''),
                         "Date Terminated in system": contract.get('date_terminated', ''),
                     })

@@ -1,8 +1,8 @@
 from datetime import datetime, timedelta, date
-from nicegui import ui
+from nicegui import ui, app
 from app.db.database import SessionLocal
 from app.services.contract_service import ContractService
-from app.models.contract import ContractStatusType
+from app.models.contract import ContractStatusType, User
 import io
 import base64
 try:
@@ -13,6 +13,46 @@ except ImportError:
 
 
 def expired_contracts():
+    # Get current logged-in user - use stored user_id first (from login)
+    current_user_id = app.storage.user.get('user_id', None)
+    
+    # If user_id is not stored, try to look it up by username
+    if not current_user_id:
+        current_username = app.storage.user.get('username', None)
+        try:
+            db = SessionLocal()
+            try:
+                if current_username:
+                    # Try multiple matching strategies
+                    current_user = db.query(User).filter(User.email == current_username).first()
+                    if not current_user:
+                        current_user = db.query(User).filter(User.email.ilike(f"%{current_username}%")).first()
+                    if not current_user:
+                        current_user = db.query(User).filter(User.first_name.ilike(f"%{current_username}%")).first()
+                    if not current_user:
+                        current_user = db.query(User).filter(User.last_name.ilike(f"%{current_username}%")).first()
+                    if not current_user and ' ' in current_username:
+                        parts = current_username.split()
+                        if len(parts) >= 2:
+                            current_user = db.query(User).filter(
+                                User.first_name.ilike(f"%{parts[0]}%"),
+                                User.last_name.ilike(f"%{parts[-1]}%")
+                            ).first()
+                    
+                    if current_user:
+                        current_user_id = current_user.id
+                        print(f"Found current user: {current_user.first_name} {current_user.last_name} (ID: {current_user_id})")
+                    else:
+                        print(f"Could not find user matching: {current_username}")
+            finally:
+                db.close()
+        except Exception as e:
+            print(f"Error fetching current user: {e}")
+            import traceback
+            traceback.print_exc()
+    
+    if current_user_id:
+        print(f"Using stored user_id: {current_user_id}")
     # Navigation
     with ui.row().classes("max-w-6xl mx-auto mt-4"):
         with ui.link(target='/').classes('no-underline'):
@@ -118,6 +158,28 @@ def expired_contracts():
                     # This is expected if the notification system isn't set up
                     pass
                 
+                # Determine user's role for this contract
+                my_role = "N/A"
+                if current_user_id:
+                    if contract.contract_owner_id == current_user_id:
+                        my_role = "Contract Manager"
+                    elif contract.contract_owner_backup_id == current_user_id:
+                        my_role = "Backup"
+                    elif contract.contract_owner_manager_id == current_user_id:
+                        my_role = "Owner"
+                else:
+                    # Simulation mode: Cycle through users to show different roles
+                    all_users = db.query(User).order_by(User.id).limit(3).all()
+                    if all_users:
+                        user_index = (contract.id - 1) % len(all_users)
+                        sim_user_id = all_users[user_index].id
+                        if contract.contract_owner_id == sim_user_id:
+                            my_role = "Contract Manager"
+                        elif contract.contract_owner_backup_id == sim_user_id:
+                            my_role = "Backup"
+                        elif contract.contract_owner_manager_id == sim_user_id:
+                            my_role = "Owner"
+                
                 rows.append({
                     "id": contract.id,  # Internal ID for routing
                     "contract_id": contract.contract_id,
@@ -130,7 +192,7 @@ def expired_contracts():
                     "expiration_timestamp": exp_timestamp,
                     "status": status,
                     "department": department,
-                    "manager": manager_name,
+                    "my_role": str(my_role),
                     "backup": backup_name,
                     "days_past_due": days_past_due,
                     "email_notifications": email_notification_count,
@@ -189,9 +251,9 @@ def expired_contracts():
             "align": "left",
         },
         {
-            "name": "manager",
-            "label": "Manager",
-            "field": "manager",
+            "name": "my_role",
+            "label": "My Role",
+            "field": "my_role",
             "align": "left",
             "sortable": True,
         },
@@ -206,15 +268,11 @@ def expired_contracts():
     
     # Main container
     with ui.element("div").classes("max-w-6xl mt-8 mx-auto w-full"):
-        # Section header with toggle and Generate button
+        # Section header
         with ui.row().classes('items-center justify-between ml-4 mb-4 w-full'):
             with ui.row().classes('items-center gap-2'):
                 ui.icon('warning', color='red').style('font-size: 32px')
                 ui.label("Expired Contracts").classes("text-h5 font-bold")
-            
-            with ui.row().classes('items-center gap-3'):
-                # Generate Report button
-                ui.button("Generate", icon="description", on_click=lambda: open_generate_dialog()).props('color=primary')
         
         # Description row
         with ui.row().classes('ml-4 mb-4 w-full'):
@@ -237,7 +295,7 @@ def expired_contracts():
                     or search_term in (row['vendor_name'] or "").lower()
                     or search_term in (row['contract_type'] or "").lower()
                     or search_term in (row['description'] or "").lower()
-                    or search_term in (row['manager'] or "").lower()
+                    or search_term in (row['my_role'] or "").lower()
                 ]
                 contracts_table.rows = filtered
             contracts_table.update()
@@ -248,7 +306,7 @@ def expired_contracts():
         
         # Search input for filtering contracts (above the table)
         with ui.row().classes('w-full ml-4 mr-4 mb-6 gap-2 px-2'):
-            search_input = ui.input(placeholder='Search by Contract ID, Vendor, Type, Description, or Manager...').classes(
+            search_input = ui.input(placeholder='Search by Contract ID, Vendor, Type, Description, or My Role...').classes(
                 'flex-1'
             ).props('outlined dense clearable')
             with search_input.add_slot('prepend'):
@@ -269,6 +327,9 @@ def expired_contracts():
         )
         
         search_input.on_value_change(filter_contracts)
+        
+        # Generate button (moved from header to after table)
+        ui.button("Generate", icon="description", on_click=lambda: open_generate_dialog()).props('color=primary').classes('ml-4 mt-4')
         
         # Add custom CSS for visual highlighting and toggle styling
         ui.add_css("""
@@ -305,6 +366,18 @@ def expired_contracts():
                 <div class="text-gray-700">
                     {{ props.value }}
                 </div>
+            </q-td>
+        ''')
+        
+        # Add slot for My Role column with badge styling
+        contracts_table.add_slot('body-cell-my_role', '''
+            <q-td :props="props">
+                <q-badge 
+                    v-if="props.value && props.value !== 'N/A'"
+                    :color="props.value === 'Owner' ? 'primary' : (props.value === 'Contract Manager' ? 'blue' : 'orange')" 
+                    :label="props.value"
+                />
+                <span v-else class="text-gray-500">{{ props.value || 'N/A' }}</span>
             </q-td>
         ''')
         
@@ -383,7 +456,7 @@ def expired_contracts():
                         "Contract Start": contract.get('start_date', ''),
                         "Contract End Date": contract.get('expiration_date', ''),
                         "Department": contract.get('department', ''),
-                        "Contract Manager": contract.get('manager', ''),
+                        "My Role": contract.get('my_role', ''),
                         "Contract Backups": contract.get('backup', ''),
                         "Days Past Due": contract.get('days_past_due', 0),
                         "Email Notifications": contract.get('email_notifications', 0),
