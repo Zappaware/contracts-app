@@ -33,10 +33,11 @@ def due_diligence_report():
             # Need to load contracts relationship with owners
             from sqlalchemy.orm import joinedload
             from app.models.vendor import Vendor
+            from app.models.contract import Contract
             
             query = db.query(Vendor).filter(Vendor.status == VendorStatusType.ACTIVE)
-            query = query.options(joinedload(Vendor.contracts).joinedload('contract_owner'))
-            query = query.options(joinedload(Vendor.contracts).joinedload('contract_owner_backup'))
+            query = query.options(joinedload(Vendor.contracts).joinedload(Contract.contract_owner))
+            query = query.options(joinedload(Vendor.contracts).joinedload(Contract.contract_owner_backup))
             vendors = query.limit(1000).all()
             
             print(f"Found {len(vendors)} active vendors from database")
