@@ -135,7 +135,7 @@ async def require_contract_manager(
     current_user: User = Depends(get_current_active_user)
 ) -> User:
     """Require Contract Manager or Contract Admin role"""
-    allowed_roles = [UserRole.CONTRACT_MANAGER, UserRole.CONTRACT_ADMIN]
+    allowed_roles = [UserRole.CONTRACT_MANAGER, UserRole.CONTRACT_MANAGER_OWNER, UserRole.CONTRACT_ADMIN]
     if current_user.role not in allowed_roles:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,

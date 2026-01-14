@@ -1,4 +1,5 @@
 from nicegui import ui, app
+from app.models.contract import UserRole
 
 
 def header():
@@ -20,7 +21,11 @@ def header():
             ui.link("Aruba Bank", "/").classes(
                 "font-bold text-xl text-center mt-3 text-black w-32 h-[39px]"
             )
-            ui.link("Home", "/").classes("text-black")
+
+            # Home link - same styling as "New Contract"/"New Vendor", but role-based target
+            user_role = app.storage.user.get('user_role', None)
+            home_target = '/' if user_role == UserRole.CONTRACT_ADMIN.value else '/manager'
+            ui.link("Home", home_target)
             ui.link("New Contract", "/new-contract")
             ui.link("New Vendor", "/new-vendor")
             with (
