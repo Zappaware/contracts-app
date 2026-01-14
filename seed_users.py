@@ -18,7 +18,7 @@ def seed_users():
             print(f"⚠️  Database already has {existing_count} user(s). Skipping seed.")
             return
         
-        # Create 3 initial users
+        # Create 5 initial users
         users_data = [
             {
                 "user_id": "U1",
@@ -49,6 +49,26 @@ def seed_users():
                 "position": "Finance Manager",
                 "role": UserRole.CONTRACT_MANAGER_BACKUP,
                 "password": "password123"
+            },
+            {
+                "user_id": "U4",
+                "first_name": "Robert",
+                "last_name": "Johnson",
+                "email": "robert.johnson@arubabank.com",
+                "department": DepartmentType.LEGAL,
+                "position": "Legal Manager",
+                "role": UserRole.CONTRACT_MANAGER,
+                "password": "password123"
+            },
+            {
+                "user_id": "U5",
+                "first_name": "Maria",
+                "last_name": "Lopez",
+                "email": "maria.lopez@arubabank.com",
+                "department": DepartmentType.OPERATIONS,
+                "position": "Contract Manager Owner",
+                "role": UserRole.CONTRACT_MANAGER_OWNER,
+                "password": "password123"
             }
         ]
         
@@ -67,10 +87,13 @@ def seed_users():
             print(f"  ✓ Created user: {user.first_name} {user.last_name} ({user.email})")
         
         db.commit()
-        print("\n✅ Successfully seeded 3 users!")
+        print("\n✅ Successfully seeded 5 users!")
         print("\nYou can now login with:")
-        print("  Email: william.defoe@arubabank.com")
-        print("  Password: password123")
+        print("  Admin: william.defoe@arubabank.com")
+        print("  Manager: john.doe@arubabank.com or robert.johnson@arubabank.com")
+        print("  Owner: maria.lopez@arubabank.com")
+        print("  Backup: jane.smith@arubabank.com")
+        print("  Password for all: password123")
         
     except Exception as e:
         print(f"❌ Error seeding users: {e}")

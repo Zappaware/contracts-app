@@ -313,6 +313,14 @@ def seed_vendors_and_contracts():
                         response_provided_by_user_id=contract.contract_owner_id if random.random() < 0.5 else contract.contract_owner_backup_id,
                         response_date=datetime.now(timezone.utc) - timedelta(days=random.randint(1, 10)),
                         has_document=random.random() < 0.7,
+                        decision=random.choice(["Extend", "Terminate"]),
+                        decision_comments=random.choice([
+                            "Recommend termination due to performance concerns and upcoming renewal terms.",
+                            "Recommend extension to align with vendor SLA renegotiation.",
+                            "Extend requested to allow time for a new RFP and transition planning.",
+                            "Terminate requested due to cost increase and missing compliance documents.",
+                            "Extend requested pending final internal approvals."
+                        ]),
                         admin_comments=random.choice([
                             "Please provide the complete signed contract document and verify vendor contact information.",
                             "The contract document is missing the authorized signature on page 3. Please obtain the signature and resubmit.",
@@ -353,6 +361,13 @@ def seed_vendors_and_contracts():
                         response_provided_by_user_id=contract.contract_owner_id if random.random() < 0.5 else contract.contract_owner_backup_id,
                         response_date=datetime.now(timezone.utc) - timedelta(days=random.randint(1, 7)),
                         has_document=random.random() < 0.6,
+                        decision=random.choice(["Extend", "Terminate"]),
+                        decision_comments=random.choice([
+                            "Information updated as requested. Please re-review decision details.",
+                            "Uploaded corrected documentation. Decision remains the same.",
+                            "Updated vendor details and attached missing files.",
+                            "Corrected expiration date and selected decision accordingly."
+                        ]),
                         created_at=datetime.now(timezone.utc) - timedelta(days=random.randint(3, 10)),
                         updated_at=datetime.now(timezone.utc) - timedelta(days=random.randint(1, 3))
                     )
@@ -365,8 +380,9 @@ def seed_vendors_and_contracts():
         
         # Get existing users (should be seeded by seed_users.py)
         users = db.query(User).all()
-        if len(users) < 3:
+        if len(users) < 5:
             print("❌ Not enough users in database. Please run seed_users.py first.")
+            print(f"   Found {len(users)} user(s), but need at least 5 users.")
             return
         
         print("\n🌱 Starting vendor and contract seeding...\n")
