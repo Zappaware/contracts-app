@@ -1,5 +1,6 @@
 from nicegui import ui, app
 from app.models.contract import UserRole
+from app.utils.notifications import get_user_notifications, get_notification_count
 
 
 def header():
@@ -109,11 +110,68 @@ def header():
         # Spacer to push right section to the end
         ui.element("div").classes("flex-grow")
 
-        # Right section: search input and logout button
+        # Right section: notifications bell and logout button
         with ui.element("div").classes("flex flex-row items-center gap-4"):
-            ui.input(placeholder="Search").classes(
-                "w-64 bg-white font-[segoe ui]"
-            ).props("outlined dense")
+            # Notification bell icon with badge
+            notifications = get_user_notifications()
+            notification_count = len(notifications)
+            
+            # Notification bell button with badge
+            with ui.element("div").classes("relative"):
+                notification_btn = ui.button(icon="notifications", color=None).classes(
+                    "text-weight-regular normal-case text-gray-500 font-[segoe ui]"
+                ).props("flat")
+                
+                # Badge showing notification count
+                if notification_count > 0:
+                    badge_text = str(notification_count) if notification_count <= 99 else "99+"
+                    with ui.element("span").classes(
+                        "absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full"
+                    ).style("width: 18px; height: 18px; display: flex; align-items: center; justify-content: center; z-index: 10;"):
+                        ui.label(badge_text).classes("text-[10px]")
+            
+            # Notification dropdown menu
+            with ui.menu().props('anchor=bottom right') as notification_menu:
+                with ui.card().classes("min-w-[400px] max-w-[500px] max-h-[600px] overflow-y-auto"):
+                    ui.label("Notifications").classes("text-h6 font-bold mb-4 p-4 border-b")
+                    
+                    if notification_count == 0:
+                        with ui.column().classes("p-6 items-center gap-2"):
+                            ui.icon("notifications_off", size="48px", color="gray")
+                            ui.label("No notifications").classes("text-gray-500")
+                    else:
+                        with ui.column().classes("gap-2 p-2"):
+                            for idx, notif in enumerate(notifications[:10]):  # Show max 10 notifications
+                                priority = notif.get("priority", "low")
+                                priority_colors = {
+                                    "high": "border-l-red-500 bg-red-50",
+                                    "medium": "border-l-orange-500 bg-orange-50",
+                                    "low": "border-l-blue-500 bg-blue-50"
+                                }
+                                border_color = priority_colors.get(priority, "border-l-gray-500 bg-gray-50")
+                                
+                                # Create clickable notification card
+                                notif_link = notif.get("link", "#")
+                                
+                                # Use lambda with default parameter to capture the link value correctly
+                                def make_click_handler(link=notif_link):
+                                    def handle_click():
+                                        notification_menu.close()
+                                        if link and link != "#":
+                                            ui.navigate.to(link)
+                                    return handle_click
+                                
+                                with ui.card().classes(f"p-3 cursor-pointer hover:bg-gray-100 border-l-4 {border_color}").style("min-width: 100%;") as notif_card:
+                                    notif_card.on_click(make_click_handler())
+                                    with ui.column().classes("gap-1"):
+                                        ui.label(notif.get("title", "Notification")).classes("font-semibold text-sm")
+                                        ui.label(notif.get("message", "")).classes("text-xs text-gray-600")
+                            
+                            if notification_count > 10:
+                                ui.label(f"... and {notification_count - 10} more").classes("text-xs text-gray-500 text-center p-2")
+            
+            # Open notification menu when bell is clicked
+            notification_btn.on_click(notification_menu.open)
             
             # Logout button with confirmation dialog
             logout_btn = ui.button("Logout", color=None, icon="logout").classes(
