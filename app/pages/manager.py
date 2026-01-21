@@ -651,8 +651,31 @@ def manager():
                 
                 if decision == 'Extend':
                     new_date = new_expiration_date.value
-                    # Here you would send this to your backend/API
-                    ui.notify(f'Contract {contract_id} extended to {new_date}', type='positive')
+                    # Send to backend: create/update ContractUpdate as pending_review with decision + proposed end date
+                    try:
+                        import httpx
+                        contract_db_id = stored_contract_data.get('id')
+                        if not contract_db_id:
+                            ui.notify('Error: missing contract database id', type='negative')
+                            return
+                        with httpx.Client(timeout=30.0) as client:
+                            payload = {
+                                "contract_id": contract_db_id,
+                                "status": "pending_review",
+                                "response_provided_by_user_id": current_user_id,
+                                # Store the manager-provided new end date in initial_expiration_date
+                                "initial_expiration_date": new_date.replace('/', '-') if '/' in new_date else new_date,
+                                "decision": "Extend",
+                                "decision_comments": "",
+                            }
+                            resp = client.post("http://localhost:8000/api/v1/contract-updates", json=payload)
+                            if resp.status_code not in (200, 201):
+                                ui.notify(f'Error sending update for review ({resp.status_code})', type='negative')
+                                return
+                        ui.notify(f'Contract {contract_id} sent for admin review (extend to {new_date})', type='positive')
+                    except Exception as e:
+                        ui.notify(f'Error sending update for review: {e}', type='negative')
+                        return
                     dialog_status_indicator.classes(remove="hidden")
                     dialog_status_indicator.classes("bg-green-100 border border-green-400 text-green-700")
                     dialog_status_indicator.clear()
@@ -674,8 +697,30 @@ def manager():
                     contracts_table.rows = contract_rows
                     contracts_table.update()
                     
-                    # Here you would send this to your backend/API
-                    ui.notify(f'Contract {contract_id} marked for termination', type='positive')
+                    # Send to backend: create/update ContractUpdate as pending_review with decision Terminate
+                    try:
+                        import httpx
+                        contract_db_id = stored_contract_data.get('id')
+                        if not contract_db_id:
+                            ui.notify('Error: missing contract database id', type='negative')
+                            return
+                        with httpx.Client(timeout=30.0) as client:
+                            payload = {
+                                "contract_id": contract_db_id,
+                                "status": "pending_review",
+                                "response_provided_by_user_id": current_user_id,
+                                "has_document": bool(doc_count),
+                                "decision": "Terminate",
+                                "decision_comments": "",
+                            }
+                            resp = client.post("http://localhost:8000/api/v1/contract-updates", json=payload)
+                            if resp.status_code not in (200, 201):
+                                ui.notify(f'Error sending termination for review ({resp.status_code})', type='negative')
+                                return
+                        ui.notify(f'Contract {contract_id} sent for admin review (terminate)', type='positive')
+                    except Exception as e:
+                        ui.notify(f'Error sending termination for review: {e}', type='negative')
+                        return
                     dialog_status_indicator.classes(remove="hidden")
                     dialog_status_indicator.classes("bg-green-100 border border-green-400 text-green-700")
                     dialog_status_indicator.clear()

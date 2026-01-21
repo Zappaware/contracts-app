@@ -4,7 +4,7 @@ import io
 import base64
 from app.db.database import SessionLocal
 from app.services.contract_service import ContractService
-from app.models.contract import ContractStatusType, User, Contract, ContractUpdate, ContractUpdateStatus
+from app.models.contract import ContractStatusType, ContractTerminationType, User, Contract, ContractUpdate, ContractUpdateStatus
 from sqlalchemy.orm import joinedload
 try:
     import pandas as pd
@@ -417,7 +417,11 @@ def pending_reviews():
                 # Actions
                 with ui.row().classes("gap-3 justify-end mt-4 w-full"):
                     def do_complete():
-                        """Complete review: mark update completed and save admin remarks + decision."""
+                        """Complete review:
+                        - If decision Extend: update Contract.end_date using manager-provided date
+                        - If decision Terminate: set Contract.status to Terminated (inactive)
+                        - Mark ContractUpdate as completed and store admin remarks
+                        """
                         nonlocal contract_rows
                         try:
                             db3 = SessionLocal()
@@ -431,6 +435,28 @@ def pending_reviews():
                                 if not upd:
                                     upd = ContractUpdate(contract_id=selected_contract.get("contract_db_id"), status=ContractUpdateStatus.COMPLETED)
                                     db3.add(upd)
+                                contract_obj_db = db3.query(Contract).filter(Contract.id == selected_contract.get("contract_db_id")).first()
+                                if not contract_obj_db:
+                                    ui.notify("Error: Contract not found", type="negative")
+                                    return
+
+                                decision_value = decision_select.value
+
+                                if decision_value == "Extend":
+                                    if not upd.initial_expiration_date:
+                                        ui.notify(
+                                            "Cannot complete: missing new expiration date from Contract Manager / Backup / Owner.",
+                                            type="negative",
+                                        )
+                                        return
+                                    contract_obj_db.end_date = upd.initial_expiration_date
+                                    contract_obj_db.last_modified_by = app.storage.user.get("username", "SYSTEM")
+                                    contract_obj_db.last_modified_date = datetime.utcnow()
+                                elif decision_value == "Terminate":
+                                    contract_obj_db.status = ContractStatusType.TERMINATED
+                                    contract_obj_db.contract_termination = ContractTerminationType.YES
+                                    contract_obj_db.last_modified_by = app.storage.user.get("username", "SYSTEM")
+                                    contract_obj_db.last_modified_date = datetime.utcnow()
                                 upd.status = ContractUpdateStatus.COMPLETED
                                 upd.decision = decision_select.value
                                 upd.admin_comments = admin_remarks.value
@@ -465,7 +491,9 @@ def pending_reviews():
                                 upd.status = ContractUpdateStatus.RETURNED
                                 upd.decision = decision_select.value
                                 upd.admin_comments = admin_remarks.value
+                                upd.returned_reason = admin_remarks.value
                                 upd.returned_date = datetime.utcnow()
+                                upd.updated_at = datetime.utcnow()
                                 db3.commit()
                                 ui.notify("Sent back to Contract Manager / Backup / Owner", type="info")
                                 # Refresh the table

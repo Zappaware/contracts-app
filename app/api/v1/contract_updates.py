@@ -35,6 +35,8 @@ class ContractUpdateResponse(BaseModel):
     initial_description: Optional[str]
     initial_expiration_date: Optional[date]
     previous_update_id: Optional[int]
+    decision: Optional[str] = None
+    decision_comments: Optional[str] = None
     
     class Config:
         from_attributes = True
@@ -51,6 +53,8 @@ class ContractUpdateCreate(BaseModel):
     initial_contract_type: Optional[str] = None
     initial_description: Optional[str] = None
     initial_expiration_date: Optional[date] = None
+    decision: Optional[str] = None
+    decision_comments: Optional[str] = None
 
 
 class ContractUpdatePatch(BaseModel):
@@ -61,6 +65,8 @@ class ContractUpdatePatch(BaseModel):
     initial_contract_type: Optional[str] = None
     initial_description: Optional[str] = None
     initial_expiration_date: Optional[date] = None
+    decision: Optional[str] = None
+    decision_comments: Optional[str] = None
 
 
 @router.get("/", response_model=List[ContractUpdateResponse])
@@ -127,7 +133,9 @@ def get_contract_updates(
             initial_contract_type=update.initial_contract_type,
             initial_description=update.initial_description,
             initial_expiration_date=update.initial_expiration_date,
-            previous_update_id=update.previous_update_id
+            previous_update_id=update.previous_update_id,
+            decision=update.decision,
+            decision_comments=update.decision_comments,
         ))
     
     return result
@@ -166,7 +174,9 @@ def create_contract_update(
         initial_vendor_name=update_data.initial_vendor_name,
         initial_contract_type=update_data.initial_contract_type,
         initial_description=update_data.initial_description,
-        initial_expiration_date=update_data.initial_expiration_date
+        initial_expiration_date=update_data.initial_expiration_date,
+        decision=update_data.decision,
+        decision_comments=update_data.decision_comments,
     )
     
     db.add(contract_update)
@@ -213,6 +223,12 @@ def update_contract_update(
     
     if update_data.initial_expiration_date is not None:
         contract_update.initial_expiration_date = update_data.initial_expiration_date
+
+    if update_data.decision is not None:
+        contract_update.decision = update_data.decision
+
+    if update_data.decision_comments is not None:
+        contract_update.decision_comments = update_data.decision_comments
     
     contract_update.updated_at = datetime.utcnow()
     
