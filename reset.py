@@ -5,7 +5,7 @@ Useful for testing - allows you to re-run seed scripts from scratch.
 """
 import os
 import shutil
-from sqlalchemy import text
+from sqlalchemy import text, inspect
 from app.db.database import engine, Base
 from app.models.vendor import Vendor, VendorAddress, VendorEmail, VendorPhone, VendorDocument
 from app.models.contract import Contract, ContractDocument, User
@@ -27,8 +27,36 @@ def reset_database():
         print("  ✓ All tables dropped")
         
         # Also drop the alembic_version table if it exists (to reset migration tracking)
+        # Use database-specific syntax based on the dialect
         with engine.connect() as conn:
-            conn.execute(text("DROP TABLE IF EXISTS alembic_version CASCADE"))
+            dialect_name = engine.dialect.name
+            
+            if dialect_name == 'postgresql':
+                # PostgreSQL syntax - supports CASCADE
+                conn.execute(text("DROP TABLE IF EXISTS alembic_version CASCADE"))
+            elif dialect_name == 'mssql':
+                # MSSQL syntax - supports IF EXISTS (SQL Server 2016+) but not CASCADE
+                # Try the modern syntax first, fall back if needed
+                try:
+                    conn.execute(text("DROP TABLE IF EXISTS alembic_version"))
+                except Exception:
+                    # Fallback for older MSSQL versions - check if table exists first
+                    inspector = inspect(engine)
+                    if 'alembic_version' in inspector.get_table_names():
+                        conn.execute(text("DROP TABLE alembic_version"))
+            else:
+                # Generic approach for other databases (MySQL, SQLite, etc.)
+                try:
+                    conn.execute(text("DROP TABLE IF EXISTS alembic_version"))
+                except Exception:
+                    # Fallback: check if table exists before dropping
+                    try:
+                        inspector = inspect(engine)
+                        if 'alembic_version' in inspector.get_table_names():
+                            conn.execute(text("DROP TABLE alembic_version"))
+                    except Exception:
+                        pass  # Table doesn't exist or can't be checked, that's fine
+            
             conn.commit()
         print("  ✓ Alembic version table dropped")
         
