@@ -82,9 +82,9 @@ def home_page():
                 with ui.card().classes("w-full cursor-pointer hover:bg-gray-50 transition-colors shadow-lg").props('flat'):
                     with ui.row().classes('items-center gap-2'):
                         ui.icon('people', color='primary').style('font-size: 28px')
-                ui.label("List Contract Managers").classes("text-lg font-bold")
-                ui.label("Owners & Backups").classes("text-sm text-gray-500")
-                ui.label("15").classes("text-2xl font-medium text-primary mt-2")
+                    ui.label("User Administration").classes("text-lg font-bold")
+                    ui.label("View user responsibilities").classes("text-sm text-gray-500")
+                    ui.label("15").classes("text-2xl font-medium text-primary mt-2")
             
             # Row 2
             with ui.link(target='/pending-reviews').classes('no-underline w-full').style('text-decoration: none !important;'):

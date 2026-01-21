@@ -1,7 +1,7 @@
 from nicegui import ui
 import io
 import base64
-from datetime import datetime, timedelta
+from datetime import datetime
 try:
     import pandas as pd
     PANDAS_AVAILABLE = True
@@ -19,158 +19,77 @@ def contract_managers():
     managers_table = None
     manager_rows = []
     
-    # Mock data for contract managers
-    def get_mock_managers():
+    # Fetch users with their active contract counts by role
+    def fetch_users_with_contract_counts():
         """
-        Simulates contract managers data.
-        This will be replaced with actual API call when available.
+        Fetches all users from the database and counts their active contracts
+        in each role: Contract Manager, Backup, and Owner.
         """
-        
-        mock_managers = [
-            {
-                "manager_id": "MGR-001",
-                "name": "William Defoe",
-                "email": "william.defoe@company.com",
-                "department": "IT Operations",
-                "role": "Owner",
-                "active_contracts": 12,
-                "phone": "+297 582 1234"
-            },
-            {
-                "manager_id": "MGR-002",
-                "name": "John Doe",
-                "email": "john.doe@company.com",
-                "department": "Finance",
-                "role": "Backup",
-                "active_contracts": 8,
-                "phone": "+297 582 1235"
-            },
-            {
-                "manager_id": "MGR-003",
-                "name": "Sarah Mitchell",
-                "email": "sarah.mitchell@company.com",
-                "department": "Human Resources",
-                "role": "Owner",
-                "active_contracts": 15,
-                "phone": "+297 582 1236"
-            },
-            {
-                "manager_id": "MGR-004",
-                "name": "Michael Chen",
-                "email": "michael.chen@company.com",
-                "department": "Compliance",
-                "role": "Owner",
-                "active_contracts": 10,
-                "phone": "+297 582 1237"
-            },
-            {
-                "manager_id": "MGR-005",
-                "name": "Emily Rodriguez",
-                "email": "emily.rodriguez@company.com",
-                "department": "Marketing",
-                "role": "Backup",
-                "active_contracts": 6,
-                "phone": "+297 582 1238"
-            },
-            {
-                "manager_id": "MGR-006",
-                "name": "David Thompson",
-                "email": "david.thompson@company.com",
-                "department": "Security",
-                "role": "Owner",
-                "active_contracts": 18,
-                "phone": "+297 582 1239"
-            },
-            {
-                "manager_id": "MGR-007",
-                "name": "Jessica Park",
-                "email": "jessica.park@company.com",
-                "department": "Premises & Facilities",
-                "role": "Backup",
-                "active_contracts": 9,
-                "phone": "+297 582 1240"
-            },
-            {
-                "manager_id": "MGR-008",
-                "name": "Robert Williams",
-                "email": "robert.williams@company.com",
-                "department": "Internal Audit",
-                "role": "Owner",
-                "active_contracts": 7,
-                "phone": "+297 582 1241"
-            },
-            {
-                "manager_id": "MGR-009",
-                "name": "Amanda Garcia",
-                "email": "amanda.garcia@company.com",
-                "department": "Payment Operations",
-                "role": "Owner",
-                "active_contracts": 14,
-                "phone": "+297 582 1242"
-            },
-            {
-                "manager_id": "MGR-010",
-                "name": "Christopher Lee",
-                "email": "christopher.lee@company.com",
-                "department": "Corporate Banking",
-                "role": "Backup",
-                "active_contracts": 11,
-                "phone": "+297 582 1243"
-            },
-            {
-                "manager_id": "MGR-011",
-                "name": "Maria Santos",
-                "email": "maria.santos@company.com",
-                "department": "Retail Banking",
-                "role": "Owner",
-                "active_contracts": 13,
-                "phone": "+297 582 1244"
-            },
-            {
-                "manager_id": "MGR-012",
-                "name": "James Anderson",
-                "email": "james.anderson@company.com",
-                "department": "Credit Risk",
-                "role": "Backup",
-                "active_contracts": 5,
-                "phone": "+297 582 1245"
-            },
-            {
-                "manager_id": "MGR-013",
-                "name": "Linda Peterson",
-                "email": "linda.peterson@company.com",
-                "department": "Executive Office",
-                "role": "Owner",
-                "active_contracts": 16,
-                "phone": "+297 582 1246"
-            },
-            {
-                "manager_id": "MGR-014",
-                "name": "Daniel Martinez",
-                "email": "daniel.martinez@company.com",
-                "department": "IT Projects",
-                "role": "Backup",
-                "active_contracts": 10,
-                "phone": "+297 582 1247"
-            },
-            {
-                "manager_id": "MGR-015",
-                "name": "Patricia Brown",
-                "email": "patricia.brown@company.com",
-                "department": "Business Continuity",
-                "role": "Owner",
-                "active_contracts": 9,
-                "phone": "+297 582 1248"
-            },
-        ]
-        
-        return mock_managers
+        try:
+            from app.db.database import SessionLocal
+            from app.models.contract import User, Contract, ContractStatusType
+            
+            db = SessionLocal()
+            try:
+                # Get all active users
+                users = db.query(User).filter(User.is_active == True).all()
+                
+                if not users:
+                    print("No users found in database")
+                    return []
+                
+                rows = []
+                for user in users:
+                    # Count active contracts where user is Contract Manager (contract_owner_id)
+                    contract_manager_count = db.query(Contract).filter(
+                        Contract.contract_owner_id == user.id,
+                        Contract.status == ContractStatusType.ACTIVE
+                    ).count()
+                    
+                    # Count active contracts where user is Backup (contract_owner_backup_id)
+                    backup_count = db.query(Contract).filter(
+                        Contract.contract_owner_backup_id == user.id,
+                        Contract.status == ContractStatusType.ACTIVE
+                    ).count()
+                    
+                    # Count active contracts where user is Owner (contract_owner_manager_id)
+                    owner_count = db.query(Contract).filter(
+                        Contract.contract_owner_manager_id == user.id,
+                        Contract.status == ContractStatusType.ACTIVE
+                    ).count()
+                    
+                    # Get department value
+                    department = user.department.value if hasattr(user.department, 'value') else str(user.department)
+                    
+                    row_data = {
+                        "user_id": str(user.user_id or ""),
+                        "name": f"{user.first_name} {user.last_name}",
+                        "email": str(user.email or ""),
+                        "department": str(department or ""),
+                        "contract_manager_count": int(contract_manager_count),
+                        "backup_count": int(backup_count),
+                        "owner_count": int(owner_count),
+                    }
+                    rows.append(row_data)
+                
+                print(f"Processed {len(rows)} user rows")
+                return rows
+                
+            finally:
+                db.close()
+        except Exception as e:
+            error_msg = f"Error fetching users: {str(e)}"
+            print(error_msg)
+            import traceback
+            traceback.print_exc()
+            ui.notify(error_msg, type="negative")
+            return []
 
     manager_columns = [
         {
-            "name": "manager_id",
-            "label": "Manager ID",
-            "field": "manager_id",
+            "name": "user_id",
+            "label": "User ID",
+            "field": "user_id",
             "align": "left",
             "sortable": True,
         },
@@ -196,22 +115,23 @@ def contract_managers():
             "sortable": True,
         },
         {
-            "name": "phone",
-            "label": "Phone",
-            "field": "phone",
-            "align": "left",
-        },
-        {
-            "name": "role",
-            "label": "Role",
-            "field": "role",
-            "align": "left",
+            "name": "contract_manager_count",
+            "label": "Contract Manager",
+            "field": "contract_manager_count",
+            "align": "center",
             "sortable": True,
         },
         {
-            "name": "active_contracts",
-            "label": "Active Contracts",
-            "field": "active_contracts",
+            "name": "backup_count",
+            "label": "Backup",
+            "field": "backup_count",
+            "align": "center",
+            "sortable": True,
+        },
+        {
+            "name": "owner_count",
+            "label": "Owner",
+            "field": "owner_count",
             "align": "center",
             "sortable": True,
         },
@@ -222,20 +142,17 @@ def contract_managers():
         "headerClasses": "bg-[#144c8e] text-white",
     }
 
-    manager_rows = get_mock_managers()
+    manager_rows = fetch_users_with_contract_counts()
     
     # Main container
     with ui.element("div").classes("max-w-6xl mt-8 mx-auto w-full"):
-        # Section header with Generate button
-        with ui.row().classes('items-center justify-between ml-4 mb-4 w-full'):
+        # Section header
+        with ui.row().classes('items-center ml-4 mb-4 w-full'):
             with ui.row().classes('items-center gap-2'):
                 ui.icon('people', color='primary').style('font-size: 32px')
-                ui.label("Contract Managers").classes("text-h5 font-bold")
-            
-            # Generate Report button
-            ui.button("Generate", icon="description", on_click=lambda: open_generate_dialog()).props('color=primary')
+                ui.label("User Administration").classes("text-h5 font-bold")
         
-        ui.label("Manage contract owners and backup managers").classes(
+        ui.label("View user responsibilities based on their assigned roles").classes(
             "text-sm text-gray-500 ml-4 mb-4"
         )
         
@@ -247,11 +164,13 @@ def contract_managers():
             else:
                 filtered = [
                     row for row in manager_rows
-                    if search_term in (row['manager_id'] or "").lower()
+                    if search_term in (row['user_id'] or "").lower()
                     or search_term in (row['name'] or "").lower()
                     or search_term in (row['email'] or "").lower()
                     or search_term in (row['department'] or "").lower()
-                    or search_term in (row['role'] or "").lower()
+                    or search_term in str(row.get('contract_manager_count', '')).lower()
+                    or search_term in str(row.get('backup_count', '')).lower()
+                    or search_term in str(row.get('owner_count', '')).lower()
                 ]
                 managers_table.rows = filtered
             managers_table.update()
@@ -263,7 +182,7 @@ def contract_managers():
         
         # Search input for filtering managers (above the table)
         with ui.row().classes('w-full ml-4 mr-4 mb-6 gap-2 px-2'):
-            search_input = ui.input(placeholder='Search by ID, Name, Email, Department, or Role...').classes(
+            search_input = ui.input(placeholder='Search by ID, Name, Email, Department, or Contract Counts...').classes(
                 'flex-1'
             ).props('outlined dense clearable')
             with search_input.add_slot('prepend'):
@@ -277,12 +196,15 @@ def contract_managers():
             column_defaults=manager_columns_defaults,
             rows=manager_rows,
             pagination=10,
-            row_key="manager_id"
+            row_key="user_id"
         ).classes("w-full").props("flat bordered").classes(
             "managers-table shadow-lg rounded-lg overflow-hidden"
         )
         
         search_input.on_value_change(filter_managers)
+        
+        # Generate button (moved from header to after table)
+        ui.button("Generate", icon="description", on_click=lambda: open_generate_dialog()).props('color=primary').classes('ml-4 mt-4')
         
         # Add custom CSS for visual highlighting
         ui.add_css("""
@@ -294,18 +216,28 @@ def contract_managers():
             }
         """)
         
-        # Add slot for role column with badge styling
-        managers_table.add_slot('body-cell-role', '''
-            <q-td :props="props">
+        # Add slot for contract manager count with centered badge
+        managers_table.add_slot('body-cell-contract_manager_count', '''
+            <q-td :props="props" class="text-center">
                 <q-badge 
-                    :color="props.value === 'Owner' ? 'primary' : 'orange'" 
+                    color="grey-6" 
                     :label="props.value"
                 />
             </q-td>
         ''')
         
-        # Add slot for active contracts with centered badge
-        managers_table.add_slot('body-cell-active_contracts', '''
+        # Add slot for backup count with centered badge
+        managers_table.add_slot('body-cell-backup_count', '''
+            <q-td :props="props" class="text-center">
+                <q-badge 
+                    color="grey-6" 
+                    :label="props.value"
+                />
+            </q-td>
+        ''')
+        
+        # Add slot for owner count with centered badge
+        managers_table.add_slot('body-cell-owner_count', '''
             <q-td :props="props" class="text-center">
                 <q-badge 
                     color="grey-6" 
@@ -327,12 +259,12 @@ def contract_managers():
         def open_generate_dialog():
             """Open dialog for report generation"""
             with ui.dialog() as dialog, ui.card().classes('p-6 w-full max-w-md'):
-                ui.label("Generate Contract Managers Report").classes("text-h6 font-bold mb-4")
+                ui.label("Generate User Administration Report").classes("text-h6 font-bold mb-4")
                 
                 with ui.column().classes('gap-4 w-full'):
-                    ui.label("This report will include all contract managers with their details.").classes("text-sm text-gray-600")
+                    ui.label("This report will include all users with their contract responsibilities.").classes("text-sm text-gray-600")
                     
-                    ui.label("The report will include: Manager ID, Name, Email, Department, Phone, Role, and Active Contracts count.").classes("text-xs text-gray-500 italic")
+                    ui.label("The report will include: User ID, Name, Email, Department, Contract Manager count, Backup count, and Owner count.").classes("text-xs text-gray-500 italic")
                     
                     with ui.row().classes('gap-2 justify-end w-full mt-4'):
                         ui.button("Cancel", on_click=dialog.close).props('flat')
@@ -342,7 +274,7 @@ def contract_managers():
                 dialog.open()
         
         def generate_excel_report(dialog):
-            """Generate Excel report for contract managers"""
+            """Generate Excel report for user administration"""
             try:
                 if not PANDAS_AVAILABLE:
                     ui.notify("Excel export requires pandas library. Please install it: pip install pandas openpyxl", type="negative")
@@ -350,21 +282,21 @@ def contract_managers():
                     return
                 
                 if not manager_rows:
-                    ui.notify("No managers available for export", type="warning")
+                    ui.notify("No users available for export", type="warning")
                     dialog.close()
                     return
                 
                 # Prepare data for Excel
                 report_data = []
-                for manager in manager_rows:
+                for user in manager_rows:
                     report_data.append({
-                        "Manager ID": manager.get('manager_id', ''),
-                        "Name": manager.get('name', ''),
-                        "Email": manager.get('email', ''),
-                        "Department": manager.get('department', ''),
-                        "Phone": manager.get('phone', ''),
-                        "Role": manager.get('role', ''),
-                        "Active Contracts": manager.get('active_contracts', 0),
+                        "User ID": user.get('user_id', ''),
+                        "Name": user.get('name', ''),
+                        "Email": user.get('email', ''),
+                        "Department": user.get('department', ''),
+                        "Contract Manager": user.get('contract_manager_count', 0),
+                        "Backup": user.get('backup_count', 0),
+                        "Owner": user.get('owner_count', 0),
                     })
                 
                 # Create DataFrame
@@ -373,10 +305,10 @@ def contract_managers():
                 # Create Excel file in memory
                 output = io.BytesIO()
                 with pd.ExcelWriter(output, engine='openpyxl') as writer:
-                    df.to_excel(writer, index=False, sheet_name='Contract Managers')
+                    df.to_excel(writer, index=False, sheet_name='User Administration')
                     
                     # Get the worksheet
-                    worksheet = writer.sheets['Contract Managers']
+                    worksheet = writer.sheets['User Administration']
                     
                     # Auto-adjust column widths
                     for column in worksheet.columns:
@@ -399,7 +331,7 @@ def contract_managers():
                 
                 # Generate filename
                 today = datetime.now().strftime("%Y-%m-%d")
-                filename = f"Contract_Managers_Report_{today}.xlsx"
+                filename = f"User_Administration_Report_{today}.xlsx"
                 
                 # Trigger download using JavaScript
                 ui.run_javascript(f'''
@@ -411,14 +343,10 @@ def contract_managers():
                     document.body.removeChild(link);
                 ''')
                 
-                ui.notify(f"Report generated successfully! {len(manager_rows)} manager(s) exported.", type="positive")
+                ui.notify(f"Report generated successfully! {len(manager_rows)} user(s) exported.", type="positive")
                 dialog.close()
                 
             except Exception as e:
                 ui.notify(f"Error generating report: {str(e)}", type="negative")
                 import traceback
                 traceback.print_exc()
-
-
-
-
