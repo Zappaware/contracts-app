@@ -3,6 +3,7 @@ from nicegui import ui, app
 from app.db.database import SessionLocal
 from app.services.contract_service import ContractService
 from app.models.contract import ContractStatusType, User, UserRole
+from app.utils.navigation import get_dashboard_url
 import io
 import base64
 try:
@@ -62,7 +63,7 @@ def active_contracts():
         print(f"Using stored user_id: {current_user_id}, role: {current_user_role}")
     # Navigation
     with ui.row().classes("max-w-6xl mx-auto mt-4"):
-        with ui.link(target='/').classes('no-underline'):
+        with ui.link(target=get_dashboard_url()).classes('no-underline'):
             ui.button("Back to Dashboard", icon="arrow_back").props('flat color=primary')
     
     # Global variables for table and data

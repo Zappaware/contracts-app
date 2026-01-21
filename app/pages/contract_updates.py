@@ -4,6 +4,7 @@ import io
 import base64
 import httpx
 from app.utils.vendor_lookup import get_vendor_id_by_name
+from app.utils.navigation import get_dashboard_url
 from app.db.database import SessionLocal
 from sqlalchemy.orm import joinedload
 from app.models.contract import ContractUpdate, ContractUpdateStatus, Contract
@@ -18,7 +19,7 @@ except ImportError:
 def contract_updates():
     # Navigation
     with ui.row().classes("max-w-6xl mx-auto mt-4"):
-        with ui.link(target='/').classes('no-underline'):
+        with ui.link(target=get_dashboard_url()).classes('no-underline'):
             ui.button("Back to Dashboard", icon="arrow_back").props('flat color=primary')
     
     # Global variables for table and data
