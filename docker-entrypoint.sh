@@ -7,6 +7,10 @@ echo "🚀 Starting Aruba Bank Contract Management System..."
 echo "⏳ Waiting for database..."
 sleep 5
 
+#Reset the database to updates on the seed scripts
+echo "🔄 Resetting database..."
+python reset.py
+
 # Run database migrations
 echo "🔄 Running database migrations..."
 alembic upgrade head
