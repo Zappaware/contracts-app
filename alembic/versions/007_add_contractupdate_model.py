@@ -1,6 +1,6 @@
 """Add ContractUpdate model
 
-Revision ID: 8fa7e3baf38b
+Revision ID: 007_add_contractupdate_model
 Revises: 003_add_365_days
 Create Date: 2026-01-07 07:12:34.343122
 
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision = '8fa7e3baf38b'
+revision = '007_add_contractupdate_model'
 down_revision = '003_add_365_days'
 branch_labels = None
 depends_on = None

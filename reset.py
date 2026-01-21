@@ -83,14 +83,7 @@ def reset_all():
     print("   - All documents")
     print("   - All uploaded files")
     print("\n" + "=" * 60)
-    
-    response = input("\nAre you sure you want to continue? (yes/no): ").strip().lower()
-    
-    if response not in ['yes', 'y']:
-        print("\n❌ Reset cancelled.")
-        return
-    
-    print()
+    print("\n🔄 Proceeding with reset...\n")
     reset_database()
     clean_uploads()
     
