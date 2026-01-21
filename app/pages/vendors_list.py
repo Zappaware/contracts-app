@@ -1,11 +1,18 @@
 
 from nicegui import ui
+import io
+import base64
+from datetime import date, datetime
 from app.db.database import SessionLocal
 from app.services.vendor_service import VendorService
 from app.models.vendor import VendorStatusType
-from app.models.contract import ContractType, DepartmentType
+from app.models.contract import ContractType, DepartmentType, ContractStatusType
 from sqlalchemy.orm import joinedload
-from datetime import date
+try:
+    import pandas as pd
+    PANDAS_AVAILABLE = True
+except ImportError:
+    PANDAS_AVAILABLE = False
 
 
 def vendors_list():
@@ -85,15 +92,6 @@ def vendors_list():
                     vendor.emails[0].email if vendor.emails else None
                 )
                 
-                # Assign manager based on vendor ID (alternating pattern)
-                # Odd vendor IDs = William Defoe (owned), Even vendor IDs = John Doe (backup)
-                if vendor.id % 2 == 1:
-                    manager = "William Defoe"
-                    role = "owned"
-                else:
-                    manager = "John Doe"
-                    role = "backup"
-                
                 # Get vendor with contracts for filtering
                 vendor_with_contracts = vendors_dict.get(vendor.id)
                 
@@ -101,6 +99,7 @@ def vendors_list():
                 contract_types = set()
                 departments = set()
                 owners = set()
+                active_contracts_count = 0
                 
                 if vendor_with_contracts and vendor_with_contracts.contracts:
                     for contract in vendor_with_contracts.contracts:
@@ -113,6 +112,8 @@ def vendors_list():
                         if contract.contract_owner:
                             owner_name = f"{contract.contract_owner.first_name} {contract.contract_owner.last_name}"
                             owners.add(owner_name)
+                        if contract.status == ContractStatusType.ACTIVE:
+                            active_contracts_count += 1
                 
                 row_data = {
                     "id": int(vendor.id),  # Must be integer for row_key
@@ -123,8 +124,7 @@ def vendors_list():
                     "next_dd_date": str(formatted_date),
                     "status": str(status or "Unknown"),
                     "status_color": str(status_color or "gray"),
-                    "manager": str(manager),
-                    "role": str(role),
+                    "active_contracts": int(active_contracts_count),
                     "is_overdue": bool(is_overdue),
                     "contract_types": list(contract_types),  # List of contract types this vendor has
                     "departments": list(departments),  # List of departments this vendor has contracts in
@@ -190,10 +190,10 @@ def vendors_list():
             "sortable": True,
         },
         {
-            "name": "manager",
-            "label": "Manager",
-            "field": "manager",
-            "align": "left",
+            "name": "active_contracts",
+            "label": "Active Contracts",
+            "field": "active_contracts",
+            "align": "center",
             "sortable": True,
         },
     ]
@@ -227,7 +227,7 @@ def vendors_list():
         with ui.row().classes('ml-4 mb-4 w-full'):
             ui.label("List of all vendors").classes("text-sm text-gray-500")
         
-        # Count label row (will be updated by filter_vendors function)
+        # Count label row
         with ui.row().classes('ml-4 mb-2'):
             count_label = ui.label(f"Total: {len(vendor_rows)} vendor(s)").classes("text-sm text-gray-500")
         
@@ -243,7 +243,7 @@ def vendors_list():
             # Search input
             with ui.row().classes('w-full mb-4 gap-2'):
                 search_input = ui.input(
-                    placeholder='Search by Vendor ID, Name, Contact, Email, or Manager...'
+                    placeholder='Search by Vendor ID, Name, Contact, Email, or Active Contracts...'
                 ).classes('flex-1').props('outlined dense clearable')
                 with search_input.add_slot('prepend'):
                     ui.icon('search').classes('text-gray-400')
@@ -340,7 +340,7 @@ def vendors_list():
                     or search_term in (r.get("vendor_name") or "").lower()
                     or search_term in (r.get("contact") or "").lower()
                     or search_term in (r.get("email") or "").lower()
-                    or search_term in (r.get("manager") or "").lower()
+                    or search_term in str(r.get("active_contracts", "")).lower()
                 ]
             
             # Update table with filtered results
@@ -355,6 +355,101 @@ def vendors_list():
             
             # Update count label
             count_label.set_text(f"Showing: {len(filtered_rows)} of {len(vendor_rows)} vendor(s)")
+
+        def open_generate_dialog():
+            """Open dialog for vendor report generation (exports current table rows)."""
+            with ui.dialog() as dialog, ui.card().classes('p-6 w-full max-w-md'):
+                ui.label("Generate Vendors Report").classes("text-h6 font-bold mb-4")
+
+                with ui.column().classes('gap-3 w-full'):
+                    ui.label(
+                        "This report will include only the vendors currently visible in the table "
+                        "(based on your applied filters and search)."
+                    ).classes("text-sm text-gray-600")
+
+                    with ui.row().classes('gap-2 justify-end w-full mt-4'):
+                        ui.button("Cancel", on_click=dialog.close).props('flat')
+                        ui.button(
+                            "Generate & Download",
+                            icon="download",
+                            on_click=lambda: generate_excel_report(dialog),
+                        ).props('color=primary')
+
+                dialog.open()
+
+        def generate_excel_report(dialog):
+            """Generate an Excel report for the currently visible vendor rows."""
+            try:
+                if not PANDAS_AVAILABLE:
+                    ui.notify(
+                        "Excel export requires pandas. Please install: pip install pandas openpyxl",
+                        type="negative",
+                    )
+                    dialog.close()
+                    return
+
+                if not vendors_table:
+                    ui.notify("Table is not ready yet", type="warning")
+                    dialog.close()
+                    return
+
+                # Export exactly what's visible (already filtered)
+                visible_rows = vendors_table.rows or []
+                if not visible_rows:
+                    ui.notify("No vendors available for export", type="warning")
+                    dialog.close()
+                    return
+
+                report_data = []
+                for v in visible_rows:
+                    report_data.append({
+                        "Vendor ID": v.get("vendor_id", ""),
+                        "Vendor Name": v.get("vendor_name", ""),
+                        "Contact Person": v.get("contact", ""),
+                        "Email": v.get("email", ""),
+                        "Next Due Diligence Date": v.get("next_dd_date", ""),
+                        "Status": v.get("status", ""),
+                        "Active Contracts": v.get("active_contracts", 0),
+                    })
+
+                df = pd.DataFrame(report_data)
+
+                output = io.BytesIO()
+                with pd.ExcelWriter(output, engine='openpyxl') as writer:
+                    df.to_excel(writer, index=False, sheet_name='Vendors Report')
+
+                    worksheet = writer.sheets['Vendors Report']
+                    for column in worksheet.columns:
+                        max_length = 0
+                        column_letter = column[0].column_letter
+                        for cell in column:
+                            try:
+                                max_length = max(max_length, len(str(cell.value)))
+                            except (AttributeError, TypeError):
+                                pass
+                        worksheet.column_dimensions[column_letter].width = min(max_length + 2, 50)
+
+                output.seek(0)
+                b64_data = base64.b64encode(output.getvalue()).decode()
+
+                today = datetime.now().strftime("%Y-%m-%d")
+                filename = f"Vendors_Report_{today}.xlsx"
+
+                ui.run_javascript(f'''
+                    const link = document.createElement('a');
+                    link.href = 'data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64,{b64_data}';
+                    link.download = '{filename}';
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                ''')
+
+                ui.notify(f"Report generated successfully! {len(visible_rows)} vendor(s) exported.", type="positive")
+                dialog.close()
+            except Exception as e:
+                ui.notify(f"Error generating report: {str(e)}", type="negative")
+                import traceback
+                traceback.print_exc()
         
         def clear_filters():
             """Clear both search and all filters"""
@@ -419,6 +514,9 @@ def vendors_list():
         # Apply initial filters
         apply_filters()
         
+        # Generate button (moved from header to after table)
+        ui.button("Generate", icon="description", on_click=lambda: open_generate_dialog()).props('color=primary').classes('ml-4 mt-4')
+        
         # Add custom CSS
         ui.add_css("""
             .vendors-table thead tr {
@@ -447,6 +545,13 @@ def vendors_list():
                 <div v-else class="text-black font-semibold">
                     {{ props.value }}
                 </div>
+            </q-td>
+        ''')
+
+        # Active Contracts badge (centered)
+        vendors_table.add_slot('body-cell-active_contracts', '''
+            <q-td :props="props" class="text-center">
+                <q-badge color="grey-6" :label="props.value" />
             </q-td>
         ''')
         
