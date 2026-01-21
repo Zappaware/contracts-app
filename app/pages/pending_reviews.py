@@ -4,7 +4,8 @@ import io
 import base64
 from app.db.database import SessionLocal
 from app.services.contract_service import ContractService
-from app.models.contract import ContractStatusType, User
+from app.models.contract import ContractStatusType, User, Contract, ContractUpdate, ContractUpdateStatus
+from sqlalchemy.orm import joinedload
 try:
     import pandas as pd
     PANDAS_AVAILABLE = True
@@ -339,13 +340,191 @@ def pending_reviews():
             </q-td>
         ''')
         
-        # Add slot for custom styling of status column
+        # Contract Decision Dialog - same as vendor_info.py
+        selected_contract = {}
+        
+        with ui.dialog() as contract_decision_dialog, ui.card().classes("min-w-[900px] max-w-5xl max-h-[85vh] overflow-y-auto"):
+            ui.label("Contract Decision").classes("text-h5 mb-4 text-blue-600")
+            
+            # Container for dynamic content that gets populated when dialog opens
+            dialog_content = ui.column().classes("w-full gap-4")
+        
+        def populate_dialog_content():
+            """Populate dialog content with contract data when opened."""
+            dialog_content.clear()
+            
+            # Fetch latest update for this contract (if any)
+            update = None
+            contract_obj = None
+            acted_by_name = "N/A"
+            manager_comments = ""
+            
+            try:
+                db2 = SessionLocal()
+                try:
+                    contract_obj = db2.query(Contract).options(joinedload(Contract.documents)).filter(Contract.id == selected_contract.get("contract_db_id")).first()
+                    update = (
+                        db2.query(ContractUpdate)
+                        .filter(ContractUpdate.contract_id == selected_contract.get("contract_db_id"))
+                        .order_by(ContractUpdate.created_at.desc())
+                        .first()
+                    )
+                    if update and update.response_provided_by_user_id:
+                        acted_user = db2.query(User).filter(User.id == update.response_provided_by_user_id).first()
+                        if acted_user:
+                            acted_by_name = f"{acted_user.first_name} {acted_user.last_name}"
+                    if update and update.decision_comments:
+                        manager_comments = update.decision_comments
+                finally:
+                    db2.close()
+            except Exception as e:
+                print(f"Error loading contract data: {e}")
+            
+            with dialog_content:
+                # Contract details
+                with ui.row().classes("mb-4 p-4 bg-gray-50 rounded-lg w-full"):
+                    with ui.column().classes("gap-1"):
+                        ui.label(f"Contract ID: {selected_contract.get('contract_id', 'N/A')}").classes("font-bold text-lg")
+                        ui.label(f"Vendor: {selected_contract.get('vendor_name', 'N/A')}").classes("text-gray-600")
+                        ui.label(f"Expiration Date: {selected_contract.get('expiration_date', 'N/A')}").classes("text-gray-600")
+                        ui.label(f"Action Taken By: {acted_by_name}").classes("text-gray-600")
+                
+                # Decision section
+                ui.label("Decision").classes("text-lg font-bold")
+                decision_select = ui.select(options=["Extend", "Terminate"], value=(update.decision if update and update.decision else "Extend")).props("outlined dense")
+                
+                # Show manager/backup/owner comments + docs
+                ui.label("Documents & Comments").classes("text-lg font-bold mt-2")
+                with ui.card().classes("p-4 bg-white border w-full"):
+                    ui.label("Comments from Contract Manager / Backup / Owner:").classes("font-medium")
+                    ui.textarea(value=manager_comments or "N/A").classes("w-full").props("outlined readonly")
+                    
+                    ui.separator()
+                    ui.label("Contract Documents:").classes("font-medium mt-2")
+                    if contract_obj and contract_obj.documents:
+                        for doc in contract_obj.documents:
+                            with ui.row().classes("items-center justify-between w-full"):
+                                ui.label(doc.custom_document_name or doc.file_name).classes("text-sm")
+                                with ui.row().classes("gap-2"):
+                                    ui.button("Download", icon="download", on_click=lambda p=doc.file_path, n=doc.file_name: ui.download(p, filename=n)).props("flat color=primary")
+                    else:
+                        ui.label("No contract documents uploaded.").classes("text-gray-500 italic")
+                
+                # Admin remarks (optional)
+                ui.label("Contract Admin Remarks (optional)").classes("font-medium mt-2")
+                admin_remarks = ui.textarea(value=(update.admin_comments if update and update.admin_comments else "")).classes("w-full").props("outlined")
+                
+                # Actions
+                with ui.row().classes("gap-3 justify-end mt-4 w-full"):
+                    def do_complete():
+                        """Complete review: mark update completed and save admin remarks + decision."""
+                        nonlocal contract_rows
+                        try:
+                            db3 = SessionLocal()
+                            try:
+                                upd = (
+                                    db3.query(ContractUpdate)
+                                    .filter(ContractUpdate.contract_id == selected_contract.get("contract_db_id"))
+                                    .order_by(ContractUpdate.created_at.desc())
+                                    .first()
+                                )
+                                if not upd:
+                                    upd = ContractUpdate(contract_id=selected_contract.get("contract_db_id"), status=ContractUpdateStatus.COMPLETED)
+                                    db3.add(upd)
+                                upd.status = ContractUpdateStatus.COMPLETED
+                                upd.decision = decision_select.value
+                                upd.admin_comments = admin_remarks.value
+                                upd.updated_at = datetime.utcnow()
+                                db3.commit()
+                                ui.notify("Review completed", type="positive")
+                                # Refresh the table
+                                contract_rows = fetch_contracts_needing_review()
+                                contracts_table.rows = contract_rows
+                                contracts_table.update()
+                            finally:
+                                db3.close()
+                        except Exception as e:
+                            ui.notify(f"Error completing review: {e}", type="negative")
+                        contract_decision_dialog.close()
+                    
+                    def do_send_back():
+                        """Send back: mark update returned and save admin remarks."""
+                        nonlocal contract_rows
+                        try:
+                            db3 = SessionLocal()
+                            try:
+                                upd = (
+                                    db3.query(ContractUpdate)
+                                    .filter(ContractUpdate.contract_id == selected_contract.get("contract_db_id"))
+                                    .order_by(ContractUpdate.created_at.desc())
+                                    .first()
+                                )
+                                if not upd:
+                                    upd = ContractUpdate(contract_id=selected_contract.get("contract_db_id"), status=ContractUpdateStatus.RETURNED)
+                                    db3.add(upd)
+                                upd.status = ContractUpdateStatus.RETURNED
+                                upd.decision = decision_select.value
+                                upd.admin_comments = admin_remarks.value
+                                upd.returned_date = datetime.utcnow()
+                                db3.commit()
+                                ui.notify("Sent back to Contract Manager / Backup / Owner", type="info")
+                                # Refresh the table
+                                contract_rows = fetch_contracts_needing_review()
+                                contracts_table.rows = contract_rows
+                                contracts_table.update()
+                            finally:
+                                db3.close()
+                        except Exception as e:
+                            ui.notify(f"Error sending back: {e}", type="negative")
+                        contract_decision_dialog.close()
+                    
+                    ui.button("Complete", icon="check_circle", on_click=do_complete).props("color=positive")
+                    ui.button("Send Back", icon="arrow_back", on_click=do_send_back).props("color=orange")
+                    ui.button("Cancel", icon="cancel", on_click=contract_decision_dialog.close).props("flat color=grey")
+
+        # === Pending Review "button" in Status column (NiceGUI/Quasar event-based) ===
+        # NiceGUI table slots are Vue templates; instead of relying on globals like `window.*`,
+        # we emit a custom event from the slot and handle it in Python via `contracts_table.on(...)`.
+
+        def open_contract_decision_dialog(row: dict) -> None:
+            """Open the contract decision dialog for the given table row (dict)."""
+            selected_contract.clear()
+            selected_contract["contract_id"] = row.get("contract_id", "")
+            selected_contract["contract_db_id"] = row.get("id", 0)
+            selected_contract["vendor_name"] = row.get("vendor_name", "N/A")
+            selected_contract["expiration_date"] = row.get("expiration_date", "N/A")
+            populate_dialog_content()
+            contract_decision_dialog.open()
+
+        def on_status_click(e) -> None:
+            """
+            Handle the custom event emitted from the Status cell.
+            NiceGUI passes event arguments in `e.args`.
+            """
+            try:
+                row = e.args
+                if isinstance(row, dict) and row.get("id") is not None:
+                    open_contract_decision_dialog(row)
+            except Exception as ex:
+                ui.notify(f"Could not open Pending Review dialog: {ex}", type="negative")
+
+        contracts_table.on("status_click", on_status_click)
+
+        # Status column: render a text-like button. On click, emit `status_click` with row payload.
+        # `$parent.$emit(...)` is the reliable way within Quasar table slots.
         contracts_table.add_slot('body-cell-status', '''
             <q-td :props="props">
-                <div class="text-orange-600 font-semibold flex items-center gap-1">
-                    <q-icon name="pending" color="orange" size="sm" />
-                    {{ props.value }}
-                </div>
+                <q-btn
+                    flat
+                    no-caps
+                    dense
+                    icon="pending"
+                    :label="props.value"
+                    color="orange"
+                    class="text-orange-600 font-semibold"
+                    style="text-transform:none;"
+                    @click="$parent.$emit('status_click', props.row)"
+                />
             </q-td>
         ''')
         
