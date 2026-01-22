@@ -7,6 +7,7 @@ Create Date: 2025-11-05 04:20:00.000000
 """
 from alembic import op
 import sqlalchemy as sa
+from sqlalchemy import inspect
 
 
 # revision identifiers, used by Alembic.
@@ -23,20 +24,34 @@ def upgrade():
     This migration adds the new enum value to:
     - termination_notice_period (noticeperiodtype)
     - expiration_notice_frequency (expirationnoticeperiodtype)
+    
+    For PostgreSQL: Uses ALTER TYPE to add the enum values.
+    For SQL Server: No-op since enums are stored as strings and can accept any value.
     """
+    bind = op.get_bind()
+    inspector = inspect(bind)
+    dialect_name = bind.dialect.name
     
-    # For PostgreSQL, we need to use ALTER TYPE to add new enum values
-    # Note: This requires PostgreSQL 9.1+
-    
-    # Add to termination_notice_period enum
-    op.execute("""
-        ALTER TYPE noticeperiodtype ADD VALUE IF NOT EXISTS '365 days (1 year)';
-    """)
-    
-    # Add to expiration_notice_frequency enum  
-    op.execute("""
-        ALTER TYPE expirationnoticeperiodtype ADD VALUE IF NOT EXISTS '365 days (1 year)';
-    """)
+    if dialect_name == 'postgresql':
+        # PostgreSQL: Add value to enum types
+        # Note: This requires PostgreSQL 9.1+
+        
+        # Add to termination_notice_period enum
+        op.execute("""
+            ALTER TYPE noticeperiodtype ADD VALUE IF NOT EXISTS '365 days (1 year)';
+        """)
+        
+        # Add to expiration_notice_frequency enum  
+        op.execute("""
+            ALTER TYPE expirationnoticeperiodtype ADD VALUE IF NOT EXISTS '365 days (1 year)';
+        """)
+    elif dialect_name == 'mssql':
+        # SQL Server: Enums are stored as strings, so no action needed
+        # The columns can already accept the new value
+        pass
+    else:
+        # For other databases, assume string-based enums (no action needed)
+        pass
 
 
 def downgrade():
@@ -48,6 +63,6 @@ def downgrade():
     3. Drop the old types
     
     This is complex and risky, so we're leaving this as a no-op.
-    If you need to downgrade, consider creating a new migration.
+    SQL Server doesn't need any action since enums are stored as strings.
     """
     pass
