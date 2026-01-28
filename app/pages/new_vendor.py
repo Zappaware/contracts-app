@@ -417,6 +417,66 @@ def new_vendor():
                         contact_person_input.on('blur', validate_contact_person)
                 
                 # Row 4 - Address 1 & Address 2 (with validation)
+                # Address blocks (AC: max 2; Aruba restricts to 1; additional block is optional)
+                address2_row = None
+                city_state2_row = None
+                zip2_row = None
+                add_address_button = None
+
+                def _clear_second_address_fields() -> None:
+                    """Clear 2nd address block values + errors (if created)."""
+                    nonlocal address2_input, address2_error, city2_input, city2_error, state2_input, state2_select, state2_error, zip2_input, zip2_error
+                    try:
+                        address2_input.value = ""
+                        city2_input.value = ""
+                        state2_input.value = ""
+                        state2_select.value = None
+                        zip2_input.value = ""
+                    except Exception:
+                        pass
+                    try:
+                        address2_error.text = ""
+                        address2_error.style("display:none")
+                        city2_error.text = ""
+                        city2_error.style("display:none")
+                        state2_error.text = ""
+                        state2_error.style("display:none")
+                        zip2_error.text = ""
+                        zip2_error.style("display:none")
+                        address2_input.classes(remove="border border-red-600")
+                        city2_input.classes(remove="border border-red-600")
+                        state2_input.classes(remove="border border-red-600")
+                        state2_select.classes(remove="border border-red-600")
+                        zip2_input.classes(remove="border border-red-600")
+                    except Exception:
+                        pass
+
+                def add_second_address() -> None:
+                    """Show the second address block (max 2 addresses)."""
+                    nonlocal address2_row, city_state2_row, zip2_row, add_address_button
+                    if address2_row:
+                        address2_row.set_visibility(True)
+                    if city_state2_row:
+                        city_state2_row.set_visibility(True)
+                    if zip2_row:
+                        zip2_row.set_visibility(True)
+                    if add_address_button:
+                        add_address_button.set_visibility(False)
+
+                def remove_second_address() -> None:
+                    """Hide and clear the second address block."""
+                    nonlocal address2_row, city_state2_row, zip2_row, add_address_button
+                    _clear_second_address_fields()
+                    if address2_row:
+                        address2_row.set_visibility(False)
+                    if city_state2_row:
+                        city_state2_row.set_visibility(False)
+                    if zip2_row:
+                        zip2_row.set_visibility(False)
+                    # Only show Add Address when not Aruba
+                    if add_address_button:
+                        add_address_button.set_visibility((country_select.value or "") != "Aruba")
+
                 with ui.element('div').classes(f"{row_classes} {std_row_height}"):
                     with ui.element('div').classes(label_cell_classes):
                         ui.label("Address 1").classes(label_classes)
@@ -437,33 +497,17 @@ def new_vendor():
                                 return True
                         address1_input.on('blur', validate_address1)
                     with ui.element('div').classes(label_cell_classes):
-                        ui.label("Address 2").classes(label_classes)
-                    with ui.element('div').classes(input_cell_classes + " flex flex-col") as address2_container:
-                        address2_input = ui.input(label="Address 2", placeholder="Enter address...").classes(input_classes).props("outlined maxlength=60")
-                        address2_error = ui.label('').classes('text-red-600 text-xs mt-1 min-h-[18px]').style('display:none')
-
-                        def validate_address2(e=None):
-                            """
-                            Address 2 is optional.
-                            Only show error if user has entered something invalid (e.g., over max length is handled by maxlength).
-                            """
-                            value = address2_input.value or ''
-                            if not value.strip():
-                                # Optional: no error if empty
-                                address2_error.text = ''
-                                address2_error.style('display:none')
-                                address2_input.classes(remove='border border-red-600')
-                                return True
-                            # Non-empty and within maxlength is acceptable
-                            address2_error.text = ''
-                            address2_error.style('display:none')
-                            address2_input.classes(remove='border border-red-600')
-                            return True
-
-                        address2_input.on('blur', validate_address2)
+                        ui.label("Additional Address").classes(label_classes)
+                    with ui.element('div').classes(input_cell_classes + " flex items-center justify-end"):
+                        # Shown only when Country != Aruba and no 2nd block yet
+                        add_address_button = ui.button(
+                            "Add Address",
+                            icon="add",
+                            on_click=add_second_address,
+                        ).props("outline color=primary").classes("font-[segoe ui]")
 
                 # Row 5 - City & State (with validation)
-                with ui.element('div').classes(f"{row_classes} {std_row_height}"):
+                with ui.element('div').classes(f"{row_classes} {std_row_height}") as city_state_row:
                     with ui.element('div').classes(label_cell_classes):
                         ui.label("City").classes(label_classes)
                     with ui.element('div').classes(input_cell_classes + " flex flex-col"):
@@ -504,29 +548,8 @@ def new_vendor():
                             return state_input.value or ''
 
                         def validate_state(e=None):
-                            """
-                            State is optional, except when country is United States, where a state selection is expected.
-                            """
-                            current_country = country_select.value or ''
-                            value = get_state_value().strip()
-
-                            if not value:
-                                if current_country == "United States":
-                                    state_error.text = "Please select a state."
-                                    state_error.style('display:block')
-                                    if state_select.visible:
-                                        state_select.classes('border border-red-600')
-                                    else:
-                                        state_input.classes('border border-red-600')
-                                    return False
-                                # Optional for non-US countries
-                                state_error.text = ''
-                                state_error.style('display:none')
-                                state_input.classes(remove='border border-red-600')
-                                state_select.classes(remove='border border-red-600')
-                                return True
-
-                            # Non-empty is fine, basic max length already enforced by props
+                            """State is optional for all countries (including United States) per AC."""
+                            _ = get_state_value().strip()
                             state_error.text = ''
                             state_error.style('display:none')
                             state_input.classes(remove='border border-red-600')
@@ -537,124 +560,283 @@ def new_vendor():
                         state_select.on('blur', validate_state)
 
                 # Row 6 - Zip Code & Country (with validation)
-            with ui.element('div').classes("flex w-full h-16"):
-                with ui.element('div').classes("bg-[#144c8e] w-[16.6%] flex items-center"):
-                    ui.label("Zip Code").classes("text-white font-[segoe ui] py-2 px-4 h-full flex items-center")
-                with ui.element('div').classes("bg-white p-2 w-[33.3%]"):
-                    zip_input = ui.input(label="Zip Code", placeholder="Enter zip code...").classes("w-full font-[segoe ui]").props("outlined maxlength=10")
-                    zip_error = ui.label('').classes('text-red-600 text-xs mt-1 min-h-[18px]').style('display:none')
-                    def validate_zip(e=None):
-                        value = zip_input.value or ''
-                        # Zip is optional; only enforce max length when provided
-                        if not value.strip():
+                with ui.element('div').classes(f"{row_classes} {std_row_height}") as zip_country_row:
+                    with ui.element('div').classes(label_cell_classes) as zip_label_cell:
+                        zip_label_text = ui.label("Zip Code").classes(label_classes)
+                    with ui.element('div').classes(input_cell_classes) as zip_input_cell:
+                        zip_input = ui.input(label="Zip Code", placeholder="Enter zip code...").classes(input_classes).props("outlined maxlength=10")
+                        zip_error = ui.label('').classes('text-red-600 text-xs mt-1 min-h-[18px]').style('display:none')
+                        def validate_zip(e=None):
+                            value = zip_input.value or ''
+                            # Zip is optional; only enforce max length when provided
+                            if not value.strip():
+                                zip_error.text = ''
+                                zip_error.style('display:none')
+                                zip_input.classes(remove='border border-red-600')
+                                return True
+                            if len(value.strip()) > 10:
+                                zip_error.text = "Zip Code must be at most 10 characters."
+                                zip_error.style('display:block')
+                                zip_input.classes('border border-red-600')
+                                return False
                             zip_error.text = ''
                             zip_error.style('display:none')
                             zip_input.classes(remove='border border-red-600')
                             return True
-                        if len(value.strip()) > 10:
-                            zip_error.text = "Zip Code must be at most 10 characters."
-                            zip_error.style('display:block')
-                            zip_input.classes('border border-red-600')
-                            return False
-                        zip_error.text = ''
-                        zip_error.style('display:none')
-                        zip_input.classes(remove='border border-red-600')
-                        return True
-                    zip_input.on('blur', validate_zip)
-                with ui.element('div').classes("bg-[#144c8e] w-[16.6%] flex items-center"):
-                    ui.label("Country").classes("text-white font-[segoe ui] py-2 px-4 h-full flex items-center")
-                with ui.element('div').classes("bg-white p-2 w-[33.3%]"):
-                    country_options = get_country_list()
-                    country_error = ui.label('').classes('text-red-600 text-sm mb-2').style('display:none')
-                    # Use placeholder instead of a real "Please select" value,
-                    # so the text disappears as soon as the user starts typing.
-                    country_select = ui.select(
-                        options=country_options,
-                        value=None,
-                        label="Vendor Country*"
-                    ).classes("w-full font-[segoe ui]").props(
-                        # use-input: allows typing to filter
-                        # clearable: shows an 'x' to clear selection
-                        # placeholder: shows 'Please select' when empty
-                        'outlined use-input clearable input-debounce=0 placeholder="Please select"'
-                    )
+                        zip_input.on('blur', validate_zip)
+                    with ui.element('div').classes(label_cell_classes) as country_label_cell:
+                        ui.label("Country").classes(label_classes)
+                    with ui.element('div').classes(input_cell_classes) as country_input_cell:
+                        country_options = get_country_list()
+                        country_error = ui.label('').classes('text-red-600 text-sm mb-2').style('display:none')
+                        # Use placeholder instead of a real "Please select" value,
+                        # so the text disappears as soon as the user starts typing.
+                        country_select = ui.select(
+                            options=country_options,
+                            value=None,
+                            label="Vendor Country*"
+                        ).classes("w-full font-[segoe ui]").props(
+                            # use-input: allows typing to filter
+                            # clearable: shows an 'x' to clear selection
+                            # placeholder: shows 'Please select' when empty
+                            'outlined use-input clearable input-debounce=0 placeholder="Please select"'
+                        )
 
-                    def validate_country(e=None):
-                        value = country_select.value
-                        if not value:
-                            country_error.text = "Please select the vendor country."
-                            country_error.style('display:block')
-                            country_select.classes('border border-red-600')
-                            return False
-                        else:
-                            country_error.text = ''
-                            country_error.style('display:none')
-                            country_select.classes(remove='border border-red-600')
+                        def validate_country(e=None):
+                            value = country_select.value
+                            if not value:
+                                country_error.text = "Please select the vendor country."
+                                country_error.style('display:block')
+                                country_select.classes('border border-red-600')
+                                return False
+                            else:
+                                country_error.text = ''
+                                country_error.style('display:none')
+                                country_select.classes(remove='border border-red-600')
+                                return True
+
+                        def on_country_change(e=None):
+                            """
+                            Adapt address behavior based on selected country (ACs):
+                            - Aruba: only Address 1 (mandatory), city/state/zip hidden, no additional address.
+                            - Non-Aruba: Address 1 mandatory, optional additional address (max 2),
+                              City/State/Zip visible and optional.
+                            - United States: State uses dropdown with US states.
+                            """
+                            country = country_select.value or ''
+
+                            is_aruba = country == "Aruba"
+                            is_us = country == "United States"
+
+                            # Update placeholder: only show when no country is selected
+                            if country:
+                                country_select.props(
+                                    'outlined use-input clearable input-debounce=0 placeholder=""'
+                                )
+                            else:
+                                country_select.props(
+                                    'outlined use-input clearable input-debounce=0 placeholder="Please select"'
+                                )
+
+                            # Aruba: hide City/State/Zip and any additional address
+                            if is_aruba:
+                                city_state_row.set_visibility(False)
+                                # Hide Zip Code content but keep cell containers visible (preserves blue/white backgrounds)
+                                zip_label_text.set_visibility(False)
+                                zip_input.set_visibility(False)
+                                zip_error.style('display:none')
+                                # Keep Country cells at their normal width - no changes
+
+                                # Clear related values and errors
+                                city_input.value = ""
+                                state_input.value = ""
+                                state_select.value = None
+                                zip_input.value = ""
+
+                                city_error.style('display:none')
+                                state_error.style('display:none')
+                                city_input.classes(remove='border border-red-600')
+                                state_input.classes(remove='border border-red-600')
+                                state_select.classes(remove='border border-red-600')
+                                zip_input.classes(remove='border border-red-600')
+
+                                # Aruba: force single address entry
+                                if add_address_button:
+                                    add_address_button.set_visibility(False)
+                                remove_second_address()
+                            else:
+                                # Non-Aruba: show City/State/Zip for address 1
+                                city_state_row.set_visibility(True)
+                                # Show Zip Code content normally
+                                zip_label_text.set_visibility(True)
+                                zip_input.set_visibility(True)
+                                # Country cells remain at normal width - no changes needed
+
+                                # Show Add Address only when 2nd block is not visible
+                                if add_address_button:
+                                    add_address_button.set_visibility(
+                                        not (address2_row and address2_row.visible)
+                                    )
+
+                                # United States: use state dropdown
+                                if is_us:
+                                    state_input.set_visibility(False)
+                                    state_select.set_visibility(True)
+                                else:
+                                    state_input.set_visibility(True)
+                                    state_select.set_visibility(False)
+
+                                # Apply US/non-US state behavior to 2nd block if visible
+                                if address2_row and address2_row.visible:
+                                    if is_us:
+                                        state2_input.set_visibility(False)
+                                        state2_select.set_visibility(True)
+                                    else:
+                                        state2_input.set_visibility(True)
+                                        state2_select.set_visibility(False)
+
+                        country_select.on('blur', validate_country)
+                        country_select.on('update:model-value', on_country_change)
+
+                # === Additional Address Block (Address 2) - hidden by default; max 2 addresses ===
+                with ui.element('div').classes(f"{row_classes} {std_row_height}") as address2_row:
+                    with ui.element('div').classes(label_cell_classes):
+                        ui.label("Address 2").classes(label_classes)
+                    with ui.element('div').classes(input_cell_classes + " flex flex-col"):
+                        with ui.row().classes("items-center gap-2 w-full"):
+                            address2_input = ui.input(
+                                label="Address 2",
+                                placeholder="Enter address...",
+                            ).classes("flex-1 font-[segoe ui]").props("outlined maxlength=60")
+                            ui.button(
+                                icon="delete",
+                                on_click=remove_second_address,
+                            ).props("flat round color=negative").classes("mt-2")
+                        address2_error = ui.label('').classes('text-red-600 text-xs mt-1 min-h-[18px]').style('display:none')
+                    with ui.element('div').classes(label_cell_classes):
+                        ui.label("").classes(label_classes)
+                    with ui.element('div').classes(input_cell_classes):
+                        ui.label("")
+
+                with ui.element('div').classes(f"{row_classes} {std_row_height}") as city_state2_row:
+                    with ui.element('div').classes(label_cell_classes):
+                        ui.label("City").classes(label_classes)
+                    with ui.element('div').classes(input_cell_classes + " flex flex-col"):
+                        city2_input = ui.input(label="City", placeholder="Enter city...").classes(input_classes).props("outlined maxlength=20")
+                        city2_error = ui.label('').classes('text-red-600 text-xs mt-1 min-h-[18px]').style('display:none')
+
+                        def validate_city2(e=None):
+                            value = city2_input.value or ''
+                            if not value.strip():
+                                city2_error.text = ''
+                                city2_error.style('display:none')
+                                city2_input.classes(remove='border border-red-600')
+                                return True
+                            if len(value.strip()) > 20:
+                                city2_error.text = "City must be at most 20 characters."
+                                city2_error.style('display:block')
+                                city2_input.classes('border border-red-600')
+                                return False
+                            city2_error.text = ''
+                            city2_error.style('display:none')
+                            city2_input.classes(remove='border border-red-600')
                             return True
 
-                    def on_country_change(e=None):
-                        """
-                        Adapt address behavior based on selected country (ACs):
-                        - Aruba: only Address 1 (mandatory), city/state/zip and Address 2 hidden.
-                        - Non-Aruba: Address 1 mandatory, Address 2 optional,
-                          City/State/Zip visible and optional.
-                        - United States: State uses dropdown with US states.
-                        """
-                        country = country_select.value or ''
+                        city2_input.on('blur', validate_city2)
 
-                        is_aruba = country == "Aruba"
-                        is_us = country == "United States"
+                    with ui.element('div').classes(label_cell_classes):
+                        ui.label("State").classes(label_classes)
+                    with ui.element('div').classes(input_cell_classes + " flex flex-col"):
+                        state2_input = ui.input(label="State", placeholder="Enter state...").classes(input_classes).props("outlined maxlength=30")
+                        state2_select = ui.select(options=US_STATES, label="State").classes(input_classes).props("outlined use-input")
+                        state2_select.set_visibility(False)
+                        state2_error = ui.label('').classes('text-red-600 text-xs mt-1 min-h-[18px]').style('display:none')
 
-                        # Update placeholder: only show when no country is selected
-                        if country:
-                            country_select.props(
-                                'outlined use-input clearable input-debounce=0 placeholder=""'
-                            )
-                        else:
-                            country_select.props(
-                                'outlined use-input clearable input-debounce=0 placeholder="Please select"'
-                            )
+                        def validate_state2(e=None):
+                            # Optional per AC
+                            state2_error.text = ''
+                            state2_error.style('display:none')
+                            state2_input.classes(remove='border border-red-600')
+                            state2_select.classes(remove='border border-red-600')
+                            return True
 
-                        # Aruba: hide City/State/Zip and Address 2
-                        if is_aruba:
-                            city_input.set_visibility(False)
-                            state_container.set_visibility(False)
-                            zip_input.set_visibility(False)
-                            address2_container.set_visibility(False)
+                        state2_input.on('blur', validate_state2)
+                        state2_select.on('blur', validate_state2)
 
-                            # Clear related values and errors
-                            city_input.value = ""
-                            state_input.value = ""
-                            state_select.value = None
-                            zip_input.value = ""
-                            address2_input.value = ""
+                with ui.element('div').classes(f"{row_classes} {std_row_height}") as zip2_row:
+                    with ui.element('div').classes(label_cell_classes):
+                        ui.label("Zip Code").classes(label_classes)
+                    with ui.element('div').classes(input_cell_classes + " flex flex-col"):
+                        zip2_input = ui.input(label="Zip Code", placeholder="Enter zip code...").classes(input_classes).props("outlined maxlength=10")
+                        zip2_error = ui.label('').classes('text-red-600 text-xs mt-1 min-h-[18px]').style('display:none')
 
-                            city_error.style('display:none')
-                            state_error.style('display:none')
-                            zip_error.style('display:none')
-                            address2_error.style('display:none')
-                            city_input.classes(remove='border border-red-600')
-                            state_input.classes(remove='border border-red-600')
-                            state_select.classes(remove='border border-red-600')
-                            zip_input.classes(remove='border border-red-600')
-                            address2_input.classes(remove='border border-red-600')
-                        else:
-                            # Non-Aruba: show City/State/Zip and Address 2
-                            city_input.set_visibility(True)
-                            state_container.set_visibility(True)
-                            zip_input.set_visibility(True)
-                            address2_container.set_visibility(True)
+                        def validate_zip2(e=None):
+                            value = zip2_input.value or ''
+                            if not value.strip():
+                                zip2_error.text = ''
+                                zip2_error.style('display:none')
+                                zip2_input.classes(remove='border border-red-600')
+                                return True
+                            if len(value.strip()) > 10:
+                                zip2_error.text = "Zip Code must be at most 10 characters."
+                                zip2_error.style('display:block')
+                                zip2_input.classes('border border-red-600')
+                                return False
+                            zip2_error.text = ''
+                            zip2_error.style('display:none')
+                            zip2_input.classes(remove='border border-red-600')
+                            return True
 
-                            # United States: use state dropdown
-                            if is_us:
-                                state_input.set_visibility(False)
-                                state_select.set_visibility(True)
-                            else:
-                                state_input.set_visibility(True)
-                                state_select.set_visibility(False)
+                        zip2_input.on('blur', validate_zip2)
 
-                    country_select.on('blur', validate_country)
-                    country_select.on('update:model-value', on_country_change)
+                    with ui.element('div').classes(label_cell_classes):
+                        ui.label("").classes(label_classes)
+                    with ui.element('div').classes(input_cell_classes):
+                        ui.label("")
+
+                def validate_address2(e=None):
+                    """
+                    Additional address block validation (AC):
+                    - Optional overall (user may not add it).
+                    - If user starts filling it, Address 2 becomes required.
+                    - City/State/Zip remain optional (just length constraints).
+                    """
+                    if not address2_row or not address2_row.visible:
+                        return True
+
+                    addr2 = (address2_input.value or '').strip()
+                    c2 = (city2_input.value or '').strip()
+                    z2 = (zip2_input.value or '').strip()
+                    s2 = ''
+                    try:
+                        s2 = (state2_select.value or '').strip() if state2_select.visible else (state2_input.value or '').strip()
+                    except Exception:
+                        s2 = (state2_input.value or '').strip()
+
+                    any_value = bool(addr2 or c2 or s2 or z2)
+                    if not any_value:
+                        # Completely empty -> ignore
+                        address2_error.text = ''
+                        address2_error.style('display:none')
+                        address2_input.classes(remove='border border-red-600')
+                        return True
+
+                    if not addr2:
+                        address2_error.text = "Please enter Address 2."
+                        address2_error.style('display:block')
+                        address2_input.classes('border border-red-600')
+                        return False
+
+                    # Address present; validate optional fields (length rules)
+                    address2_error.text = ''
+                    address2_error.style('display:none')
+                    address2_input.classes(remove='border border-red-600')
+                    return validate_city2() and validate_state2() and validate_zip2()
+
+                # Start hidden until user clicks Add Address
+                address2_row.set_visibility(False)
+                city_state2_row.set_visibility(False)
+                zip2_row.set_visibility(False)
                 
                 # Row 7 - Telephone Number & Email
                 with ui.element('div').classes(f"{row_classes} {std_row_height}"):
@@ -1031,13 +1213,14 @@ def new_vendor():
                             vendor_name_input.value = ""
                             contact_person_input.value = ""
                             address1_input.value = ""
-                            address2_input.value = ""
                             city_input.value = ""
                             state_input.value = ""
                             state_select.value = None
                             zip_input.value = ""
                             country_select.value = None
                             phone_input.value = ""
+                            # Clear + hide optional additional address block
+                            remove_second_address()
                             # Reset vendor email fields
                             for inp in email_inputs:
                                 inp.value = ""
@@ -1070,6 +1253,8 @@ def new_vendor():
                             # Hide all error labels
                             ab_error.text = moa_error.text = bank_error.text = cif_error.text = ""
                             vendor_name_error.text = contact_person_error.text = address1_error.text = address2_error.text = city_error.text = state_error.text = zip_error.text = country_error.text = phone_error.text = due_diligence_error.text = next_due_error.text = next_alert_error.text = freq_error.text = attention_error.text = ""
+                            # Additional address block error labels
+                            city2_error.text = state2_error.text = zip2_error.text = ""
                             ab_error.style('display:none')
                             moa_error.style('display:none')
                             bank_error.style('display:none')
@@ -1089,6 +1274,9 @@ def new_vendor():
                             next_alert_error.style('display:none')
                             freq_error.style('display:none')
                             attention_error.style('display:none')
+                            city2_error.style('display:none')
+                            state2_error.style('display:none')
+                            zip2_error.style('display:none')
                             
                             ui.notify('✨ Vendor form cleared', type='info')
                         ui.button("Cancel", icon="close", on_click=clear_form).props("flat").classes("text-gray-700")
@@ -1157,7 +1345,7 @@ def new_vendor():
                             addresses_payload.append(addr1)
 
                             # Second address (optional)
-                            if address2_input.value and address2_input.value.strip():
+                            if (address2_input.value and address2_input.value.strip()):
                                 addr2 = {
                                     "address": address2_input.value,
                                     "city": None,
@@ -1165,10 +1353,10 @@ def new_vendor():
                                     "zip_code": None,
                                 }
                                 if country_val != "Aruba":
-                                    addr2["city"] = city_input.value or None
-                                    state_val2 = state_select.value if (country_val == "United States" and state_select.visible) else state_input.value
+                                    addr2["city"] = city2_input.value or None
+                                    state_val2 = state2_select.value if (country_val == "United States" and state2_select.visible) else state2_input.value
                                     addr2["state"] = state_val2 or None
-                                    addr2["zip_code"] = zip_input.value or None
+                                    addr2["zip_code"] = zip2_input.value or None
                                 addresses_payload.append(addr2)
 
                             # Build emails payload (primary + optional additional)
