@@ -179,3 +179,147 @@ def get_us_states() -> List[str]:
         List of US state names.
     """
     return US_STATES.copy()
+
+
+# Cache for country calling codes
+_calling_codes_cache: Optional[List[dict]] = None
+
+
+async def fetch_calling_codes_from_api() -> Optional[List[dict]]:
+    """
+    Fetch country calling codes from REST Countries API.
+    
+    Returns:
+        List of dicts with 'code' and 'country' keys, or None if API call fails.
+        Format: [{"code": "+1", "country": "United States"}, ...]
+    """
+    try:
+        url = "https://restcountries.com/v3.1/all?fields=name,idd"
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            response = await client.get(url)
+            response.raise_for_status()
+            data = response.json()
+            
+            calling_codes = []
+            for country in data:
+                name = country.get("name", {})
+                country_name = name.get("common") or name.get("official")
+                idd = country.get("idd", {})
+                root = idd.get("root", "")
+                suffixes = idd.get("suffixes", [])
+                
+                if country_name and root and suffixes:
+                    # Create entries for each suffix (some countries have multiple codes)
+                    for suffix in suffixes[:1]:  # Take first suffix to avoid duplicates
+                        code = f"{root}{suffix}"
+                        calling_codes.append({
+                            "code": code,
+                            "country": country_name
+                        })
+            
+            # Sort by country name
+            calling_codes.sort(key=lambda x: x["country"])
+            return calling_codes
+            
+    except Exception as e:
+        logger.warning(f"Failed to fetch calling codes from API: {e}. Using fallback data.")
+        return None
+
+
+def get_calling_codes_list() -> List[dict]:
+    """
+    Return a list of country calling codes, fetched from API if available, otherwise using fallback.
+    
+    Returns:
+        List of dicts with 'code' and 'country' keys.
+        Format: [{"code": "+1", "country": "United States"}, ...]
+    """
+    global _calling_codes_cache
+    
+    # Return cached data if available
+    if _calling_codes_cache is not None:
+        return _calling_codes_cache
+    
+    # Try to fetch from API synchronously
+    try:
+        import asyncio
+        
+        # Check if we're in an async context
+        try:
+            loop = asyncio.get_running_loop()
+            # If loop is running, use fallback
+            logger.info("Running in async context, using fallback calling codes.")
+            _calling_codes_cache = _get_fallback_calling_codes()
+            return _calling_codes_cache
+        except RuntimeError:
+            # No running loop, safe to create one
+            pass
+        
+        # Try to fetch from API
+        codes = asyncio.run(fetch_calling_codes_from_api())
+        if codes and len(codes) > 0:
+            _calling_codes_cache = codes
+            logger.info(f"Successfully fetched {len(codes)} calling codes from API")
+            return _calling_codes_cache
+    except Exception as e:
+        logger.warning(f"Could not fetch calling codes from API: {e}. Using fallback.")
+    
+    # Fallback to hardcoded list
+    _calling_codes_cache = _get_fallback_calling_codes()
+    logger.info(f"Using fallback calling codes list ({len(_calling_codes_cache)} codes)")
+    return _calling_codes_cache
+
+
+def _get_fallback_calling_codes() -> List[dict]:
+    """
+    Return fallback calling codes list (common countries).
+    
+    Returns:
+        List of dicts with 'code' and 'country' keys.
+    """
+    return [
+        {"code": "+1", "country": "United States/Canada"},
+        {"code": "+297", "country": "Aruba"},
+        {"code": "+54", "country": "Argentina"},
+        {"code": "+61", "country": "Australia"},
+        {"code": "+43", "country": "Austria"},
+        {"code": "+32", "country": "Belgium"},
+        {"code": "+55", "country": "Brazil"},
+        {"code": "+1", "country": "Canada"},
+        {"code": "+86", "country": "China"},
+        {"code": "+57", "country": "Colombia"},
+        {"code": "+45", "country": "Denmark"},
+        {"code": "+20", "country": "Egypt"},
+        {"code": "+358", "country": "Finland"},
+        {"code": "+33", "country": "France"},
+        {"code": "+49", "country": "Germany"},
+        {"code": "+30", "country": "Greece"},
+        {"code": "+852", "country": "Hong Kong"},
+        {"code": "+91", "country": "India"},
+        {"code": "+62", "country": "Indonesia"},
+        {"code": "+353", "country": "Ireland"},
+        {"code": "+972", "country": "Israel"},
+        {"code": "+39", "country": "Italy"},
+        {"code": "+81", "country": "Japan"},
+        {"code": "+965", "country": "Kuwait"},
+        {"code": "+60", "country": "Malaysia"},
+        {"code": "+52", "country": "Mexico"},
+        {"code": "+31", "country": "Netherlands"},
+        {"code": "+64", "country": "New Zealand"},
+        {"code": "+47", "country": "Norway"},
+        {"code": "+92", "country": "Pakistan"},
+        {"code": "+63", "country": "Philippines"},
+        {"code": "+48", "country": "Poland"},
+        {"code": "+351", "country": "Portugal"},
+        {"code": "+974", "country": "Qatar"},
+        {"code": "+65", "country": "Singapore"},
+        {"code": "+27", "country": "South Africa"},
+        {"code": "+82", "country": "South Korea"},
+        {"code": "+34", "country": "Spain"},
+        {"code": "+46", "country": "Sweden"},
+        {"code": "+41", "country": "Switzerland"},
+        {"code": "+66", "country": "Thailand"},
+        {"code": "+971", "country": "United Arab Emirates"},
+        {"code": "+44", "country": "United Kingdom"},
+        {"code": "+58", "country": "Venezuela"},
+    ]

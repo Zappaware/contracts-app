@@ -4,7 +4,7 @@ import json
 import os
 import re
 from app.core.config import settings
-from app.utils.geo_data import get_country_list, get_us_states, get_country_list_async
+from app.utils.geo_data import get_country_list, get_us_states, get_country_list_async, get_calling_codes_list
 
 # Import US states from geo_data utility
 US_STATES = get_us_states()
@@ -614,33 +614,192 @@ def new_vendor():
                 city_state2_row.set_visibility(False)
                 zip2_row.set_visibility(False)
                 
-                # Row 7 - Telephone Number & Email
+                # Row 7 - Vendor Phone Numbers & Email
                 with ui.element('div').classes(f"{row_classes} {std_row_height}"):
                     with ui.element('div').classes(label_cell_classes):
-                        ui.label("Telephone Number").classes(label_classes)
-                    with ui.element('div').classes(input_cell_classes):
-                        phone_input = ui.input(
-                            label="Telephone Number*",
-                            placeholder="Enter phone number...",
-                        ).props("type=tel outlined maxlength=20").classes(input_classes)
-                        phone_error = ui.label('').classes(
-                            'text-red-600 text-xs mt-1 min-h-[18px]'
-                        ).style('display:none')
-
-                        def validate_phone(e=None):
-                            value = phone_input.value or ''
-                            if not value.strip():
-                                phone_error.text = "Please enter the telephone number."
-                                phone_error.style('display:block')
-                                phone_input.classes('border border-red-600')
+                        ui.label("Vendor Phone Number").classes(label_classes)
+                    
+                    # Vendor phone numbers (primary mandatory + optional secondary)
+                    with ui.element('div').classes(input_cell_classes + " flex flex-col"):
+                        phone_number_inputs = []
+                        phone_area_selects = []
+                        phone_area_code_errors = []  # Error labels for area codes
+                        phone_number_errors = []  # Error labels for phone numbers
+                        
+                        # Get calling codes for dropdown
+                        calling_codes_data = get_calling_codes_list()
+                        calling_codes_options = {f"{item['code']} ({item['country']})": item['code'] for item in calling_codes_data}
+                        
+                        # Primary (mandatory) phone number
+                        with ui.row().classes("items-center w-full gap-2"):
+                            # Area code dropdown
+                            phone_area_code_select = ui.select(
+                                options=calling_codes_options,
+                                value=None,
+                                label="Vendor Phone Area Code*"
+                            ).classes("flex-1 " + input_classes).props("outlined use-input")
+                            phone_area_code_error = ui.label('').classes(
+                                'text-red-600 text-xs mt-1 min-h-[18px]'
+                            ).style('display:none')
+                            
+                            # Phone number input
+                            primary_phone_input = ui.input(
+                                label="Vendor Phone Number*",
+                                placeholder="Enter phone number...",
+                            ).props("type=tel outlined maxlength=20").classes("flex-1 " + input_classes)
+                            primary_phone_error = ui.label('').classes(
+                                'text-red-600 text-xs mt-1 min-h-[18px]'
+                            ).style('display:none')
+                        
+                        phone_number_inputs.append(primary_phone_input)
+                        phone_area_selects.append(phone_area_code_select)
+                        phone_area_code_errors.append(phone_area_code_error)
+                        phone_number_errors.append(primary_phone_error)
+                        
+                        # Container for additional phone fields
+                        additional_phones_container = ui.column().classes("mt-2 w-full")
+                        
+                        def _extract_area_code(area_code_raw):
+                            """Extract area code from dropdown value (format: '+1 (United States/Canada)' -> '+1')"""
+                            if not area_code_raw:
+                                return None
+                            # If it's already just a code, return it
+                            if area_code_raw.startswith('+'):
+                                return area_code_raw.split()[0] if ' ' in area_code_raw else area_code_raw
+                            # Extract from format "code (country)"
+                            parts = area_code_raw.split(' (')
+                            return parts[0] if parts else area_code_raw
+                        
+                        def validate_phone_area_code(area_code_select, error_label):
+                            """Validate area code selection"""
+                            value = area_code_select.value
+                            if not value:
+                                error_label.text = "Please enter the Vendor Phone Area Code."
+                                error_label.style('display:block')
+                                area_code_select.classes('border border-red-600')
                                 return False
                             else:
-                                phone_error.text = ''
-                                phone_error.style('display:none')
-                                phone_input.classes(remove='border border-red-600')
+                                error_label.text = ''
+                                error_label.style('display:none')
+                                area_code_select.classes(remove='border border-red-600')
                                 return True
-
-                        phone_input.on('blur', validate_phone)
+                        
+                        def validate_phone_number(phone_input, error_label):
+                            """Validate phone number (numeric, spaces, hyphens allowed)"""
+                            value = (phone_input.value or '').strip()
+                            if not value:
+                                error_label.text = "Please enter the Vendor Phone Number."
+                                error_label.style('display:block')
+                                phone_input.classes('border border-red-600')
+                                return False
+                            
+                            # Check if value contains only spaces/dashes (invalid)
+                            if value.replace(' ', '').replace('-', '') == '':
+                                error_label.text = "Please enter the Vendor Phone Number."
+                                error_label.style('display:block')
+                                phone_input.classes('border border-red-600')
+                                return False
+                            
+                            # Check for valid characters (numeric, spaces, hyphens)
+                            cleaned = value.replace(' ', '').replace('-', '')
+                            if not cleaned.isdigit():
+                                error_label.text = "Phone number can only contain numbers, spaces, and hyphens."
+                                error_label.style('display:block')
+                                phone_input.classes('border border-red-600')
+                                return False
+                            
+                            error_label.text = ''
+                            error_label.style('display:none')
+                            phone_input.classes(remove='border border-red-600')
+                            return True
+                        
+                        def validate_primary_phone(e=None):
+                            """Validate primary phone (both area code and number)"""
+                            area_valid = validate_phone_area_code(phone_area_code_select, phone_area_code_error)
+                            number_valid = validate_phone_number(primary_phone_input, primary_phone_error)
+                            return area_valid and number_valid
+                        
+                        phone_area_code_select.on('blur', lambda e: validate_phone_area_code(phone_area_code_select, phone_area_code_error))
+                        primary_phone_input.on('blur', lambda e: validate_phone_number(primary_phone_input, primary_phone_error))
+                        
+                        def add_additional_phone_field(e=None):
+                            """Add additional phone number field (max 2 phones total)"""
+                            if len(phone_number_inputs) >= 2:
+                                return
+                            
+                            with additional_phones_container:
+                                with ui.row().classes("items-center w-full gap-2") as phone_row_container:
+                                    # Area code dropdown
+                                    extra_area_select = ui.select(
+                                        options=calling_codes_options,
+                                        value=None,
+                                        label="Vendor Phone Area Code*"
+                                    ).classes("flex-1 " + input_classes).props("outlined use-input")
+                                    extra_area_error = ui.label('').classes(
+                                        'text-red-600 text-xs mt-1 min-h-[18px]'
+                                    ).style('display:none')
+                                    
+                                    # Phone number input
+                                    extra_phone_input = ui.input(
+                                        label="Vendor Phone Number*",
+                                        placeholder="Enter phone number...",
+                                    ).props("type=tel outlined maxlength=20").classes("flex-1 " + input_classes)
+                                    extra_phone_error = ui.label('').classes(
+                                        'text-red-600 text-xs mt-1 min-h-[18px]'
+                                    ).style('display:none')
+                                    
+                                    def validate_extra_phone(e=None):
+                                        area_valid = validate_phone_area_code(extra_area_select, extra_area_error)
+                                        number_valid = validate_phone_number(extra_phone_input, extra_phone_error)
+                                        return area_valid and number_valid
+                                    
+                                    extra_area_select.on('blur', lambda e: validate_phone_area_code(extra_area_select, extra_area_error))
+                                    extra_phone_input.on('blur', lambda e: validate_phone_number(extra_phone_input, extra_phone_error))
+                                    
+                                    def remove_extra_phone():
+                                        """Remove additional phone number"""
+                                        if extra_phone_input in phone_number_inputs:
+                                            idx = phone_number_inputs.index(extra_phone_input)
+                                            phone_number_inputs.pop(idx)
+                                            phone_area_selects.pop(idx)
+                                            phone_area_code_errors.pop(idx)
+                                            phone_number_errors.pop(idx)
+                                        phone_row_container.delete()
+                                        # Show Add button again if below max
+                                        if len(phone_number_inputs) < 2:
+                                            add_phone_button.set_visibility(True)
+                                    
+                                    ui.button(
+                                        "",
+                                        icon="delete",
+                                        on_click=remove_extra_phone,
+                                    ).props("flat round color=negative")
+                                    
+                                    phone_number_inputs.append(extra_phone_input)
+                                    phone_area_selects.append(extra_area_select)
+                                    phone_area_code_errors.append(extra_area_error)
+                                    phone_number_errors.append(extra_phone_error)
+                            
+                            # Hide Add button if max reached
+                            if len(phone_number_inputs) >= 2:
+                                add_phone_button.set_visibility(False)
+                        
+                        # Add Phone button (max 2 phones total => 1 additional)
+                        add_phone_button = ui.button(
+                            "Add another phone number",
+                            icon="add",
+                            on_click=add_additional_phone_field,
+                        ).props("outline color=primary").classes("font-[segoe ui] mt-2")
+                        
+                        def validate_all_vendor_phones(e=None):
+                            """Validate all phone numbers"""
+                            all_valid = True
+                            for i in range(len(phone_number_inputs)):
+                                area_valid = validate_phone_area_code(phone_area_selects[i], phone_area_code_errors[i])
+                                number_valid = validate_phone_number(phone_number_inputs[i], phone_number_errors[i])
+                                if not (area_valid and number_valid):
+                                    all_valid = False
+                            return all_valid
 
                     with ui.element('div').classes(label_cell_classes):
                         ui.label("Vendor Email Address").classes(label_classes)
@@ -994,7 +1153,35 @@ def new_vendor():
                             state_select.value = None
                             zip_input.value = ""
                             country_select.value = None
-                            phone_input.value = ""
+                            
+                            # Clear phone fields
+                            def clear_additional_phones():
+                                """Clear and remove additional phone number fields"""
+                                if len(phone_number_inputs) > 1:
+                                    # Remove additional phones (keep primary)
+                                    while len(phone_number_inputs) > 1:
+                                        phone_number_inputs.pop()
+                                        phone_area_selects.pop()
+                                        phone_area_code_errors.pop()
+                                        phone_number_errors.pop()
+                                    # Clear container
+                                    additional_phones_container.clear()
+                                    # Show Add button
+                                    add_phone_button.set_visibility(True)
+                            
+                            # Clear primary phone
+                            phone_area_code_select.value = None
+                            primary_phone_input.value = ""
+                            phone_area_code_error.text = ''
+                            phone_area_code_error.style('display:none')
+                            primary_phone_error.text = ''
+                            primary_phone_error.style('display:none')
+                            phone_area_code_select.classes(remove='border border-red-600')
+                            primary_phone_input.classes(remove='border border-red-600')
+                            
+                            # Clear additional phones
+                            clear_additional_phones()
+                            
                             # Clear + hide optional additional address block
                             remove_second_address()
                             # Reset vendor email fields
@@ -1028,7 +1215,7 @@ def new_vendor():
                             
                             # Hide all error labels
                             ab_error.text = moa_error.text = bank_error.text = cif_error.text = ""
-                            vendor_name_error.text = contact_person_error.text = address1_error.text = address2_error.text = city_error.text = state_error.text = zip_error.text = country_error.text = phone_error.text = due_diligence_error.text = next_due_error.text = next_alert_error.text = freq_error.text = attention_error.text = ""
+                            vendor_name_error.text = contact_person_error.text = address1_error.text = address2_error.text = city_error.text = state_error.text = zip_error.text = country_error.text = phone_area_code_error.text = primary_phone_error.text = due_diligence_error.text = next_due_error.text = next_alert_error.text = freq_error.text = attention_error.text = ""
                             # Additional address block error labels
                             city2_error.text = state2_error.text = zip2_error.text = ""
                             ab_error.style('display:none')
@@ -1043,7 +1230,8 @@ def new_vendor():
                             state_error.style('display:none')
                             zip_error.style('display:none')
                             country_error.style('display:none')
-                            phone_error.style('display:none')
+                            phone_area_code_error.style('display:none')
+                            primary_phone_error.style('display:none')
                             primary_email_error.style('display:none')
                             due_diligence_error.style('display:none')
                             next_due_error.style('display:none')
@@ -1069,7 +1257,7 @@ def new_vendor():
                                 validate_city(),
                                 validate_state(),
                                 validate_zip(),
-                                validate_phone(),
+                                validate_all_vendor_phones(),
                                 validate_all_vendor_emails(),
                                 validate_due_diligence(),
                                 validate_next_due(),
@@ -1145,6 +1333,16 @@ def new_vendor():
                                 if extra_input.value and extra_input.value.strip():
                                     emails_payload.append({"email": extra_input.value.strip()})
 
+                            # Build phones payload (mandatory primary + optional secondary)
+                            phones_payload = []
+                            for i in range(len(phone_number_inputs)):
+                                area_code_raw = phone_area_selects[i].value
+                                area_code = _extract_area_code(area_code_raw)
+                                phone_number_val = (phone_number_inputs[i].value or "").strip()
+                                phones_payload.append(
+                                    {"area_code": area_code, "phone_number": phone_number_val}
+                                )
+
                             vendor_data = {
                                 "vendor_name": vendor_name_input.value,
                                 "vendor_contact_person": contact_person_input.value,
@@ -1153,9 +1351,7 @@ def new_vendor():
                                 "bank_customer": bank_select.value,
                                 "addresses": addresses_payload,
                                 "emails": emails_payload,
-                                "phones": [
-                                    {"area_code": "+1", "phone_number": phone_input.value}
-                                ],
+                                "phones": phones_payload,
                                 "due_diligence_required": "Yes" if has_due_diligence_docs else "No"
                             }
                             
