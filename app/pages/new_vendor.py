@@ -142,11 +142,32 @@ def new_vendor():
                         bank_select.on('blur', validate_bank)
                         cif_input.on('blur', validate_bank)
                     
-                    # Empty columns to complete the 4-column row
+                    # Due Diligence Required field
                     with ui.element('div').classes(label_cell_classes):
-                        ui.label("").classes(label_classes)
-                    with ui.element('div').classes(input_cell_classes):
-                        ui.label("").classes(input_classes)
+                        ui.label("Due Diligence Required").classes(label_classes)
+                    with ui.element('div').classes(input_cell_classes + " flex flex-col min-h-[70px]"):
+                        dd_required_options = ["Please select", "YES", "NO"]
+                        dd_required_select = ui.select(
+                            options=dd_required_options,
+                            value="Please select",
+                            label="Due Diligence Required*"
+                        ).classes("w-full font-[segoe ui]").props("outlined use-input")
+                        dd_required_error = ui.label('').classes('text-red-600 text-xs mt-1 min-h-[18px]').style('display:none')
+
+                        def validate_dd_required(e=None):
+                            value = dd_required_select.value
+                            if value == "Please select" or not value:
+                                dd_required_error.text = "Please indicate if a Due Diligence is required for this new vendor."
+                                dd_required_error.style('display:block')
+                                dd_required_select.classes('border border-red-600')
+                                return False
+                            else:
+                                dd_required_error.text = ''
+                                dd_required_error.style('display:none')
+                                dd_required_select.classes(remove='border border-red-600')
+                                return True
+
+                        dd_required_select.on('blur', validate_dd_required)
 
                 # Row 3 - Name & Contact Person
                 with ui.element('div').classes(f"{row_classes} {std_row_height}"):
@@ -1043,7 +1064,7 @@ def new_vendor():
                                 file_content = await e.file.read()
                                 due_diligence_file['file'] = file_content
                                 ui.notify(f'Due Diligence document uploaded: {e.file.name}', type='positive')
-                        due_diligence_upload = ui.upload(on_upload=handle_due_diligence_upload, auto_upload=True, multiple=False, label="Upload due diligence (PDF)").props('accept=.pdf color=primary outlined').classes("w-full")
+                        due_diligence_upload = ui.upload(on_upload=handle_due_diligence_upload, auto_upload=True, multiple=False, label="Upload due diligence (PDF)").props('accept=.pdf color=primary outlined').classes("w-full mt-2")
 
                     # NDA
                     with ui.element('div').classes(label_cell_classes):
@@ -1063,7 +1084,7 @@ def new_vendor():
                                 file_content = await e.file.read()
                                 nda_file['file'] = file_content
                                 ui.notify(f'NDA document uploaded: {e.file.name}', type='positive')
-                        nda_upload = ui.upload(on_upload=handle_nda_upload, auto_upload=True, multiple=False, label="Upload NDA (PDF)").props('accept=.pdf color=primary outlined').classes("w-full")
+                        nda_upload = ui.upload(on_upload=handle_nda_upload, auto_upload=True, multiple=False, label="Upload NDA (PDF)").props('accept=.pdf color=primary outlined').classes("w-full mt-2")
 
                 # Row 11 - Integrity Policy Upload & Risk Assessment Form Upload
                 with ui.element('div').classes(f"{row_classes} min-h-[200px]"):
@@ -1085,7 +1106,7 @@ def new_vendor():
                                 file_content = await e.file.read()
                                 integrity_policy_file['file'] = file_content
                                 ui.notify(f'Integrity Policy document uploaded: {e.file.name}', type='positive')
-                        integrity_policy_upload = ui.upload(on_upload=handle_integrity_policy_upload, auto_upload=True, multiple=False, label="Upload policy (PDF)").props('accept=.pdf color=primary outlined').classes("w-full")
+                        integrity_policy_upload = ui.upload(on_upload=handle_integrity_policy_upload, auto_upload=True, multiple=False, label="Upload policy (PDF)").props('accept=.pdf color=primary outlined').classes("w-full mt-2")
 
                     # Risk Assessment
                     with ui.element('div').classes(label_cell_classes):
@@ -1105,7 +1126,7 @@ def new_vendor():
                                 file_content = await e.file.read()
                                 risk_assessment_file['file'] = file_content
                                 ui.notify(f'Risk Assessment document uploaded: {e.file.name}', type='positive')
-                        risk_assessment_upload = ui.upload(on_upload=handle_risk_assessment_upload, auto_upload=True, multiple=False, label="Upload form (PDF)").props('accept=.pdf color=primary outlined').classes("w-full")
+                        risk_assessment_upload = ui.upload(on_upload=handle_risk_assessment_upload, auto_upload=True, multiple=False, label="Upload form (PDF)").props('accept=.pdf color=primary outlined').classes("w-full mt-2")
                 
                 # Row 12 - Attention (standard size row for description)
                 with ui.element('div').classes(f"{row_classes} h-24"):
@@ -1254,6 +1275,7 @@ def new_vendor():
                                 validate_ab_customer(),
                                 validate_moa(),
                                 validate_bank(),
+                                validate_dd_required(),
                                 validate_address1(),
                                 validate_address2(),
                                 validate_city(),
@@ -1354,7 +1376,7 @@ def new_vendor():
                                 "addresses": addresses_payload,
                                 "emails": emails_payload,
                                 "phones": phones_payload,
-                                "due_diligence_required": "Yes" if has_due_diligence_docs else "No"
+                                "due_diligence_required": dd_required_select.value
                             }
                             
                             # Only add CIF if bank customer is Aruba Bank or Orco Bank
