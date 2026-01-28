@@ -4,234 +4,10 @@ import json
 import os
 import re
 from app.core.config import settings
+from app.utils.geo_data import get_country_list, get_us_states, get_country_list_async
 
-# Simple list of US states for dropdown when country = United States
-US_STATES = [
-    "Alabama", "Alaska", "Arizona", "Arkansas", "California", "Colorado",
-    "Connecticut", "Delaware", "Florida", "Georgia", "Hawaii", "Idaho",
-    "Illinois", "Indiana", "Iowa", "Kansas", "Kentucky", "Louisiana",
-    "Maine", "Maryland", "Massachusetts", "Michigan", "Minnesota",
-    "Mississippi", "Missouri", "Montana", "Nebraska", "Nevada",
-    "New Hampshire", "New Jersey", "New Mexico", "New York",
-    "North Carolina", "North Dakota", "Ohio", "Oklahoma", "Oregon",
-    "Pennsylvania", "Rhode Island", "South Carolina", "South Dakota",
-    "Tennessee", "Texas", "Utah", "Vermont", "Virginia", "Washington",
-    "West Virginia", "Wisconsin", "Wyoming",
-]
-
-
-def get_country_list():
-    """
-    Return a static, comprehensive list of countries.
-    
-    The first option is the placeholder "Please select", followed by
-    an alphabetically sorted list of country names so that:
-    - the dropdown is scrollable
-    - users can type to filter and select a country
-    """
-    countries = [
-        "Afghanistan",
-        "Albania",
-        "Algeria",
-        "Andorra",
-        "Angola",
-        "Antigua and Barbuda",
-        "Argentina",
-        "Armenia",
-        "Aruba",
-        "Australia",
-        "Austria",
-        "Azerbaijan",
-        "Bahamas",
-        "Bahrain",
-        "Bangladesh",
-        "Barbados",
-        "Belarus",
-        "Belgium",
-        "Belize",
-        "Benin",
-        "Bhutan",
-        "Bolivia",
-        "Bosnia and Herzegovina",
-        "Botswana",
-        "Brazil",
-        "Brunei",
-        "Bulgaria",
-        "Burkina Faso",
-        "Burundi",
-        "Cabo Verde",
-        "Cambodia",
-        "Cameroon",
-        "Canada",
-        "Central African Republic",
-        "Chad",
-        "Chile",
-        "China",
-        "Colombia",
-        "Comoros",
-        "Congo (Congo-Brazzaville)",
-        "Costa Rica",
-        "Côte d'Ivoire",
-        "Croatia",
-        "Cuba",
-        "Cyprus",
-        "Czech Republic",
-        "Democratic Republic of the Congo",
-        "Denmark",
-        "Djibouti",
-        "Dominica",
-        "Dominican Republic",
-        "Ecuador",
-        "Egypt",
-        "El Salvador",
-        "Equatorial Guinea",
-        "Eritrea",
-        "Estonia",
-        "Eswatini",
-        "Ethiopia",
-        "Fiji",
-        "Finland",
-        "France",
-        "Gabon",
-        "Gambia",
-        "Georgia",
-        "Germany",
-        "Ghana",
-        "Greece",
-        "Grenada",
-        "Guatemala",
-        "Guinea",
-        "Guinea-Bissau",
-        "Guyana",
-        "Haiti",
-        "Honduras",
-        "Hungary",
-        "Iceland",
-        "India",
-        "Indonesia",
-        "Iran",
-        "Iraq",
-        "Ireland",
-        "Israel",
-        "Italy",
-        "Jamaica",
-        "Japan",
-        "Jordan",
-        "Kazakhstan",
-        "Kenya",
-        "Kiribati",
-        "Kuwait",
-        "Kyrgyzstan",
-        "Laos",
-        "Latvia",
-        "Lebanon",
-        "Lesotho",
-        "Liberia",
-        "Libya",
-        "Liechtenstein",
-        "Lithuania",
-        "Luxembourg",
-        "Madagascar",
-        "Malawi",
-        "Malaysia",
-        "Maldives",
-        "Mali",
-        "Malta",
-        "Marshall Islands",
-        "Mauritania",
-        "Mauritius",
-        "Mexico",
-        "Micronesia",
-        "Moldova",
-        "Monaco",
-        "Mongolia",
-        "Montenegro",
-        "Morocco",
-        "Mozambique",
-        "Myanmar",
-        "Namibia",
-        "Nauru",
-        "Nepal",
-        "Netherlands",
-        "New Zealand",
-        "Nicaragua",
-        "Niger",
-        "Nigeria",
-        "North Macedonia",
-        "Norway",
-        "Oman",
-        "Pakistan",
-        "Palau",
-        "Panama",
-        "Papua New Guinea",
-        "Paraguay",
-        "Peru",
-        "Philippines",
-        "Poland",
-        "Portugal",
-        "Qatar",
-        "Romania",
-        "Russia",
-        "Rwanda",
-        "Saint Kitts and Nevis",
-        "Saint Lucia",
-        "Saint Vincent and the Grenadines",
-        "Samoa",
-        "San Marino",
-        "Sao Tome and Principe",
-        "Saudi Arabia",
-        "Senegal",
-        "Serbia",
-        "Seychelles",
-        "Sierra Leone",
-        "Singapore",
-        "Slovakia",
-        "Slovenia",
-        "Solomon Islands",
-        "Somalia",
-        "South Africa",
-        "South Korea",
-        "South Sudan",
-        "Spain",
-        "Sri Lanka",
-        "Sudan",
-        "Suriname",
-        "Sweden",
-        "Switzerland",
-        "Syria",
-        "Taiwan",
-        "Tajikistan",
-        "Tanzania",
-        "Thailand",
-        "Timor-Leste",
-        "Togo",
-        "Tonga",
-        "Trinidad and Tobago",
-        "Tunisia",
-        "Turkey",
-        "Turkmenistan",
-        "Tuvalu",
-        "Uganda",
-        "Ukraine",
-        "United Arab Emirates",
-        "United Kingdom",
-        "United States",
-        "Uruguay",
-        "Uzbekistan",
-        "Vanuatu",
-        "Vatican City",
-        "Venezuela",
-        "Vietnam",
-        "Yemen",
-        "Zambia",
-        "Zimbabwe",
-        # Regional examples relevant to Aruba context
-        "Bonaire",
-        "Curacao",
-        "Saint Martin",
-    ]
-    # Ensure deterministic alphabetical ordering (actual country values only)
-    return sorted(set(countries))
+# Import US states from geo_data utility
+US_STATES = get_us_states()
 
 
 EMAIL_REGEX = re.compile(r'^[^@\s]+@[^@\s]+\.[^@\s]+$')
@@ -243,7 +19,7 @@ def new_vendor():
         "flex flex-col items-center justify-center mt-8 w-full "
     ):
         ui.input(label="Vendor search", placeholder="Search for existing vendors...").classes("w-1/2 mt-4 font-[segoe ui]").props("outlined")
-        ui.button("New Vendor", icon="add").classes("mt-4 bg-[#144c8e] text-white")
+        # Removed "New Vendor" button per request
         
         # Add vendor details section as a div-based table with 4 columns
     with ui.element("div").classes("w-full border rounded border-gray-300 max-w-7xl mt-8 p-6 mx-auto flex flex-col min-h-[600px] h-auto bg-white overflow-auto"):
@@ -498,13 +274,13 @@ def new_vendor():
                         address1_input.on('blur', validate_address1)
                     with ui.element('div').classes(label_cell_classes):
                         ui.label("Additional Address").classes(label_classes)
-                    with ui.element('div').classes(input_cell_classes + " flex items-center justify-end"):
+                    with ui.element('div').classes(input_cell_classes + " flex flex-col"):
                         # Shown only when Country != Aruba and no 2nd block yet
                         add_address_button = ui.button(
                             "Add Address",
                             icon="add",
                             on_click=add_second_address,
-                        ).props("outline color=primary").classes("font-[segoe ui]")
+                        ).props("outline color=primary").classes("font-[segoe ui] w-full")
 
                 # Row 5 - City & State (with validation)
                 with ui.element('div').classes(f"{row_classes} {std_row_height}") as city_state_row:
@@ -889,47 +665,6 @@ def new_vendor():
                         # Container for additional email fields
                         additional_emails_container = ui.column().classes("mt-2 w-full")
 
-                        # Add Email button (max 2 emails total => 1 additional)
-                        add_email_button = ui.button(
-                            "Add Email",
-                            icon="add",
-                        ).props("flat color=primary").classes("self-start mt-2")
-
-                        def validate_email_value(value: str, required: bool, error_label, input_control):
-                            value = (value or '').strip()
-                            if not value:
-                                if required:
-                                    error_label.text = "Please enter the Vendor Email Address."
-                                    error_label.style('display:block')
-                                    input_control.classes('border border-red-600')
-                                    return False
-                                # Optional and empty is fine
-                                error_label.text = ''
-                                error_label.style('display:none')
-                                input_control.classes(remove='border border-red-600')
-                                return True
-
-                            if not EMAIL_REGEX.match(value):
-                                error_label.text = "Please enter a valid email address."
-                                error_label.style('display:block')
-                                input_control.classes('border border-red-600')
-                                return False
-
-                            error_label.text = ''
-                            error_label.style('display:none')
-                            input_control.classes(remove='border border-red-600')
-                            return True
-
-                        def validate_primary_email(e=None):
-                            return validate_email_value(
-                                primary_email_input.value,
-                                required=True,
-                                error_label=primary_email_error,
-                                input_control=primary_email_input,
-                            )
-
-                        primary_email_input.on('blur', validate_primary_email)
-
                         def add_additional_email_field(e=None):
                             # Allow only one additional email (total max 2)
                             if len(email_inputs) >= 2:
@@ -981,7 +716,48 @@ def new_vendor():
                             if len(email_inputs) >= 2:
                                 add_email_button.set_visibility(False)
 
-                        add_email_button.on_click(add_additional_email_field)
+                        # Add Email button (max 2 emails total => 1 additional)
+                        # Style aligned with 'Add Address' button
+                        add_email_button = ui.button(
+                            "Add Email",
+                            icon="add",
+                            on_click=add_additional_email_field,
+                        ).props("outline color=primary").classes("font-[segoe ui]")
+
+                        def validate_email_value(value: str, required: bool, error_label, input_control):
+                            value = (value or '').strip()
+                            if not value:
+                                if required:
+                                    error_label.text = "Please enter the Vendor Email Address."
+                                    error_label.style('display:block')
+                                    input_control.classes('border border-red-600')
+                                    return False
+                                # Optional and empty is fine
+                                error_label.text = ''
+                                error_label.style('display:none')
+                                input_control.classes(remove='border border-red-600')
+                                return True
+
+                            if not EMAIL_REGEX.match(value):
+                                error_label.text = "Please enter a valid email address."
+                                error_label.style('display:block')
+                                input_control.classes('border border-red-600')
+                                return False
+
+                            error_label.text = ''
+                            error_label.style('display:none')
+                            input_control.classes(remove='border border-red-600')
+                            return True
+
+                        def validate_primary_email(e=None):
+                            return validate_email_value(
+                                primary_email_input.value,
+                                required=True,
+                                error_label=primary_email_error,
+                                input_control=primary_email_input,
+                            )
+
+                        primary_email_input.on('blur', validate_primary_email)
 
                         def validate_all_vendor_emails(e=None):
                             # Validate primary and any additional emails
