@@ -2,12 +2,14 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 from app.core.config import settings
 from app.api.v1.api import api_router
 import traceback
 import logging
 import subprocess
 import sys
+import os
 from nicegui import app as nicegui_app, ui
 
 # Configure logging
@@ -117,6 +119,11 @@ async def catch_exceptions_middleware(request: Request, call_next):
 
 # Include API router
 root_app.include_router(api_router, prefix=settings.api_v1_prefix)
+
+# Mount static files via FastAPI as backup (in addition to NiceGUI's static files)
+# This ensures logos are accessible even if NiceGUI's static file serving has issues
+if os.path.exists('app/public'):
+    root_app.mount("/public", StaticFiles(directory="app/public"), name="public")
 
 
 # ============================================================================
