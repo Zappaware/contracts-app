@@ -4,10 +4,233 @@ import json
 import os
 from app.core.config import settings
 
+# Simple list of US states for dropdown when country = United States
+US_STATES = [
+    "Alabama", "Alaska", "Arizona", "Arkansas", "California", "Colorado",
+    "Connecticut", "Delaware", "Florida", "Georgia", "Hawaii", "Idaho",
+    "Illinois", "Indiana", "Iowa", "Kansas", "Kentucky", "Louisiana",
+    "Maine", "Maryland", "Massachusetts", "Michigan", "Minnesota",
+    "Mississippi", "Missouri", "Montana", "Nebraska", "Nevada",
+    "New Hampshire", "New Jersey", "New Mexico", "New York",
+    "North Carolina", "North Dakota", "Ohio", "Oklahoma", "Oregon",
+    "Pennsylvania", "Rhode Island", "South Carolina", "South Dakota",
+    "Tennessee", "Texas", "Utah", "Vermont", "Virginia", "Washington",
+    "West Virginia", "Wisconsin", "Wyoming",
+]
+
+
 def get_country_list():
-    """Return a static list of countries to avoid blocking async call at module load time"""
-    # Fallback list to avoid blocking calls during page load
-    return ["Please select", "Aruba", "United States", "Canada", "Mexico", "Netherlands", "Curacao", "Bonaire", "Saint Martin"]
+    """
+    Return a static, comprehensive list of countries.
+    
+    The first option is the placeholder "Please select", followed by
+    an alphabetically sorted list of country names so that:
+    - the dropdown is scrollable
+    - users can type to filter and select a country
+    """
+    countries = [
+        "Afghanistan",
+        "Albania",
+        "Algeria",
+        "Andorra",
+        "Angola",
+        "Antigua and Barbuda",
+        "Argentina",
+        "Armenia",
+        "Aruba",
+        "Australia",
+        "Austria",
+        "Azerbaijan",
+        "Bahamas",
+        "Bahrain",
+        "Bangladesh",
+        "Barbados",
+        "Belarus",
+        "Belgium",
+        "Belize",
+        "Benin",
+        "Bhutan",
+        "Bolivia",
+        "Bosnia and Herzegovina",
+        "Botswana",
+        "Brazil",
+        "Brunei",
+        "Bulgaria",
+        "Burkina Faso",
+        "Burundi",
+        "Cabo Verde",
+        "Cambodia",
+        "Cameroon",
+        "Canada",
+        "Central African Republic",
+        "Chad",
+        "Chile",
+        "China",
+        "Colombia",
+        "Comoros",
+        "Congo (Congo-Brazzaville)",
+        "Costa Rica",
+        "Côte d'Ivoire",
+        "Croatia",
+        "Cuba",
+        "Cyprus",
+        "Czech Republic",
+        "Democratic Republic of the Congo",
+        "Denmark",
+        "Djibouti",
+        "Dominica",
+        "Dominican Republic",
+        "Ecuador",
+        "Egypt",
+        "El Salvador",
+        "Equatorial Guinea",
+        "Eritrea",
+        "Estonia",
+        "Eswatini",
+        "Ethiopia",
+        "Fiji",
+        "Finland",
+        "France",
+        "Gabon",
+        "Gambia",
+        "Georgia",
+        "Germany",
+        "Ghana",
+        "Greece",
+        "Grenada",
+        "Guatemala",
+        "Guinea",
+        "Guinea-Bissau",
+        "Guyana",
+        "Haiti",
+        "Honduras",
+        "Hungary",
+        "Iceland",
+        "India",
+        "Indonesia",
+        "Iran",
+        "Iraq",
+        "Ireland",
+        "Israel",
+        "Italy",
+        "Jamaica",
+        "Japan",
+        "Jordan",
+        "Kazakhstan",
+        "Kenya",
+        "Kiribati",
+        "Kuwait",
+        "Kyrgyzstan",
+        "Laos",
+        "Latvia",
+        "Lebanon",
+        "Lesotho",
+        "Liberia",
+        "Libya",
+        "Liechtenstein",
+        "Lithuania",
+        "Luxembourg",
+        "Madagascar",
+        "Malawi",
+        "Malaysia",
+        "Maldives",
+        "Mali",
+        "Malta",
+        "Marshall Islands",
+        "Mauritania",
+        "Mauritius",
+        "Mexico",
+        "Micronesia",
+        "Moldova",
+        "Monaco",
+        "Mongolia",
+        "Montenegro",
+        "Morocco",
+        "Mozambique",
+        "Myanmar",
+        "Namibia",
+        "Nauru",
+        "Nepal",
+        "Netherlands",
+        "New Zealand",
+        "Nicaragua",
+        "Niger",
+        "Nigeria",
+        "North Macedonia",
+        "Norway",
+        "Oman",
+        "Pakistan",
+        "Palau",
+        "Panama",
+        "Papua New Guinea",
+        "Paraguay",
+        "Peru",
+        "Philippines",
+        "Poland",
+        "Portugal",
+        "Qatar",
+        "Romania",
+        "Russia",
+        "Rwanda",
+        "Saint Kitts and Nevis",
+        "Saint Lucia",
+        "Saint Vincent and the Grenadines",
+        "Samoa",
+        "San Marino",
+        "Sao Tome and Principe",
+        "Saudi Arabia",
+        "Senegal",
+        "Serbia",
+        "Seychelles",
+        "Sierra Leone",
+        "Singapore",
+        "Slovakia",
+        "Slovenia",
+        "Solomon Islands",
+        "Somalia",
+        "South Africa",
+        "South Korea",
+        "South Sudan",
+        "Spain",
+        "Sri Lanka",
+        "Sudan",
+        "Suriname",
+        "Sweden",
+        "Switzerland",
+        "Syria",
+        "Taiwan",
+        "Tajikistan",
+        "Tanzania",
+        "Thailand",
+        "Timor-Leste",
+        "Togo",
+        "Tonga",
+        "Trinidad and Tobago",
+        "Tunisia",
+        "Turkey",
+        "Turkmenistan",
+        "Tuvalu",
+        "Uganda",
+        "Ukraine",
+        "United Arab Emirates",
+        "United Kingdom",
+        "United States",
+        "Uruguay",
+        "Uzbekistan",
+        "Vanuatu",
+        "Vatican City",
+        "Venezuela",
+        "Vietnam",
+        "Yemen",
+        "Zambia",
+        "Zimbabwe",
+        # Regional examples relevant to Aruba context
+        "Bonaire",
+        "Curacao",
+        "Saint Martin",
+    ]
+    # Ensure deterministic alphabetical ordering (actual country values only)
+    return sorted(set(countries))
 
 
 def new_vendor():
@@ -211,21 +434,28 @@ def new_vendor():
                         address1_input.on('blur', validate_address1)
                     with ui.element('div').classes(label_cell_classes):
                         ui.label("Address 2").classes(label_classes)
-                    with ui.element('div').classes(input_cell_classes + " flex flex-col"):
-                        address2_input = ui.input(label="Address 2*", placeholder="Enter address...").classes(input_classes).props("outlined maxlength=60")
+                    with ui.element('div').classes(input_cell_classes + " flex flex-col") as address2_container:
+                        address2_input = ui.input(label="Address 2", placeholder="Enter address...").classes(input_classes).props("outlined maxlength=60")
                         address2_error = ui.label('').classes('text-red-600 text-xs mt-1 min-h-[18px]').style('display:none')
+
                         def validate_address2(e=None):
+                            """
+                            Address 2 is optional.
+                            Only show error if user has entered something invalid (e.g., over max length is handled by maxlength).
+                            """
                             value = address2_input.value or ''
                             if not value.strip():
-                                address2_error.text = "Please enter Address 2."
-                                address2_error.style('display:block')
-                                address2_input.classes('border border-red-600')
-                                return False
-                            else:
+                                # Optional: no error if empty
                                 address2_error.text = ''
                                 address2_error.style('display:none')
                                 address2_input.classes(remove='border border-red-600')
                                 return True
+                            # Non-empty and within maxlength is acceptable
+                            address2_error.text = ''
+                            address2_error.style('display:none')
+                            address2_input.classes(remove='border border-red-600')
+                            return True
+
                         address2_input.on('blur', validate_address2)
 
                 # Row 5 - City & State (with validation)
@@ -233,74 +463,121 @@ def new_vendor():
                     with ui.element('div').classes(label_cell_classes):
                         ui.label("City").classes(label_classes)
                     with ui.element('div').classes(input_cell_classes + " flex flex-col"):
-                        city_input = ui.input(label="City*", placeholder="Enter city...").classes(input_classes).props("outlined maxlength=30")
+                        city_input = ui.input(label="City", placeholder="Enter city...").classes(input_classes).props("outlined maxlength=20")
                         city_error = ui.label('').classes('text-red-600 text-xs mt-1 min-h-[18px]').style('display:none')
                         def validate_city(e=None):
                             value = city_input.value or ''
+                            # City is optional for all countries per AC; only validate basic length when provided
                             if not value.strip():
-                                city_error.text = "Please enter the city."
-                                city_error.style('display:block')
-                                city_input.classes('border border-red-600')
-                                return False
-                            else:
                                 city_error.text = ''
                                 city_error.style('display:none')
                                 city_input.classes(remove='border border-red-600')
                                 return True
+                            if len(value.strip()) > 20:
+                                city_error.text = "City must be at most 20 characters."
+                                city_error.style('display:block')
+                                city_input.classes('border border-red-600')
+                                return False
+                            city_error.text = ''
+                            city_error.style('display:none')
+                            city_input.classes(remove='border border-red-600')
+                            return True
                         city_input.on('blur', validate_city)
                     with ui.element('div').classes(label_cell_classes):
                         ui.label("State").classes(label_classes)
-                    with ui.element('div').classes(input_cell_classes + " flex flex-col"):
-                        state_input = ui.input(label="State*", placeholder="Enter state...").classes(input_classes).props("outlined maxlength=30")
+                    with ui.element('div').classes(input_cell_classes + " flex flex-col") as state_container:
+                        # Free-text state input (for non-US countries)
+                        state_input = ui.input(label="State", placeholder="Enter state...").classes(input_classes).props("outlined maxlength=30")
+                        # US states dropdown (shown only when country == United States)
+                        state_select = ui.select(options=US_STATES, label="State").classes(input_classes).props("outlined use-input")
+                        state_select.set_visibility(False)
                         state_error = ui.label('').classes('text-red-600 text-xs mt-1 min-h-[18px]').style('display:none')
+
+                        def get_state_value():
+                            # Helper to get current state value, depending on which control is visible
+                            if state_select.visible:
+                                return state_select.value or ''
+                            return state_input.value or ''
+
                         def validate_state(e=None):
-                            value = state_input.value or ''
-                            if not value.strip():
-                                state_error.text = "Please enter the state."
-                                state_error.style('display:block')
-                                state_input.classes('border border-red-600')
-                                return False
-                            else:
+                            """
+                            State is optional, except when country is United States, where a state selection is expected.
+                            """
+                            current_country = country_select.value or ''
+                            value = get_state_value().strip()
+
+                            if not value:
+                                if current_country == "United States":
+                                    state_error.text = "Please select a state."
+                                    state_error.style('display:block')
+                                    if state_select.visible:
+                                        state_select.classes('border border-red-600')
+                                    else:
+                                        state_input.classes('border border-red-600')
+                                    return False
+                                # Optional for non-US countries
                                 state_error.text = ''
                                 state_error.style('display:none')
                                 state_input.classes(remove='border border-red-600')
+                                state_select.classes(remove='border border-red-600')
                                 return True
+
+                            # Non-empty is fine, basic max length already enforced by props
+                            state_error.text = ''
+                            state_error.style('display:none')
+                            state_input.classes(remove='border border-red-600')
+                            state_select.classes(remove='border border-red-600')
+                            return True
+
                         state_input.on('blur', validate_state)
+                        state_select.on('blur', validate_state)
 
                 # Row 6 - Zip Code & Country (with validation)
             with ui.element('div').classes("flex w-full h-16"):
                 with ui.element('div').classes("bg-[#144c8e] w-[16.6%] flex items-center"):
                     ui.label("Zip Code").classes("text-white font-[segoe ui] py-2 px-4 h-full flex items-center")
                 with ui.element('div').classes("bg-white p-2 w-[33.3%]"):
-                    zip_input = ui.input(label="Zip Code*", placeholder="Enter zip code...").classes("w-full font-[segoe ui]").props("outlined maxlength=10")
+                    zip_input = ui.input(label="Zip Code", placeholder="Enter zip code...").classes("w-full font-[segoe ui]").props("outlined maxlength=10")
                     zip_error = ui.label('').classes('text-red-600 text-xs mt-1 min-h-[18px]').style('display:none')
                     def validate_zip(e=None):
                         value = zip_input.value or ''
+                        # Zip is optional; only enforce max length when provided
                         if not value.strip():
-                            zip_error.text = "Please enter the zip code."
-                            zip_error.style('display:block')
-                            zip_input.classes('border border-red-600')
-                            return False
-                        else:
                             zip_error.text = ''
                             zip_error.style('display:none')
                             zip_input.classes(remove='border border-red-600')
                             return True
+                        if len(value.strip()) > 10:
+                            zip_error.text = "Zip Code must be at most 10 characters."
+                            zip_error.style('display:block')
+                            zip_input.classes('border border-red-600')
+                            return False
+                        zip_error.text = ''
+                        zip_error.style('display:none')
+                        zip_input.classes(remove='border border-red-600')
+                        return True
                     zip_input.on('blur', validate_zip)
                 with ui.element('div').classes("bg-[#144c8e] w-[16.6%] flex items-center"):
                     ui.label("Country").classes("text-white font-[segoe ui] py-2 px-4 h-full flex items-center")
                 with ui.element('div').classes("bg-white p-2 w-[33.3%]"):
                     country_options = get_country_list()
                     country_error = ui.label('').classes('text-red-600 text-sm mb-2').style('display:none')
+                    # Use placeholder instead of a real "Please select" value,
+                    # so the text disappears as soon as the user starts typing.
                     country_select = ui.select(
                         options=country_options,
-                        value="Please select",
+                        value=None,
                         label="Vendor Country*"
-                    ).classes("w-full font-[segoe ui]").props("outlined use-input")
+                    ).classes("w-full font-[segoe ui]").props(
+                        # use-input: allows typing to filter
+                        # clearable: shows an 'x' to clear selection
+                        # placeholder: shows 'Please select' when empty
+                        'outlined use-input clearable input-debounce=0 placeholder="Please select"'
+                    )
 
                     def validate_country(e=None):
                         value = country_select.value
-                        if value == "Please select" or not value:
+                        if not value:
                             country_error.text = "Please select the vendor country."
                             country_error.style('display:block')
                             country_select.classes('border border-red-600')
@@ -310,7 +587,70 @@ def new_vendor():
                             country_error.style('display:none')
                             country_select.classes(remove='border border-red-600')
                             return True
+
+                    def on_country_change(e=None):
+                        """
+                        Adapt address behavior based on selected country (ACs):
+                        - Aruba: only Address 1 (mandatory), city/state/zip and Address 2 hidden.
+                        - Non-Aruba: Address 1 mandatory, Address 2 optional,
+                          City/State/Zip visible and optional.
+                        - United States: State uses dropdown with US states.
+                        """
+                        country = country_select.value or ''
+
+                        is_aruba = country == "Aruba"
+                        is_us = country == "United States"
+
+                        # Update placeholder: only show when no country is selected
+                        if country:
+                            country_select.props(
+                                'outlined use-input clearable input-debounce=0 placeholder=""'
+                            )
+                        else:
+                            country_select.props(
+                                'outlined use-input clearable input-debounce=0 placeholder="Please select"'
+                            )
+
+                        # Aruba: hide City/State/Zip and Address 2
+                        if is_aruba:
+                            city_input.set_visibility(False)
+                            state_container.set_visibility(False)
+                            zip_input.set_visibility(False)
+                            address2_container.set_visibility(False)
+
+                            # Clear related values and errors
+                            city_input.value = ""
+                            state_input.value = ""
+                            state_select.value = None
+                            zip_input.value = ""
+                            address2_input.value = ""
+
+                            city_error.style('display:none')
+                            state_error.style('display:none')
+                            zip_error.style('display:none')
+                            address2_error.style('display:none')
+                            city_input.classes(remove='border border-red-600')
+                            state_input.classes(remove='border border-red-600')
+                            state_select.classes(remove='border border-red-600')
+                            zip_input.classes(remove='border border-red-600')
+                            address2_input.classes(remove='border border-red-600')
+                        else:
+                            # Non-Aruba: show City/State/Zip and Address 2
+                            city_input.set_visibility(True)
+                            state_container.set_visibility(True)
+                            zip_input.set_visibility(True)
+                            address2_container.set_visibility(True)
+
+                            # United States: use state dropdown
+                            if is_us:
+                                state_input.set_visibility(False)
+                                state_select.set_visibility(True)
+                            else:
+                                state_input.set_visibility(True)
+                                state_select.set_visibility(False)
+
                     country_select.on('blur', validate_country)
+                    country_select.on('update:model-value', on_country_change)
                 
                 # Row 7 - Telephone Number & Email
                 with ui.element('div').classes(f"{row_classes} {std_row_height}"):
@@ -574,8 +914,9 @@ def new_vendor():
                             address2_input.value = ""
                             city_input.value = ""
                             state_input.value = ""
+                            state_select.value = None
                             zip_input.value = ""
-                            country_select.value = "Please select"
+                            country_select.value = None
                             phone_input.value = ""
                             email_input.value = ""
                             due_diligence_date.value = "2025-08-25"
@@ -671,20 +1012,50 @@ def new_vendor():
                                 return None
                             
                             # Collect all field values in backend format
+                            # Build addresses according to ACs:
+                            # - Address 1 always included and mandatory.
+                            # - Address 2 included only if user provided a value.
+                            # - City/State/Zip optional and omitted when country is Aruba.
+                            country_val = country_select.value
+
+                            addresses_payload = []
+                            # First address (mandatory)
+                            addr1 = {
+                                "address": address1_input.value,
+                                "city": None,
+                                "state": None,
+                                "zip_code": None,
+                            }
+                            if country_val != "Aruba":
+                                addr1["city"] = city_input.value or None
+                                # Pick the appropriate state source
+                                state_val = state_select.value if (country_val == "United States" and state_select.visible) else state_input.value
+                                addr1["state"] = state_val or None
+                                addr1["zip_code"] = zip_input.value or None
+                            addresses_payload.append(addr1)
+
+                            # Second address (optional)
+                            if address2_input.value and address2_input.value.strip():
+                                addr2 = {
+                                    "address": address2_input.value,
+                                    "city": None,
+                                    "state": None,
+                                    "zip_code": None,
+                                }
+                                if country_val != "Aruba":
+                                    addr2["city"] = city_input.value or None
+                                    state_val2 = state_select.value if (country_val == "United States" and state_select.visible) else state_input.value
+                                    addr2["state"] = state_val2 or None
+                                    addr2["zip_code"] = zip_input.value or None
+                                addresses_payload.append(addr2)
+
                             vendor_data = {
                                 "vendor_name": vendor_name_input.value,
                                 "vendor_contact_person": contact_person_input.value,
-                                "vendor_country": country_select.value,
+                                "vendor_country": country_val,
                                 "material_outsourcing_arrangement": moa_select.value,
                                 "bank_customer": bank_select.value,
-                                "addresses": [
-                                    {
-                                        "address": address1_input.value,
-                                        "city": city_input.value,
-                                        "state": state_input.value,
-                                        "zip_code": zip_input.value
-                                    }
-                                ],
+                                "addresses": addresses_payload,
                                 "emails": [
                                     {"email": email_input.value}
                                 ],
