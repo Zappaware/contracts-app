@@ -628,7 +628,8 @@ def new_vendor():
                         
                         # Get calling codes for dropdown
                         calling_codes_data = get_calling_codes_list()
-                        calling_codes_options = {f"{item['code']} ({item['country']})": item['code'] for item in calling_codes_data}
+                        # Format: display both code and country name, value is the full string
+                        calling_codes_options = {f"{item['code']} - {item['country']}": f"{item['code']} - {item['country']}" for item in calling_codes_data}
                         
                         # Primary (mandatory) phone number
                         with ui.row().classes("items-center w-full gap-2"):
@@ -660,15 +661,16 @@ def new_vendor():
                         additional_phones_container = ui.column().classes("mt-2 w-full")
                         
                         def _extract_area_code(area_code_raw):
-                            """Extract area code from dropdown value (format: '+1 (United States/Canada)' -> '+1')"""
+                            """Extract area code from dropdown value (format: '+1 - United States' -> '+1')"""
                             if not area_code_raw:
                                 return None
+                            # Extract code from format "+CODE - Country Name"
+                            if ' - ' in area_code_raw:
+                                return area_code_raw.split(' - ')[0]
                             # If it's already just a code, return it
                             if area_code_raw.startswith('+'):
                                 return area_code_raw.split()[0] if ' ' in area_code_raw else area_code_raw
-                            # Extract from format "code (country)"
-                            parts = area_code_raw.split(' (')
-                            return parts[0] if parts else area_code_raw
+                            return area_code_raw
                         
                         def validate_phone_area_code(area_code_select, error_label):
                             """Validate area code selection"""

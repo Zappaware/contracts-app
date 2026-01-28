@@ -201,6 +201,8 @@ async def fetch_calling_codes_from_api() -> Optional[List[dict]]:
             data = response.json()
             
             calling_codes = []
+            seen_codes = set()  # Track codes to avoid duplicates
+            
             for country in data:
                 name = country.get("name", {})
                 country_name = name.get("common") or name.get("official")
@@ -209,13 +211,16 @@ async def fetch_calling_codes_from_api() -> Optional[List[dict]]:
                 suffixes = idd.get("suffixes", [])
                 
                 if country_name and root and suffixes:
-                    # Create entries for each suffix (some countries have multiple codes)
-                    for suffix in suffixes[:1]:  # Take first suffix to avoid duplicates
+                    # Create entries for all suffixes (some countries have multiple codes)
+                    for suffix in suffixes:
                         code = f"{root}{suffix}"
-                        calling_codes.append({
-                            "code": code,
-                            "country": country_name
-                        })
+                        # Avoid duplicate codes (use first country that has this code)
+                        if code not in seen_codes:
+                            seen_codes.add(code)
+                            calling_codes.append({
+                                "code": code,
+                                "country": country_name
+                            })
             
             # Sort by country name
             calling_codes.sort(key=lambda x: x["country"])
