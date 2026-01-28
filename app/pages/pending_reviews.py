@@ -391,7 +391,7 @@ def pending_reviews():
                 
                 # Decision section
                 ui.label("Decision").classes("text-lg font-bold")
-                decision_select = ui.select(options=["Renew", "Terminate"], value=(update.decision if update and update.decision else "Renew")).props("outlined dense")
+                decision_select = ui.select(options=["Please select", "Renew", "Terminate"], value=(update.decision if update and update.decision else "Please select")).props("outlined dense")
                 
                 # Show manager/backup/owner comments + docs
                 ui.label("Documents & Comments").classes("text-lg font-bold mt-2")
