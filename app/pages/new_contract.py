@@ -53,8 +53,8 @@ def new_contract():
     vendor_contract_date_input = None
     
     with ui.element("div").classes(
-        "flex flex-col items-center justify-center mt-8 w-full "
-    ):
+        "flex flex-col items-center justify-center mt-8 w-full"
+    ).props(f'id="c213"'):
         # Use real vendors from database
         vendor_select = ui.select(
             options=vendor_names, 
@@ -95,7 +95,7 @@ def new_contract():
         desc_input.on('blur', validate_desc)
         
         # Add contract details section as a div-based table with 4 columns
-        with ui.element("div").classes("w-full border rounded border-gray-300 max-w-7xl mt-8 p-6 mx-auto"):
+        with ui.element("div").classes("w-full border rounded border-gray-300 max-w-7xl mt-8 p-6 mx-auto").props(f'id="c203"'):
             # Define style classes as constants to avoid duplication
             label_classes = "text-white font-[segoe ui] py-2 px-4 h-full flex items-center"
             input_classes = "w-full font-[segoe ui]"
@@ -420,37 +420,8 @@ def new_contract():
                                 return True
                         attention_input.on('blur', validate_attention)
 
-                # Row 9 - Notification Email Address & Last Revision User
+                # Row 9 - Last Revision User & Last Revision Date
                 with ui.element('div').classes(f"{row_classes} {std_row_height}"):
-                    with ui.element('div').classes(label_cell_classes):
-                        ui.label("Notification Email Address").classes(label_classes).props("outlined")
-                    with ui.element('div').classes(input_cell_classes + " flex flex-col"):
-                        # Use regular input instead of input_chips
-                        email_chips = ui.input(
-                            label="Notification Email*",
-                            placeholder="Enter email addresses (comma-separated)"
-                        ).classes(input_classes).props("outlined")
-                        email_chips_error = ui.label('').classes('text-red-600 text-xs mt-1 min-h-[18px]').style('display:none')
-                        def validate_email_chips(e=None):
-                            value = email_chips.value or ""
-                            if not value.strip():
-                                email_chips_error.text = "Please enter at least one email address."
-                                email_chips_error.style('display:block')
-                                email_chips.classes('border border-red-600')
-                                return False
-                            # Split by comma and validate each
-                            emails = [email.strip() for email in value.split(',') if email.strip()]
-                            if not all('@' in email and '.' in email for email in emails):
-                                email_chips_error.text = "Please enter valid email addresses (comma-separated)."
-                                email_chips_error.style('display:block')
-                                email_chips.classes('border border-red-600')
-                                return False
-                            else:
-                                email_chips_error.text = ''
-                                email_chips_error.style('display:none')
-                                email_chips.classes(remove='border border-red-600')
-                                return True
-                        email_chips.on('blur', validate_email_chips)
                     with ui.element('div').classes(label_cell_classes):
                         ui.label("Last Revision User").classes(label_classes)
                     with ui.element('div').classes(input_cell_classes + " flex flex-col"):
@@ -469,8 +440,12 @@ def new_contract():
                                 revision_user_input.classes(remove='border border-red-600')
                                 return True
                         revision_user_input.on('blur', validate_revision_user)
+                    with ui.element('div').classes(label_cell_classes):
+                        ui.label("Last Revision Date").classes(label_classes)
+                    with ui.element('div').classes(input_cell_classes):
+                        last_revision_date_input = ui.input(label="Last Revision Date").classes(input_classes).props("outlined")
                 
-                # Row 10.2 - Contract Manager & Email Display
+                # Row 10.2 - Contract Manager & Upload Details
                 with ui.element('div').classes(f"{row_classes} {std_row_height}"):
                     with ui.element('div').classes(label_cell_classes):
                         ui.label("Contract Manager").classes(label_classes)
@@ -499,26 +474,15 @@ def new_contract():
                         contract_manager_select.on('blur', validate_contract_manager)
                     
                     with ui.element('div').classes(label_cell_classes):
-                        ui.label("Manager Email").classes(label_classes)
-                    with ui.element('div').classes(input_cell_classes + " flex items-center"):
-                        manager_email_display = ui.input(label="Email Address", value="").classes(input_classes).props("outlined readonly disable")
-                        
-                        # Update email display when contract manager changes
-                        def update_manager_email(e):
-                            selected_manager = contract_manager_select.value
-                            if selected_manager and selected_manager in contract_managers_data:
-                                email = contract_managers_data[selected_manager]
-                                manager_email_display.value = email
-                            else:
-                                manager_email_display.value = ""
-                        
-                        contract_manager_select.on('change', update_manager_email)
+                        ui.label("Upload Details").classes(label_classes)
+                    with ui.element('div').classes(input_cell_classes):
+                        upload_details_input = ui.input(label="Description", placeholder="Enter a description for these files").classes(input_classes).props("outlined")
                 
-                # Row 10.3 - Contract Owner & Email Display
+                # Row 10.3 - Contract Owner & Vendor Contract
                 with ui.element('div').classes(f"{row_classes} {std_row_height}"):
                     with ui.element('div').classes(label_cell_classes):
                         ui.label("Contract Owner").classes(label_classes)
-                    with ui.element('div').classes(input_cell_classes + " flex flex-col"):
+                    with ui.element('div').classes(input_cell_classes + " flex flex-col pt-8"):
                         contract_owner_options = list(contract_managers_data.keys())
                         contract_owner_select = ui.select(
                             options=contract_owner_options, 
@@ -542,68 +506,6 @@ def new_contract():
                         
                         contract_owner_select.on('blur', validate_contract_owner)
                     
-                    with ui.element('div').classes(label_cell_classes):
-                        ui.label("Owner Email").classes(label_classes)
-                    with ui.element('div').classes(input_cell_classes + " flex items-center"):
-                        owner_email_display = ui.input(label="Email Address", value="").classes(input_classes).props("outlined readonly disable")
-                        
-                        # Update email display when contract owner changes
-                        def update_owner_email(e):
-                            selected_owner = contract_owner_select.value
-                            if selected_owner and selected_owner in contract_managers_data:
-                                email = contract_managers_data[selected_owner]
-                                owner_email_display.value = email
-                            else:
-                                owner_email_display.value = ""
-                        
-                        contract_owner_select.on('change', update_owner_email)
-                
-                # Row 10.4 - Contract Manager (Backup) & Email Display
-                with ui.element('div').classes(f"{row_classes} {std_row_height}"):
-                    with ui.element('div').classes(label_cell_classes):
-                        ui.label("Contract Manager (Backup)").classes(label_classes)
-                    with ui.element('div').classes(input_cell_classes + " flex flex-col"):
-                        contract_backup_options = list(contract_managers_data.keys())
-                        contract_backup_select = ui.select(
-                            options=contract_backup_options, 
-                            value="Please select",
-                            label="Contract Manager (Backup)*"
-                        ).classes(input_classes).props("outlined use-input")
-                        contract_backup_error = ui.label('').classes('text-red-600 text-xs mt-1 min-h-[18px]').style('display:none')
-                        
-                        def validate_contract_backup(e=None):
-                            value = contract_backup_select.value or ''
-                            if not value.strip() or value == "Please select":
-                                contract_backup_error.text = "Please select a person."
-                                contract_backup_error.style('display:block')
-                                contract_backup_select.classes('border border-red-600')
-                                return False
-                            else:
-                                contract_backup_error.text = ''
-                                contract_backup_error.style('display:none')
-                                contract_backup_select.classes(remove='border border-red-600')
-                                return True
-                        
-                        contract_backup_select.on('blur', validate_contract_backup)
-                    
-                    with ui.element('div').classes(label_cell_classes):
-                        ui.label("Backup Email").classes(label_classes)
-                    with ui.element('div').classes(input_cell_classes + " flex items-center"):
-                        backup_email_display = ui.input(label="Email Address", value="").classes(input_classes).props("outlined readonly disable")
-                        
-                        # Update email display when contract backup changes
-                        def update_backup_email(e):
-                            selected_backup = contract_backup_select.value
-                            if selected_backup and selected_backup in contract_managers_data:
-                                email = contract_managers_data[selected_backup]
-                                backup_email_display.value = email
-                            else:
-                                backup_email_display.value = ""
-                        
-                        contract_backup_select.on('change', update_backup_email)
-                
-                # Row 10.5 - Vendor Contract (Mandatory PDF Upload)
-                with ui.element('div').classes(f"{row_classes} {std_row_height}"):
                     with ui.element('div').classes(label_cell_classes):
                         ui.label("Vendor Contract").classes(label_classes)
                     with ui.element('div').classes(input_cell_classes + " flex flex-col py-2"):
@@ -732,17 +634,37 @@ def new_contract():
                             vendor_contract_error.style('display:none')
                             vendor_contract_upload.classes(remove='border border-red-600')
                             return True
-                    
-                    with ui.element('div').classes(label_cell_classes):
-                        ui.label("").classes(label_classes)
-                    with ui.element('div').classes(input_cell_classes):
-                        ui.label("").classes(input_classes)
-
-            
-                # Row 10.6 - File Attachments (right below Vendor Contract)
+                
+                # Row 10.4 - Contract Manager (Backup) & Attachments
                 with ui.element('div').classes(f"{row_classes} {std_row_height}"):
                     with ui.element('div').classes(label_cell_classes):
-                        ui.label("Attachments").classes("text-white font-[segoe ui] py-8 px-4 h-full")
+                        ui.label("Contract Manager (Backup)").classes(label_classes)
+                    with ui.element('div').classes(input_cell_classes + " flex flex-col pt-8"):
+                        contract_backup_options = list(contract_managers_data.keys())
+                        contract_backup_select = ui.select(
+                            options=contract_backup_options, 
+                            value="Please select",
+                            label="Contract Manager (Backup)*"
+                        ).classes(input_classes).props("outlined use-input")
+                        contract_backup_error = ui.label('').classes('text-red-600 text-xs mt-1 min-h-[18px]').style('display:none')
+                        
+                        def validate_contract_backup(e=None):
+                            value = contract_backup_select.value or ''
+                            if not value.strip() or value == "Please select":
+                                contract_backup_error.text = "Please select a person."
+                                contract_backup_error.style('display:block')
+                                contract_backup_select.classes('border border-red-600')
+                                return False
+                            else:
+                                contract_backup_error.text = ''
+                                contract_backup_error.style('display:none')
+                                contract_backup_select.classes(remove='border border-red-600')
+                                return True
+                        
+                        contract_backup_select.on('blur', validate_contract_backup)
+                    
+                    with ui.element('div').classes(label_cell_classes):
+                        ui.label("Attachments").classes(label_classes)
                     with ui.element('div').classes(f"{input_cell_classes} pt-4 pb-0"):
                         with ui.card().classes("w-full h-auto p-0 mt-4"):
                             
@@ -766,25 +688,9 @@ def new_contract():
                                     ui.notify('No file uploaded', type='negative')
                             
                             ui.upload(on_upload=handle_upload, auto_upload=True, multiple=False, label="Drop files here or click to browse").props('accept=*/* color=primary outlined').classes("w-full")
-                    with ui.element('div').classes(label_cell_classes):
-                        ui.label("Upload Details").classes("text-white font-[segoe ui] py-8 px-4  h-full")
-                    with ui.element('div').classes(input_cell_classes):
-                        upload_details_input = ui.input(label="Description", placeholder="Enter a description for these files").classes(input_classes).props("outlined")
-                
-                # Row 10 - Empty & Last Revision Date
-                with ui.element('div').classes(f"{row_classes} {std_row_height}"):
-                    with ui.element('div').classes(label_cell_classes):
-                        ui.label("").classes(label_classes)
-                    with ui.element('div').classes(input_cell_classes):
-                        ui.label("").classes(input_classes)
-                    with ui.element('div').classes(label_cell_classes):
-                        ui.label("Last Revision Date").classes(label_classes)
-                    with ui.element('div').classes(input_cell_classes):
-                        last_revision_date_input = ui.input(label="Last Revision Date").classes(input_classes).props("outlined")
-
 
                 # Add Submit and Cancel buttons at the bottom
-                with ui.element("div").classes("flex justify-end gap-4 mt-8 mr-20 w-full"):
+                with ui.element("div").classes("flex justify-end gap-4 mt-8 mr-20 w-full").props(f'id="c225"'):
                     def clear_contract_form():
                         """Reset all contract form fields to their defaults"""
                         nonlocal vendor_contract_uploaded, vendor_contract_file_name
@@ -806,14 +712,10 @@ def new_contract():
                         comments_input.value = ""
                         notify_select.value = None
                         attention_input.value = ""
-                        email_chips.value = ""
                         revision_user_input.value = ""
                         contract_manager_select.value = "Please select"
                         contract_owner_select.value = "Please select"
                         contract_backup_select.value = "Please select"
-                        manager_email_display.value = ""
-                        owner_email_display.value = ""
-                        backup_email_display.value = ""
                         upload_details_input.value = ""
                         last_revision_date_input.value = ""
                         vendor_contract_uploaded = False
@@ -839,7 +741,6 @@ def new_contract():
                             validate_comments(),
                             validate_notify(),
                             validate_attention(),
-                            validate_email_chips(),
                             validate_revision_user(),
                             validate_contract_manager(),
                             validate_contract_owner(),
