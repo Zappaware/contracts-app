@@ -278,7 +278,7 @@ def contract_managers():
                     flat round dense 
                     icon="edit" 
                     color="primary" 
-                    @click="$emit('edit-user', { row: props.row })"
+                    @click="$parent.$emit('edit-user', props.row)"
                 />
             </q-td>
         ''')
@@ -296,23 +296,16 @@ def contract_managers():
                 return args.get('row') or args
             return None
 
-        # Handle row click to edit user
-        def handle_row_click(e):
-            """Open edit dialog when a table row is clicked."""
-            row = _extract_row_from_event(e)
-            if not row:
-                return
-            open_edit_user_dialog(row)
-
         # Handle pencil button click to edit user
         def handle_edit_button(e):
             """Open edit dialog when the pencil icon is clicked."""
             row = _extract_row_from_event(e)
             if not row:
-                return
-            open_edit_user_dialog(row)
+                # pending_reviews uses the row dict directly in e.args; support that too
+                row = e.args if hasattr(e, "args") else None
+            if isinstance(row, dict):
+                open_edit_user_dialog(row)
 
-        managers_table.on('rowClick', handle_row_click)
         managers_table.on('edit-user', handle_edit_button)
         
         # Function to open Create User dialog
@@ -588,15 +581,40 @@ def contract_managers():
             """Open dialog to edit an existing user."""
             from app.db.database import SessionLocal
             from app.models.contract import User, DepartmentType, UserRole
-            from app.services.contract_service import ContractService
 
-            # Extract current values from row
             current_user_id = row_data.get('user_id', '')
-            current_name = (row_data.get('name') or '').split(' ', 1)
-            current_first_name = current_name[0] if current_name else ''
-            current_last_name = current_name[1] if len(current_name) > 1 else ''
-            current_email = row_data.get('email') or ''
-            current_department = row_data.get('department') or ''
+
+            # Fetch the latest user data from DB when opening the modal
+            try:
+                db_preview = SessionLocal()
+                try:
+                    user_preview = (
+                        db_preview.query(User)
+                        .filter(User.user_id == current_user_id)
+                        .first()
+                    )
+                    if not user_preview:
+                        ui.notify("User not found in database.", type="negative")
+                        return
+
+                    current_first_name = str(user_preview.first_name or "")
+                    current_last_name = str(user_preview.last_name or "")
+                    current_email = str(user_preview.email or "")
+                    current_department = (
+                        user_preview.department.value
+                        if getattr(user_preview.department, "value", None) is not None
+                        else str(user_preview.department or "")
+                    )
+                    current_role_value = (
+                        user_preview.role.value
+                        if getattr(user_preview.role, "value", None) is not None
+                        else (str(user_preview.role) if user_preview.role else None)
+                    )
+                finally:
+                    db_preview.close()
+            except Exception as e:
+                ui.notify(f"Error loading user data: {str(e)}", type="negative")
+                return
 
             with ui.dialog() as dialog, ui.card().classes('p-6 w-full max-w-lg'):
                 ui.label("Edit User").classes("text-h6 font-bold mb-2")
@@ -663,22 +681,6 @@ def contract_managers():
                         role_options = [r.value for r in UserRole]
                     except Exception:
                         role_options = []
-                    # Try to resolve current role from DB when opening
-                    current_role_value = None
-                    try:
-                        db_preview = SessionLocal()
-                        try:
-                            user_preview = (
-                                db_preview.query(User)
-                                .filter(User.user_id == current_user_id)
-                                .first()
-                            )
-                            if user_preview and user_preview.role:
-                                current_role_value = user_preview.role.value
-                        finally:
-                            db_preview.close()
-                    except Exception:
-                        current_role_value = None
 
                     role_select = ui.select(
                         options=role_options,
