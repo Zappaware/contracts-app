@@ -2,6 +2,7 @@ from nicegui import ui
 import httpx
 import json
 import os
+import re
 from app.core.config import settings
 
 # Simple list of US states for dropdown when country = United States
@@ -231,6 +232,9 @@ def get_country_list():
     ]
     # Ensure deterministic alphabetical ordering (actual country values only)
     return sorted(set(countries))
+
+
+EMAIL_REGEX = re.compile(r'^[^@\s]+@[^@\s]+\.[^@\s]+$')
 
 
 def new_vendor():
@@ -657,8 +661,14 @@ def new_vendor():
                     with ui.element('div').classes(label_cell_classes):
                         ui.label("Telephone Number").classes(label_classes)
                     with ui.element('div').classes(input_cell_classes):
-                        phone_input = ui.input(label="Telephone Number*", placeholder="Enter phone number...").props("type=tel outlined maxlength=20").classes(input_classes)
-                        phone_error = ui.label('').classes('text-red-600 text-xs mt-1 min-h-[18px]').style('display:none')
+                        phone_input = ui.input(
+                            label="Telephone Number*",
+                            placeholder="Enter phone number...",
+                        ).props("type=tel outlined maxlength=20").classes(input_classes)
+                        phone_error = ui.label('').classes(
+                            'text-red-600 text-xs mt-1 min-h-[18px]'
+                        ).style('display:none')
+
                         def validate_phone(e=None):
                             value = phone_input.value or ''
                             if not value.strip():
@@ -671,30 +681,140 @@ def new_vendor():
                                 phone_error.style('display:none')
                                 phone_input.classes(remove='border border-red-600')
                                 return True
+
                         phone_input.on('blur', validate_phone)
+
                     with ui.element('div').classes(label_cell_classes):
-                        ui.label("Email").classes(label_classes)
-                    with ui.element('div').classes(input_cell_classes):
-                        email_input = ui.input(label="Email*", placeholder="Enter email...").props("type=email outlined maxlength=60").classes(input_classes)
-                        email_error = ui.label('').classes('text-red-600 text-xs mt-1 min-h-[18px]').style('display:none')
-                        def validate_email(e=None):
-                            value = email_input.value or ''
-                            if not value.strip():
-                                email_error.text = "Please enter the email."
-                                email_error.style('display:block')
-                                email_input.classes('border border-red-600')
-                                return False
-                            elif '@' not in value or '.' not in value:
-                                email_error.text = "Please enter a valid email address."
-                                email_error.style('display:block')
-                                email_input.classes('border border-red-600')
-                                return False
-                            else:
-                                email_error.text = ''
-                                email_error.style('display:none')
-                                email_input.classes(remove='border border-red-600')
+                        ui.label("Vendor Email Address").classes(label_classes)
+
+                    # Vendor email addresses (primary + optional secondary)
+                    with ui.element('div').classes(input_cell_classes + " flex flex-col") as email_container:
+                        email_inputs = []
+                        email_error_labels = []
+
+                        # Primary (mandatory) email
+                        primary_email_input = ui.input(
+                            label="Vendor Email Address*",
+                            placeholder="Enter email...",
+                        ).props("type=email outlined maxlength=60").classes(input_classes)
+                        primary_email_error = ui.label('').classes(
+                            'text-red-600 text-xs mt-1 min-h-[18px]'
+                        ).style('display:none')
+
+                        email_inputs.append(primary_email_input)
+                        email_error_labels.append(primary_email_error)
+
+                        # Container for additional email fields
+                        additional_emails_container = ui.column().classes("mt-2 w-full")
+
+                        # Add Email button (max 2 emails total => 1 additional)
+                        add_email_button = ui.button(
+                            "Add Email",
+                            icon="add",
+                        ).props("flat color=primary").classes("self-start mt-2")
+
+                        def validate_email_value(value: str, required: bool, error_label, input_control):
+                            value = (value or '').strip()
+                            if not value:
+                                if required:
+                                    error_label.text = "Please enter the Vendor Email Address."
+                                    error_label.style('display:block')
+                                    input_control.classes('border border-red-600')
+                                    return False
+                                # Optional and empty is fine
+                                error_label.text = ''
+                                error_label.style('display:none')
+                                input_control.classes(remove='border border-red-600')
                                 return True
-                        email_input.on('blur', validate_email)
+
+                            if not EMAIL_REGEX.match(value):
+                                error_label.text = "Please enter a valid email address."
+                                error_label.style('display:block')
+                                input_control.classes('border border-red-600')
+                                return False
+
+                            error_label.text = ''
+                            error_label.style('display:none')
+                            input_control.classes(remove='border border-red-600')
+                            return True
+
+                        def validate_primary_email(e=None):
+                            return validate_email_value(
+                                primary_email_input.value,
+                                required=True,
+                                error_label=primary_email_error,
+                                input_control=primary_email_input,
+                            )
+
+                        primary_email_input.on('blur', validate_primary_email)
+
+                        def add_additional_email_field(e=None):
+                            # Allow only one additional email (total max 2)
+                            if len(email_inputs) >= 2:
+                                return
+
+                            with additional_emails_container:
+                                with ui.row().classes("items-center w-full gap-2") as row_container:
+                                    extra_input = ui.input(
+                                        label="Additional Email",
+                                        placeholder="Enter additional email...",
+                                    ).props("type=email outlined maxlength=60").classes(
+                                        "flex-1 " + input_classes
+                                    )
+                                    extra_error = ui.label('').classes(
+                                        'text-red-600 text-xs min-h-[18px]'
+                                    ).style('display:none')
+
+                                    def validate_extra(e=None, _input=extra_input, _error=extra_error):
+                                        return validate_email_value(
+                                            _input.value,
+                                            required=False,
+                                            error_label=_error,
+                                            input_control=_input,
+                                        )
+
+                                    extra_input.on('blur', validate_extra)
+
+                                    def remove_extra():
+                                        # Keep primary field always
+                                        if extra_input in email_inputs:
+                                            idx = email_inputs.index(extra_input)
+                                            email_inputs.pop(idx)
+                                            email_error_labels.pop(idx)
+                                        row_container.delete()
+                                        # Show Add button again if below max
+                                        if len(email_inputs) < 2:
+                                            add_email_button.set_visibility(True)
+
+                                    ui.button(
+                                        "",
+                                        icon="delete",
+                                        on_click=remove_extra,
+                                    ).props("flat round color=negative")
+
+                                    email_inputs.append(extra_input)
+                                    email_error_labels.append(extra_error)
+
+                            # Hide Add button if max reached
+                            if len(email_inputs) >= 2:
+                                add_email_button.set_visibility(False)
+
+                        add_email_button.on_click(add_additional_email_field)
+
+                        def validate_all_vendor_emails(e=None):
+                            # Validate primary and any additional emails
+                            all_valid = True
+                            for idx, input_control in enumerate(email_inputs):
+                                error_label = email_error_labels[idx]
+                                required = idx == 0
+                                if not validate_email_value(
+                                    input_control.value,
+                                    required=required,
+                                    error_label=error_label,
+                                    input_control=input_control,
+                                ):
+                                    all_valid = False
+                            return all_valid
 
                 # Row 8 - Last Due Diligence Date & Next Required Due Diligence (days)
                 with ui.element('div').classes(f"{row_classes} {std_row_height}"):
@@ -918,7 +1038,9 @@ def new_vendor():
                             zip_input.value = ""
                             country_select.value = None
                             phone_input.value = ""
-                            email_input.value = ""
+                            # Reset vendor email fields
+                            for inp in email_inputs:
+                                inp.value = ""
                             due_diligence_date.value = "2025-08-25"
                             next_due_input.value = "30"
                             next_alert_input.value = "15"
@@ -947,7 +1069,7 @@ def new_vendor():
                             
                             # Hide all error labels
                             ab_error.text = moa_error.text = bank_error.text = cif_error.text = ""
-                            vendor_name_error.text = contact_person_error.text = address1_error.text = address2_error.text = city_error.text = state_error.text = zip_error.text = country_error.text = phone_error.text = email_error.text = due_diligence_error.text = next_due_error.text = next_alert_error.text = freq_error.text = attention_error.text = ""
+                            vendor_name_error.text = contact_person_error.text = address1_error.text = address2_error.text = city_error.text = state_error.text = zip_error.text = country_error.text = phone_error.text = due_diligence_error.text = next_due_error.text = next_alert_error.text = freq_error.text = attention_error.text = ""
                             ab_error.style('display:none')
                             moa_error.style('display:none')
                             bank_error.style('display:none')
@@ -961,7 +1083,7 @@ def new_vendor():
                             zip_error.style('display:none')
                             country_error.style('display:none')
                             phone_error.style('display:none')
-                            email_error.style('display:none')
+                            primary_email_error.style('display:none')
                             due_diligence_error.style('display:none')
                             next_due_error.style('display:none')
                             next_alert_error.style('display:none')
@@ -984,7 +1106,7 @@ def new_vendor():
                                 validate_state(),
                                 validate_zip(),
                                 validate_phone(),
-                                validate_email(),
+                                validate_all_vendor_emails(),
                                 validate_due_diligence(),
                                 validate_next_due(),
                                 validate_next_alert(),
@@ -1049,6 +1171,16 @@ def new_vendor():
                                     addr2["zip_code"] = zip_input.value or None
                                 addresses_payload.append(addr2)
 
+                            # Build emails payload (primary + optional additional)
+                            emails_payload = []
+                            # Primary email is mandatory and already validated
+                            if primary_email_input.value and primary_email_input.value.strip():
+                                emails_payload.append({"email": primary_email_input.value.strip()})
+                            # Optional additional emails
+                            for extra_input in email_inputs[1:]:
+                                if extra_input.value and extra_input.value.strip():
+                                    emails_payload.append({"email": extra_input.value.strip()})
+
                             vendor_data = {
                                 "vendor_name": vendor_name_input.value,
                                 "vendor_contact_person": contact_person_input.value,
@@ -1056,9 +1188,7 @@ def new_vendor():
                                 "material_outsourcing_arrangement": moa_select.value,
                                 "bank_customer": bank_select.value,
                                 "addresses": addresses_payload,
-                                "emails": [
-                                    {"email": email_input.value}
-                                ],
+                                "emails": emails_payload,
                                 "phones": [
                                     {"area_code": "+1", "phone_number": phone_input.value}
                                 ],

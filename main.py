@@ -38,6 +38,10 @@ from app.pages.monetary_value_report import monetary_value_report
 from app.pages.due_diligence_report import due_diligence_report
 
 
+# Serve static assets (logos, etc.) from app/public
+nicegui_app.add_static_files('/public', 'app/public')
+
+
 # Define lifespan context manager for startup/shutdown
 @asynccontextmanager
 async def lifespan(root_app: FastAPI):

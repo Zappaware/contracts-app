@@ -15,72 +15,35 @@ def new_contract():
     try:
         vendor_service = VendorService(db)
         # Only load Active vendors for contract creation (exclude Terminated and Inactive vendors)
-        vendors_list, _ = vendor_service.get_vendors_with_filters(skip=0, limit=1000, status_filter="Active", search=None)
+        vendors_list, _ = vendor_service.get_vendors_with_filters(
+            skip=0, limit=1000, status_filter="Active", search=None
+        )
         vendor_options = {vendor.vendor_name: vendor.id for vendor in vendors_list}
-        vendor_names = list(vendor_options.keys()) if vendor_options else ["No vendors available"]
-        
+        vendor_names = (
+            list(vendor_options.keys()) if vendor_options else ["No vendors available"]
+        )
+
         contract_service = ContractService(db)
         users_list = contract_service.get_users(active_only=True)
-        users_map = {f"{user.first_name} {user.last_name}": user.id for user in users_list}
+        users_map = {
+            f"{user.first_name} {user.last_name}": user.id for user in users_list
+        }
     except Exception as e:
         print(f"Error loading initial data: {e}")
         vendor_names = ["Error loading vendors"]
         vendor_options = {}
+        users_list = []
         users_map = {}
     finally:
         db.close()
-    
-    # Contract Manager data with email addresses
-    contract_managers_data = {
-        "Please select": "",
-        "Ryan Koolman": "ryan.koolman@arubabank.com",
-        "Urvin Werleman": "urvin.werleman@arubabank.com",
-        "Wendy Koffy": "wendy.koffy@arubabank.com",
-        "Joseph Winterdal": "joseph.winterdal@arubabank.com",
-        "Francois Citroen": "francois.citroen@arubabank.com",
-        "Charlotte Cuba De": "charlotte.cubade@arubabank.com",
-        "Noraiza Maduro": "noraiza.maduro@arubabank.com",
-        "Inoira Maduro": "inoira.maduro@arubabank.com",
-        "Marleen van der Borgt": "marleen.vanderborgt@arubabank.com",
-        "Janis Ten Hoope": "janis.tenhoope@arubabank.com",
-        "Herman Brown": "herman.brown@arubabank.com",
-        "Joswald Peterson": "joswald.peterson@arubabank.com",
-        "Sedrick Naranjo": "sedrick.naranjo@arubabank.com",
-        "Julio Jacobs": "julio.jacobs@arubabank.com",
-        "Edseline Semeleer": "edseline.semeleer@arubabank.com",
-        "Tamara Waldron": "tamara.waldron@arubabank.com",
-        "Raysa Ashby": "raysa.ashby@arubabank.com",
-        "Edna Boekhoudt": "edna.boekhoudt@arubabank.com",
-        "Marjory Clark": "marjory.clark@arubabank.com",
-        "Luigi van der Linden": "luigi.vanderlinden@arubabank.com",
-        "Charissa Maduro": "charissa.maduro@arubabank.com",
-        "Tamara Fingal": "tamara.fingal@arubabank.com",
-        "Nathalie Joho": "nathalie.joho@arubabank.com",
-        "Gjalynn Kolfin": "gjalynn.kolfin@arubabank.com",
-        "Nigel Wix": "nigel.wix@arubabank.com",
-        "Corry-Ann Dorotaal": "corryann.dorotaal@arubabank.com",
-        "Lizani Wever": "lizani.wever@arubabank.com",
-        "Jeroen Gerfen": "jeroen.gerfen@arubabank.com",
-        "Edgar Diaz Ponson": "edgar.diazponson@arubabank.com",
-        "Nicole Dijkhoff": "nicole.dijkhoff@arubabank.com",
-        "Gritsana Comenencia": "gritsana.comenencia@arubabank.com",
-        "Marlon Kock": "marlon.kock@arubabank.com",
-        "Michelle Harms": "michelle.harms@arubabank.com",
-        "Stefan Lucas": "stefan.lucas@arubabank.com",
-        "Robbert van der Sloot": "robbert.vandersloot@arubabank.com",
-        "Patricia Goede": "patricia.goede@arubabank.com",
-        "Rodney Geerman": "rodney.geerman@arubabank.com",
-        "Guiselaine Oduber": "guiselaine.oduber@arubabank.com",
-        "Janella Chong": "janella.chong@arubabank.com",
-        "Carina Boekhoudt": "carina.boekhoudt@arubabank.com",
-        "Hubert (Marcel) Zievinger": "hubert.zievinger@arubabank.com",
-        "Eugene Dirksz": "eugene.dirksz@arubabank.com",
-        "Igmar Reyes": "igmar.reyes@arubabank.com",
-        "Nathalie Kelly-Hoevertsz": "nathalie.kellyhoevertsz@arubabank.com",
-        "Jovanny Lacle": "jovanny.lacle@arubabank.com",
-        "Stephanie Camacho": "stephanie.camacho@arubabank.com",
-        "Franchesca Lacle": "franchesca.lacle@arubabank.com"
-    }
+
+    # Contract Manager / Owner / Backup data with email addresses
+    contract_managers_data = {"Please select": ""}
+    for user in users_list:
+        full_name = f"{user.first_name} {user.last_name}"
+        # Avoid overwriting if duplicate names exist
+        if full_name not in contract_managers_data:
+            contract_managers_data[full_name] = getattr(user, "email", "") or ""
     
     # Vendor Contract variables (function scope for accessibility)
     vendor_contract_uploaded = False

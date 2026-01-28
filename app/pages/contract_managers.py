@@ -2,6 +2,9 @@ from nicegui import ui
 import io
 import base64
 from datetime import datetime
+import os
+
+from app.core.config import settings
 try:
     import pandas as pd
     PANDAS_AVAILABLE = True
@@ -135,6 +138,13 @@ def contract_managers():
             "align": "center",
             "sortable": True,
         },
+        {
+            "name": "actions",
+            "label": "",
+            "field": "actions",
+            "align": "center",
+            "sortable": False,
+        },
     ]
 
     manager_columns_defaults = {
@@ -147,10 +157,16 @@ def contract_managers():
     # Main container
     with ui.element("div").classes("max-w-6xl mt-8 mx-auto w-full"):
         # Section header
-        with ui.row().classes('items-center ml-4 mb-4 w-full'):
+        with ui.row().classes('items-center ml-4 mb-4 w-full justify-between'):
             with ui.row().classes('items-center gap-2'):
                 ui.icon('people', color='primary').style('font-size: 32px')
                 ui.label("User Administration").classes("text-h5 font-bold")
+            # Create User button (entry point)
+            ui.button(
+                "Create User",
+                icon="person_add",
+                on_click=lambda: open_create_user_dialog(),
+            ).props('color=primary').classes('mr-4')
         
         ui.label("View user responsibilities based on their assigned roles").classes(
             "text-sm text-gray-500 ml-4 mb-4"
@@ -254,7 +270,612 @@ def contract_managers():
                 </a>
             </q-td>
         ''')
+
+        # Add actions column with pencil edit button
+        managers_table.add_slot('body-cell-actions', '''
+            <q-td :props="props" class="text-center">
+                <q-btn 
+                    flat round dense 
+                    icon="edit" 
+                    color="primary" 
+                    @click="$emit('edit-user', { row: props.row })"
+                />
+            </q-td>
+        ''')
+
+        def _extract_row_from_event(e):
+            """Utility to extract row dict from NiceGUI/Quasar event arguments."""
+            if not hasattr(e, 'args'):
+                return None
+            args = e.args
+            if isinstance(args, list) and args:
+                first = args[0]
+                if isinstance(first, dict):
+                    return first.get('row') or first
+            if isinstance(args, dict):
+                return args.get('row') or args
+            return None
+
+        # Handle row click to edit user
+        def handle_row_click(e):
+            """Open edit dialog when a table row is clicked."""
+            row = _extract_row_from_event(e)
+            if not row:
+                return
+            open_edit_user_dialog(row)
+
+        # Handle pencil button click to edit user
+        def handle_edit_button(e):
+            """Open edit dialog when the pencil icon is clicked."""
+            row = _extract_row_from_event(e)
+            if not row:
+                return
+            open_edit_user_dialog(row)
+
+        managers_table.on('rowClick', handle_row_click)
+        managers_table.on('edit-user', handle_edit_button)
         
+        # Function to open Create User dialog
+        def open_create_user_dialog():
+            """Open dialog to create a new user"""
+            from app.db.database import SessionLocal
+            from app.models.contract import User, DepartmentType, UserRole
+            from app.services.contract_service import ContractService
+
+            with ui.dialog() as dialog, ui.card().classes('p-6 w-full max-w-lg'):
+                ui.label("Create User").classes("text-h6 font-bold mb-2")
+                ui.label(
+                    "Add a new user to the system. All fields are required."
+                ).classes("text-sm text-gray-600 mb-4")
+
+                label_classes = "text-sm font-semibold text-gray-700"
+                input_classes = "w-full"
+
+                with ui.column().classes('gap-3 w-full'):
+                    # First Name
+                    ui.label("First Name*").classes(label_classes)
+                    first_name_input = ui.input().classes(input_classes).props("outlined")
+                    first_name_error = ui.label('').classes(
+                        'text-red-600 text-xs min-h-[18px]'
+                    ).style('display:none')
+
+                    # Last Name
+                    ui.label("Last Name*").classes(label_classes + " mt-1")
+                    last_name_input = ui.input().classes(input_classes).props("outlined")
+                    last_name_error = ui.label('').classes(
+                        'text-red-600 text-xs min-h-[18px]'
+                    ).style('display:none')
+
+                    # Email
+                    ui.label("Email*").classes(label_classes + " mt-1")
+                    email_input = ui.input().classes(input_classes).props(
+                        "outlined type=email"
+                    )
+                    email_error = ui.label('').classes(
+                        'text-red-600 text-xs min-h-[18px]'
+                    ).style('display:none')
+
+                    # Department
+                    ui.label("Department*").classes(label_classes + " mt-1")
+                    try:
+                        from app.models.contract import DepartmentType
+
+                        department_options = [d.value for d in DepartmentType]
+                    except Exception:
+                        department_options = []
+                    department_select = ui.select(
+                        options=department_options,
+                        label="Select department",
+                    ).classes(input_classes).props("outlined")
+                    department_error = ui.label('').classes(
+                        'text-red-600 text-xs min-h-[18px]'
+                    ).style('display:none')
+
+                    # Phone (captured for administration, not yet stored in DB)
+                    ui.label("Phone*").classes(label_classes + " mt-1")
+                    phone_input = ui.input().classes(input_classes).props("outlined")
+                    phone_error = ui.label('').classes(
+                        'text-red-600 text-xs min-h-[18px]'
+                    ).style('display:none')
+
+                    # Access Role
+                    ui.label("Access Role*").classes(label_classes + " mt-1")
+                    try:
+                        from app.models.contract import UserRole
+
+                        role_options = [r.value for r in UserRole]
+                    except Exception:
+                        role_options = []
+                    role_select = ui.select(
+                        options=role_options,
+                        label="Select access role",
+                    ).classes(input_classes).props("outlined")
+                    role_error = ui.label('').classes(
+                        'text-red-600 text-xs min-h-[18px]'
+                    ).style('display:none')
+
+                    # Helper to mark invalid fields
+                    def mark_invalid(input_control, error_label, message: str):
+                        error_label.text = message
+                        error_label.style('display:block')
+                        input_control.classes('border border-red-600')
+
+                    def clear_error(input_control, error_label):
+                        error_label.text = ''
+                        error_label.style('display:none')
+                        input_control.classes(remove='border border-red-600')
+
+                    # Create and Cancel buttons
+                    with ui.row().classes('justify-end gap-2 mt-4 w-full'):
+                        ui.button("Cancel", on_click=dialog.close).props('flat')
+
+                        def create_user():
+                            """Validate form and create user in database"""
+                            # Basic validations
+                            valid = True
+
+                            first_name = (first_name_input.value or '').strip()
+                            if not first_name:
+                                mark_invalid(
+                                    first_name_input,
+                                    first_name_error,
+                                    "First name is required",
+                                )
+                                valid = False
+                            else:
+                                clear_error(first_name_input, first_name_error)
+
+                            last_name = (last_name_input.value or '').strip()
+                            if not last_name:
+                                mark_invalid(
+                                    last_name_input,
+                                    last_name_error,
+                                    "Last name is required",
+                                )
+                                valid = False
+                            else:
+                                clear_error(last_name_input, last_name_error)
+
+                            email = (email_input.value or '').strip()
+                            if not email:
+                                mark_invalid(
+                                    email_input,
+                                    email_error,
+                                    "Email is required",
+                                )
+                                valid = False
+                            elif '@' not in email or '.' not in email:
+                                mark_invalid(
+                                    email_input,
+                                    email_error,
+                                    "Please enter a valid email address",
+                                )
+                                valid = False
+                            else:
+                                clear_error(email_input, email_error)
+
+                            department_val = department_select.value or ''
+                            if not department_val:
+                                mark_invalid(
+                                    department_select,
+                                    department_error,
+                                    "Department is required",
+                                )
+                                valid = False
+                            else:
+                                clear_error(department_select, department_error)
+
+                            phone = (phone_input.value or '').strip()
+                            if not phone:
+                                mark_invalid(
+                                    phone_input,
+                                    phone_error,
+                                    "Phone is required",
+                                )
+                                valid = False
+                            else:
+                                clear_error(phone_input, phone_error)
+
+                            role_val = role_select.value or ''
+                            if not role_val:
+                                mark_invalid(
+                                    role_select,
+                                    role_error,
+                                    "Access role is required",
+                                )
+                                valid = False
+                            else:
+                                clear_error(role_select, role_error)
+
+                            if not valid:
+                                ui.notify(
+                                    "Please complete all required fields.",
+                                    type="negative",
+                                )
+                                return
+
+                            # Create user in database
+                            try:
+                                db = SessionLocal()
+                                try:
+                                    contract_service = ContractService(db)
+                                    generated_user_id = contract_service.generate_user_id()
+
+                                    try:
+                                        department_enum = DepartmentType(department_val)
+                                    except ValueError:
+                                        mark_invalid(
+                                            department_select,
+                                            department_error,
+                                            "Invalid department selected",
+                                        )
+                                        ui.notify(
+                                            "Invalid department selected.",
+                                            type="negative",
+                                        )
+                                        return
+
+                                    try:
+                                        role_enum = UserRole(role_val)
+                                    except ValueError:
+                                        mark_invalid(
+                                            role_select,
+                                            role_error,
+                                            "Invalid role selected",
+                                        )
+                                        ui.notify(
+                                            "Invalid access role selected.",
+                                            type="negative",
+                                        )
+                                        return
+
+                                    new_user = User(
+                                        user_id=generated_user_id,
+                                        first_name=first_name,
+                                        last_name=last_name,
+                                        email=email,
+                                        department=department_enum,
+                                        position="Employee",
+                                        role=role_enum,
+                                        is_active=True,
+                                        hashed_password=None,
+                                    )
+
+                                    db.add(new_user)
+                                    db.commit()
+                                    db.refresh(new_user)
+
+                                    # Add to table data with zero contract counts
+                                    row_data = {
+                                        "user_id": str(new_user.user_id or ""),
+                                        "name": f"{new_user.first_name} {new_user.last_name}",
+                                        "email": str(new_user.email or ""),
+                                        "department": str(
+                                            new_user.department.value
+                                            if hasattr(new_user.department, 'value')
+                                            else new_user.department
+                                        ),
+                                        "contract_manager_count": 0,
+                                        "backup_count": 0,
+                                        "owner_count": 0,
+                                    }
+                                    manager_rows.append(row_data)
+                                    managers_table.rows = manager_rows
+                                    managers_table.update()
+
+                                    ui.notify(
+                                        f"User {new_user.first_name} {new_user.last_name} created successfully.",
+                                        type="positive",
+                                    )
+                                    dialog.close()
+                                finally:
+                                    db.close()
+                            except Exception as e:
+                                ui.notify(
+                                    f"Error creating user: {str(e)}", type="negative"
+                                )
+
+                        ui.button(
+                            "Create",
+                            icon="check",
+                            on_click=create_user,
+                        ).props('color=primary')
+
+                dialog.open()
+
+        # Function to open Edit User dialog
+        def open_edit_user_dialog(row_data: dict):
+            """Open dialog to edit an existing user."""
+            from app.db.database import SessionLocal
+            from app.models.contract import User, DepartmentType, UserRole
+            from app.services.contract_service import ContractService
+
+            # Extract current values from row
+            current_user_id = row_data.get('user_id', '')
+            current_name = (row_data.get('name') or '').split(' ', 1)
+            current_first_name = current_name[0] if current_name else ''
+            current_last_name = current_name[1] if len(current_name) > 1 else ''
+            current_email = row_data.get('email') or ''
+            current_department = row_data.get('department') or ''
+
+            with ui.dialog() as dialog, ui.card().classes('p-6 w-full max-w-lg'):
+                ui.label("Edit User").classes("text-h6 font-bold mb-2")
+                ui.label(
+                    "Modify user information. All fields are required."
+                ).classes("text-sm text-gray-600 mb-4")
+
+                label_classes = "text-sm font-semibold text-gray-700"
+                input_classes = "w-full"
+
+                with ui.column().classes('gap-3 w-full'):
+                    # First Name
+                    ui.label("First Name*").classes(label_classes)
+                    first_name_input = ui.input(
+                        value=current_first_name,
+                    ).classes(input_classes).props("outlined")
+                    first_name_error = ui.label('').classes(
+                        'text-red-600 text-xs min-h-[18px]'
+                    ).style('display:none')
+
+                    # Last Name
+                    ui.label("Last Name*").classes(label_classes + " mt-1")
+                    last_name_input = ui.input(
+                        value=current_last_name,
+                    ).classes(input_classes).props("outlined")
+                    last_name_error = ui.label('').classes(
+                        'text-red-600 text-xs min-h-[18px]'
+                    ).style('display:none')
+
+                    # Email
+                    ui.label("Email*").classes(label_classes + " mt-1")
+                    email_input = ui.input(
+                        value=current_email,
+                    ).classes(input_classes).props("outlined type=email")
+                    email_error = ui.label('').classes(
+                        'text-red-600 text-xs min-h-[18px]'
+                    ).style('display:none')
+
+                    # Department
+                    ui.label("Department*").classes(label_classes + " mt-1")
+                    try:
+                        department_options = [d.value for d in DepartmentType]
+                    except Exception:
+                        department_options = []
+                    department_select = ui.select(
+                        options=department_options,
+                        value=current_department if current_department in department_options else None,
+                        label="Select department",
+                    ).classes(input_classes).props("outlined")
+                    department_error = ui.label('').classes(
+                        'text-red-600 text-xs min-h-[18px]'
+                    ).style('display:none')
+
+                    # Phone (UI only, not yet stored in DB)
+                    ui.label("Phone*").classes(label_classes + " mt-1")
+                    phone_input = ui.input().classes(input_classes).props("outlined")
+                    phone_error = ui.label('').classes(
+                        'text-red-600 text-xs min-h-[18px]'
+                    ).style('display:none')
+
+                    # Access Role
+                    ui.label("Access Role*").classes(label_classes + " mt-1")
+                    try:
+                        role_options = [r.value for r in UserRole]
+                    except Exception:
+                        role_options = []
+                    # Try to resolve current role from DB when opening
+                    current_role_value = None
+                    try:
+                        db_preview = SessionLocal()
+                        try:
+                            user_preview = (
+                                db_preview.query(User)
+                                .filter(User.user_id == current_user_id)
+                                .first()
+                            )
+                            if user_preview and user_preview.role:
+                                current_role_value = user_preview.role.value
+                        finally:
+                            db_preview.close()
+                    except Exception:
+                        current_role_value = None
+
+                    role_select = ui.select(
+                        options=role_options,
+                        value=current_role_value if current_role_value in role_options else None,
+                        label="Select access role",
+                    ).classes(input_classes).props("outlined")
+                    role_error = ui.label('').classes(
+                        'text-red-600 text-xs min-h-[18px]'
+                    ).style('display:none')
+
+                    # Helpers
+                    def mark_invalid(input_control, error_label, message: str):
+                        error_label.text = message
+                        error_label.style('display:block')
+                        input_control.classes('border border-red-600')
+
+                    def clear_error(input_control, error_label):
+                        error_label.text = ''
+                        error_label.style('display:none')
+                        input_control.classes(remove='border border-red-600')
+
+                    # Buttons
+                    with ui.row().classes('justify-end gap-2 mt-4 w-full'):
+                        ui.button("Cancel", on_click=dialog.close).props('flat')
+
+                        def modify_user():
+                            """Validate and update user information in the database."""
+                            valid = True
+
+                            first_name = (first_name_input.value or '').strip()
+                            if not first_name:
+                                mark_invalid(
+                                    first_name_input,
+                                    first_name_error,
+                                    "First name is required",
+                                )
+                                valid = False
+                            else:
+                                clear_error(first_name_input, first_name_error)
+
+                            last_name = (last_name_input.value or '').strip()
+                            if not last_name:
+                                mark_invalid(
+                                    last_name_input,
+                                    last_name_error,
+                                    "Last name is required",
+                                )
+                                valid = False
+                            else:
+                                clear_error(last_name_input, last_name_error)
+
+                            email = (email_input.value or '').strip()
+                            if not email:
+                                mark_invalid(
+                                    email_input,
+                                    email_error,
+                                    "Email is required",
+                                )
+                                valid = False
+                            elif '@' not in email or '.' not in email:
+                                mark_invalid(
+                                    email_input,
+                                    email_error,
+                                    "Please enter a valid email address",
+                                )
+                                valid = False
+                            else:
+                                clear_error(email_input, email_error)
+
+                            department_val = department_select.value or ''
+                            if not department_val:
+                                mark_invalid(
+                                    department_select,
+                                    department_error,
+                                    "Department is required",
+                                )
+                                valid = False
+                            else:
+                                clear_error(department_select, department_error)
+
+                            phone = (phone_input.value or '').strip()
+                            if not phone:
+                                mark_invalid(
+                                    phone_input,
+                                    phone_error,
+                                    "Phone is required",
+                                )
+                                valid = False
+                            else:
+                                clear_error(phone_input, phone_error)
+
+                            role_val = role_select.value or ''
+                            if not role_val:
+                                mark_invalid(
+                                    role_select,
+                                    role_error,
+                                    "Access role is required",
+                                )
+                                valid = False
+                            else:
+                                clear_error(role_select, role_error)
+
+                            if not valid:
+                                ui.notify(
+                                    "Please complete all required fields.",
+                                    type="negative",
+                                )
+                                return
+
+                            # Update in database
+                            try:
+                                db = SessionLocal()
+                                try:
+                                    user = (
+                                        db.query(User)
+                                        .filter(User.user_id == current_user_id)
+                                        .first()
+                                    )
+                                    if not user:
+                                        ui.notify(
+                                            "User not found in database.",
+                                            type="negative",
+                                        )
+                                        return
+
+                                    try:
+                                        department_enum = DepartmentType(
+                                            department_val
+                                        )
+                                    except ValueError:
+                                        mark_invalid(
+                                            department_select,
+                                            department_error,
+                                            "Invalid department selected",
+                                        )
+                                        ui.notify(
+                                            "Invalid department selected.",
+                                            type="negative",
+                                        )
+                                        return
+
+                                    try:
+                                        role_enum = UserRole(role_val)
+                                    except ValueError:
+                                        mark_invalid(
+                                            role_select,
+                                            role_error,
+                                            "Invalid role selected",
+                                        )
+                                        ui.notify(
+                                            "Invalid access role selected.",
+                                            type="negative",
+                                        )
+                                        return
+
+                                    # Apply changes
+                                    user.first_name = first_name
+                                    user.last_name = last_name
+                                    user.email = email
+                                    user.department = department_enum
+                                    user.role = role_enum
+
+                                    db.commit()
+                                    db.refresh(user)
+
+                                    # Update row data in table
+                                    row_data['user_id'] = str(user.user_id or "")
+                                    row_data['name'] = f"{user.first_name} {user.last_name}"
+                                    row_data['email'] = str(user.email or "")
+                                    row_data['department'] = str(
+                                        user.department.value
+                                        if hasattr(user.department, 'value')
+                                        else user.department
+                                    )
+
+                                    managers_table.update()
+
+                                    ui.notify(
+                                        f"User {user.first_name} {user.last_name} updated successfully.",
+                                        type="positive",
+                                    )
+                                    dialog.close()
+                                finally:
+                                    db.close()
+                            except Exception as e:
+                                ui.notify(
+                                    f"Error updating user: {str(e)}", type="negative"
+                                )
+
+                        ui.button(
+                            "Modify",
+                            icon="check",
+                            on_click=modify_user,
+                        ).props('color=primary')
+
+                dialog.open()
+
         # Function to generate Excel report
         def open_generate_dialog():
             """Open dialog for report generation"""
