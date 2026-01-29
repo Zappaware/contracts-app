@@ -108,7 +108,7 @@ def login_page():
             "w-[540px] p-8 flex flex-col shadow-lg relative"
         ).style("min-height: 550px;"):
             # Logos row - positioned at top, side by side (no wrap), centered respecting card margins
-            ab_logo_path = "/public/" + quote("AB Logo.png")
+            ab_logo_path = "/public/" + quote("AB_Logo.png")
             ui.html(
                 f'''
                 <div style="width: 100%; display: flex; justify-content: center; align-items: center; gap: 62px; margin: 0 0 24px 0; flex-wrap: nowrap;">
