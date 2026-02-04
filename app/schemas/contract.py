@@ -63,8 +63,8 @@ class ContractDocumentBase(BaseModel):
         if not v or not v.strip():
             raise ValueError('Document name cannot be empty')
         
-        # Only allow letters, numbers, spaces, and special characters: -, |, &
-        if not re.match(r'^[a-zA-Z0-9\-|&\s]+$', v.strip()):
+        # Only allow letters, numbers, spaces, and special characters: -, |, & (hyphen at start of class so literal)
+        if not re.match(r'^[-a-zA-Z0-9|&\s]+$', v.strip()):
             raise ValueError('Document name can only contain letters, numbers, spaces, and the characters: - | &')
         
         return v.strip()

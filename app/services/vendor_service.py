@@ -123,9 +123,10 @@ class VendorService:
 
     def validate_custom_document_name(self, name: str) -> bool:
         import re
+        from app.core.constants import ValidationPatterns
         if not name or not name.strip():
             return False
-        return bool(re.match(r'^[a-zA-Z0-9\-|&\s]+$', name.strip()))
+        return bool(re.match(ValidationPatterns.DOCUMENT_NAME, name.strip()))
 
     async def save_uploaded_file(self, file: UploadFile, vendor_id: str, document_type: str) -> str:
         upload_dir = os.path.join(FileConstants.VENDOR_DOCS_DIR, vendor_id)
@@ -146,14 +147,16 @@ class VendorService:
     def create_vendor(self, vendor_data: VendorCreate, bank_type: str = VendorPrefix.ARUBA_BANK.value) -> Vendor:
         vendor_id = self.generate_vendor_id(bank_type)
         
-        # Calculate next due diligence date if required
+        # Use form-provided next due diligence date when present; otherwise calculate from last DD + MOA
         next_due_diligence_date = None
-        if (vendor_data.due_diligence_required == DueDiligenceRequiredType.YES and 
-            vendor_data.last_due_diligence_date):
-            next_due_diligence_date = self.calculate_next_due_diligence_date(
-                vendor_data.last_due_diligence_date,
-                vendor_data.material_outsourcing_arrangement
-            )
+        if vendor_data.due_diligence_required == DueDiligenceRequiredType.YES:
+            if vendor_data.next_required_due_diligence_date:
+                next_due_diligence_date = vendor_data.next_required_due_diligence_date
+            elif vendor_data.last_due_diligence_date:
+                next_due_diligence_date = self.calculate_next_due_diligence_date(
+                    vendor_data.last_due_diligence_date,
+                    vendor_data.material_outsourcing_arrangement
+                )
         
         # Create vendor record
         vendor = Vendor(

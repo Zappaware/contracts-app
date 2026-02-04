@@ -178,6 +178,9 @@ class ValidationPatterns:
     # User ID: U followed by digits
     USER_ID = r'^U\d+$'
 
+    # Document name: letters, numbers, spaces, and special chars - | & only (hyphen first in class so literal)
+    DOCUMENT_NAME = r'^[-a-zA-Z0-9|&\s]+$'
+
 
 # ============================================================================
 # DUE DILIGENCE CONSTANTS
