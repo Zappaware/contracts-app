@@ -3,7 +3,11 @@ import httpx
 import json
 import os
 import re
+from datetime import datetime as dt
+from dateutil.relativedelta import relativedelta
+
 from app.core.config import settings
+from app.core.constants import DueDiligenceConstants
 from app.utils.geo_data import get_country_list, get_us_states, get_country_list_async, get_calling_codes_list
 
 # Import US states from geo_data utility
@@ -146,7 +150,7 @@ def new_vendor():
                     with ui.element('div').classes(label_cell_classes):
                         ui.label("Due Diligence Required").classes(label_classes)
                     with ui.element('div').classes(input_cell_classes + " flex flex-col min-h-[70px]"):
-                        dd_required_options = ["Please select", "YES", "NO"]
+                        dd_required_options = ["Please select", "Yes", "No"]
                         dd_required_select = ui.select(
                             options=dd_required_options,
                             value="Please select",
@@ -956,93 +960,166 @@ def new_vendor():
                                     all_valid = False
                             return all_valid
 
-                # Row 8 - Last Due Diligence Date & Next Required Due Diligence (days)
-                with ui.element('div').classes(f"{row_classes} {std_row_height}"):
-                    with ui.element('div').classes(label_cell_classes):
-                        ui.label("Last Due Diligence Date").classes(label_classes)
-                    with ui.element('div').classes(input_cell_classes):
-                        with ui.input('YYYY-MM-DD', value='2025-08-25').classes(input_classes).props("outlined") as due_diligence_date:
-                            due_diligence_error = ui.label('').classes('text-red-600 text-xs mt-1 min-h-[18px]').style('display:none')
-                            with ui.menu().props('no-parent-event') as due_diligence_menu:
-                                with ui.date(value='2025-08-25').props('mask=YYYY-MM-DD').bind_value(due_diligence_date, 
-                                    forward=lambda d: d, 
-                                    backward=lambda d: d):
-                                    with ui.row().classes('justify-end'):
-                                        ui.button('Close', on_click=due_diligence_menu.close).props('flat')
-                            with due_diligence_date.add_slot('append'):
-                                ui.icon('edit_calendar').on('click', due_diligence_menu.open).classes('cursor-pointer')
-                        def validate_due_diligence(e=None):
-                            value = due_diligence_date.value or ''
-                            if not value.strip():
-                                due_diligence_error.text = "Please enter the last due diligence date."
-                                due_diligence_error.style('display:block')
-                                due_diligence_date.classes('border border-red-600')
-                                return False
-                            else:
+                # Due Diligence date/alert section - visible only when Due Diligence Required = YES (AC 1)
+                last_dd_section = ui.element('div').classes("w-full")
+                last_dd_section.set_visibility(False)
+
+                def toggle_last_dd_section():
+                    val = (dd_required_select.value or "").strip()
+                    last_dd_section.set_visibility(val.lower() == "yes")
+
+                def _dd_display_date(iso_str):
+                    """YYYY-MM-DD -> MM/DD/YY for display."""
+                    if not iso_str or len(iso_str) < 10:
+                        return iso_str or ''
+                    return f"{iso_str[5:7]}/{iso_str[8:10]}/{iso_str[2:4]}"
+
+                def _dd_parse_date(mm_dd_yy):
+                    """MM/DD/YY -> YYYY-MM-DD for date picker."""
+                    if not mm_dd_yy or not (str(mm_dd_yy).strip() if mm_dd_yy else ''):
+                        return ''
+                    s = str(mm_dd_yy).strip().replace('-', '/')
+                    parts = s.split('/')
+                    if len(parts) != 3:
+                        return ''
+                    try:
+                        mm, dd, yy = int(parts[0]), int(parts[1]), int(parts[2])
+                        year = (2000 + yy) if yy < 100 else yy
+                        if not (1 <= mm <= 12 and 1 <= dd <= 31):
+                            return ''
+                        return f"{year:04d}-{mm:02d}-{dd:02d}"
+                    except (ValueError, TypeError):
+                        return ''
+
+                def _compute_next_required_dd_date(last_dd_str, moa_value):
+                    """Last DD (MM/DD/YY or YYYY-MM-DD) + 3 years if MOA=Yes else +5 years. Returns MM/DD/YY or ''."""
+                    if not last_dd_str or not str(last_dd_str).strip():
+                        return ''
+                    s = str(last_dd_str).strip().replace('-', '/')
+                    parts = s.split('/')
+                    if len(parts) != 3:
+                        if len(s) == 10 and s[4] == '/' and s[7] == '/':
+                            parts = [s[:4], s[5:7], s[8:10]]
+                        else:
+                            return ''
+                    try:
+                        if len(parts[0]) == 4:  # YYYY-MM-DD
+                            y, m, d = int(parts[0]), int(parts[1]), int(parts[2])
+                        else:
+                            mm, dd, yy = int(parts[0]), int(parts[1]), int(parts[2])
+                            y = (2000 + yy) if yy < 100 else yy
+                            m, d = mm, dd
+                        base = dt(y, m, d)
+                    except (ValueError, TypeError):
+                        return ''
+                    years = DueDiligenceConstants.MATERIAL_OUTSOURCING_YEARS if (str(moa_value or "").strip().lower() == "yes") else DueDiligenceConstants.NON_MATERIAL_OUTSOURCING_YEARS
+                    next_dt = base + relativedelta(years=years)
+                    return f"{next_dt.month:02d}/{next_dt.day:02d}/{next_dt.year % 100:02d}"
+
+                with last_dd_section:
+                    # Row 8 - Last Due Diligence Date (MM/DD/YY) & Next Required Due Diligence Date (AC: date, calculated, editable)
+                    with ui.element('div').classes(f"{row_classes} {std_row_height}"):
+                        with ui.element('div').classes(label_cell_classes):
+                            ui.label("Last Due Diligence Date").classes(label_classes)
+                        with ui.element('div').classes(input_cell_classes):
+                            with ui.input('MM/DD/YY', value='').classes(input_classes).props("outlined") as due_diligence_date:
+                                due_diligence_error = ui.label('').classes('text-red-600 text-xs mt-1 min-h-[18px]').style('display:none')
+                                with ui.menu().props('no-parent-event') as due_diligence_menu:
+                                    with ui.date(value=None).props('mask=MM/DD/YY').bind_value(due_diligence_date,
+                                        forward=_dd_display_date,
+                                        backward=_dd_parse_date):
+                                        with ui.row().classes('justify-end'):
+                                            ui.button('Close', on_click=due_diligence_menu.close).props('flat')
+                                with due_diligence_date.add_slot('append'):
+                                    ui.icon('edit_calendar').on('click', due_diligence_menu.open).classes('cursor-pointer')
+                            def validate_due_diligence(e=None):
+                                value = (due_diligence_date.value or '').strip()
+                                if not value:
+                                    due_diligence_error.text = "Please enter the Last Due Diligence date."
+                                    due_diligence_error.style('display:block')
+                                    due_diligence_date.classes('border border-red-600')
+                                    return False
                                 due_diligence_error.text = ''
                                 due_diligence_error.style('display:none')
                                 due_diligence_date.classes(remove='border border-red-600')
                                 return True
-                        due_diligence_date.on('blur', validate_due_diligence)
-                    with ui.element('div').classes(label_cell_classes):
-                        ui.label("Next Required Due Diligence").classes(label_classes)
-                    with ui.element('div').classes(input_cell_classes + " flex flex-col"):
-                        next_due_options = ["15", "30", "60", "90", "120"]
-                        next_due_input = ui.select(options=next_due_options, value="30", label="Days*").classes(input_classes).props("outlined")
-                        next_due_error = ui.label('').classes('text-red-600 text-xs mt-1 min-h-[18px]').style('display:none')
-                        def validate_next_due(e=None):
-                            value = next_due_input.value or ''
-                            if not value.strip() or value not in next_due_options:
-                                next_due_error.text = "Please select the next required due diligence days."
-                                next_due_error.style('display:block')
-                                next_due_input.classes('border border-red-600')
-                                return False
-                            else:
-                                next_due_error.text = ''
-                                next_due_error.style('display:none')
-                                next_due_input.classes(remove='border border-red-600')
+                            due_diligence_date.on('blur', validate_due_diligence)
+                        with ui.element('div').classes(label_cell_classes):
+                            ui.label("Next Required Due Diligence Date").classes(label_classes)
+                        with ui.element('div').classes(input_cell_classes + " flex flex-col"):
+                            with ui.input('MM/DD/YY', value='').classes(input_classes).props("outlined") as next_required_dd_date:
+                                next_required_dd_date_error = ui.label('').classes('text-red-600 text-xs mt-1 min-h-[18px]').style('display:none')
+                                with ui.menu().props('no-parent-event') as next_required_dd_menu:
+                                    with ui.date(value=None).props('mask=MM/DD/YY').bind_value(next_required_dd_date,
+                                        forward=_dd_display_date,
+                                        backward=_dd_parse_date):
+                                        with ui.row().classes('justify-end'):
+                                            ui.button('Close', on_click=next_required_dd_menu.close).props('flat')
+                                with next_required_dd_date.add_slot('append'):
+                                    ui.icon('edit_calendar').on('click', next_required_dd_menu.open).classes('cursor-pointer')
+                            def validate_next_required_dd_date(e=None):
+                                value = (next_required_dd_date.value or '').strip()
+                                if not value:
+                                    next_required_dd_date_error.text = "Please provide the Next Required Due Diligence Date"
+                                    next_required_dd_date_error.style('display:block')
+                                    next_required_dd_date.classes('border border-red-600')
+                                    return False
+                                next_required_dd_date_error.text = ''
+                                next_required_dd_date_error.style('display:none')
+                                next_required_dd_date.classes(remove='border border-red-600')
                                 return True
-                        next_due_input.on('blur', validate_next_due)
+                            next_required_dd_date.on('blur', validate_next_required_dd_date)
 
-                # Row 9 - Next Due Diligence Alert & Frequency (in days)
-                with ui.element('div').classes(f"{row_classes} {std_row_height}"):
-                    with ui.element('div').classes(label_cell_classes):
-                        ui.label("Next Required Due Diligence Alert").classes(label_classes)
-                    with ui.element('div').classes(input_cell_classes):
-                        next_alert_input = ui.input(label="Days*", value="15").props("type=number outlined maxlength=4").classes(input_classes)
-                        next_alert_error = ui.label('').classes('text-red-600 text-xs mt-1 min-h-[18px]').style('display:none')
-                        def validate_next_alert(e=None):
-                            value = next_alert_input.value or ''
-                            if not value.strip() or not value.isdigit():
-                                next_alert_error.text = "Please enter the next due diligence alert days."
-                                next_alert_error.style('display:block')
-                                next_alert_input.classes('border border-red-600')
-                                return False
-                            else:
-                                next_alert_error.text = ''
-                                next_alert_error.style('display:none')
-                                next_alert_input.classes(remove='border border-red-600')
-                                return True
-                        next_alert_input.on('blur', validate_next_alert)
-                    with ui.element('div').classes(label_cell_classes):
-                        ui.label("Frequency (in days)").classes(label_classes)
-                    with ui.element('div').classes(input_cell_classes + " flex flex-col"):
-                        freq_options = ["15", "30", "60", "90", "120"]
-                        freq_input = ui.select(options=freq_options, value="90", label="Days*").classes(input_classes).props("outlined")
-                        freq_error = ui.label('').classes('text-red-600 text-xs mt-1 min-h-[18px]').style('display:none')
-                        def validate_freq(e=None):
-                            value = freq_input.value or ''
-                            if not value.strip() or value not in freq_options:
-                                freq_error.text = "Please select the frequency in days."
-                                freq_error.style('display:block')
-                                freq_input.classes('border border-red-600')
-                                return False
-                            else:
-                                freq_error.text = ''
-                                freq_error.style('display:none')
-                                freq_input.classes(remove='border border-red-600')
-                                return True
-                        freq_input.on('blur', validate_freq)
+                    def update_next_required_dd_date():
+                        calculated = _compute_next_required_dd_date(due_diligence_date.value, moa_select.value)
+                        if calculated:
+                            next_required_dd_date.value = calculated
+
+                    # Row 9 - Next Due Diligence Alert & Frequency (in days)
+                    with ui.element('div').classes(f"{row_classes} {std_row_height}"):
+                        with ui.element('div').classes(label_cell_classes):
+                            ui.label("Next Required Due Diligence Alert").classes(label_classes)
+                        with ui.element('div').classes(input_cell_classes):
+                            next_alert_input = ui.input(label="Days*", value="15").props("type=number outlined maxlength=4").classes(input_classes)
+                            next_alert_error = ui.label('').classes('text-red-600 text-xs mt-1 min-h-[18px]').style('display:none')
+                            def validate_next_alert(e=None):
+                                value = next_alert_input.value or ''
+                                if not value.strip() or not value.isdigit():
+                                    next_alert_error.text = "Please enter the next due diligence alert days."
+                                    next_alert_error.style('display:block')
+                                    next_alert_input.classes('border border-red-600')
+                                    return False
+                                else:
+                                    next_alert_error.text = ''
+                                    next_alert_error.style('display:none')
+                                    next_alert_input.classes(remove='border border-red-600')
+                                    return True
+                            next_alert_input.on('blur', validate_next_alert)
+                        with ui.element('div').classes(label_cell_classes):
+                            ui.label("Next Required Due Diligence Alert Frequency").classes(label_classes)
+                        with ui.element('div').classes(input_cell_classes + " flex flex-col"):
+                            freq_options = ["15 days", "30 days", "60 days", "90 days", "120 days"]
+                            freq_input = ui.select(options=freq_options, value="90 days", label="Next Required Due Diligence Alert Frequency*").classes(input_classes).props("outlined")
+                            freq_error = ui.label('').classes('text-red-600 text-xs mt-1 min-h-[18px]').style('display:none')
+                            def validate_freq(e=None):
+                                value = freq_input.value or ''
+                                if not value.strip() or value not in freq_options:
+                                    freq_error.text = "Please provide the Next Required Due Diligence Alert Frequency"
+                                    freq_error.style('display:block')
+                                    freq_input.classes('border border-red-600')
+                                    return False
+                                else:
+                                    freq_error.text = ''
+                                    freq_error.style('display:none')
+                                    freq_input.classes(remove='border border-red-600')
+                                    return True
+                            freq_input.on('blur', validate_freq)
+
+                due_diligence_date.on_value_change(lambda e: update_next_required_dd_date())
+                moa_select.on_value_change(lambda e: update_next_required_dd_date())
+
+                dd_required_select.on_value_change(lambda e: toggle_last_dd_section())
+                toggle_last_dd_section()  # set initial visibility from current value
 
                 # Row 10 - Due Diligence Upload & Non-Disclosure Agreement Upload
                 with ui.element('div').classes(f"{row_classes} min-h-[200px]"):
@@ -1059,10 +1136,13 @@ def new_vendor():
                                     ui.button('Close', on_click=dd_signed_menu.close).props('flat')
                         with due_diligence_signed_date.add_slot('append'):
                             ui.icon('edit_calendar').on('click', dd_signed_menu.open).classes('cursor-pointer')
+                        due_diligence_upload_error = ui.label('').classes('text-red-600 text-xs mt-1 min-h-[18px]').style('display:none')
                         async def handle_due_diligence_upload(e):
                             if hasattr(e, 'file') and e.file:
                                 file_content = await e.file.read()
                                 due_diligence_file['file'] = file_content
+                                due_diligence_upload_error.text = ''
+                                due_diligence_upload_error.style('display:none')
                                 ui.notify(f'Due Diligence document uploaded: {e.file.name}', type='positive')
                         due_diligence_upload = ui.upload(on_upload=handle_due_diligence_upload, auto_upload=True, multiple=False, label="Upload due diligence (PDF)").props('accept=.pdf color=primary outlined').classes("w-full mt-2")
 
@@ -1079,10 +1159,13 @@ def new_vendor():
                                     ui.button('Close', on_click=nda_signed_menu.close).props('flat')
                         with nda_signed_date.add_slot('append'):
                             ui.icon('edit_calendar').on('click', nda_signed_menu.open).classes('cursor-pointer')
+                        nda_upload_error = ui.label('').classes('text-red-600 text-xs mt-1 min-h-[18px]').style('display:none')
                         async def handle_nda_upload(e):
                             if hasattr(e, 'file') and e.file:
                                 file_content = await e.file.read()
                                 nda_file['file'] = file_content
+                                nda_upload_error.text = ''
+                                nda_upload_error.style('display:none')
                                 ui.notify(f'NDA document uploaded: {e.file.name}', type='positive')
                         nda_upload = ui.upload(on_upload=handle_nda_upload, auto_upload=True, multiple=False, label="Upload NDA (PDF)").props('accept=.pdf color=primary outlined').classes("w-full mt-2")
 
@@ -1121,12 +1204,80 @@ def new_vendor():
                                     ui.button('Close', on_click=ra_signed_menu.close).props('flat')
                         with risk_assessment_signed_date.add_slot('append'):
                             ui.icon('edit_calendar').on('click', ra_signed_menu.open).classes('cursor-pointer')
+                        risk_assessment_upload_error = ui.label('').classes('text-red-600 text-xs mt-1 min-h-[18px]').style('display:none')
                         async def handle_risk_assessment_upload(e):
                             if hasattr(e, 'file') and e.file:
                                 file_content = await e.file.read()
                                 risk_assessment_file['file'] = file_content
+                                risk_assessment_upload_error.text = ''
+                                risk_assessment_upload_error.style('display:none')
                                 ui.notify(f'Risk Assessment document uploaded: {e.file.name}', type='positive')
                         risk_assessment_upload = ui.upload(on_upload=handle_risk_assessment_upload, auto_upload=True, multiple=False, label="Upload form (PDF)").props('accept=.pdf color=primary outlined').classes("w-full mt-2")
+
+                # Row 11b - Business Continuity Plan & Disaster Recovery Plan (Risk Assessment section, optional)
+                with ui.element('div').classes(f"{row_classes} min-h-[200px]"):
+                    with ui.element('div').classes(label_cell_classes):
+                        ui.label("Business Continuity Plan").classes(label_classes)
+                    with ui.element('div').classes(input_cell_classes + " flex flex-col"):
+                        business_continuity_file = {'file': None}
+                        business_continuity_name = ui.input(label="Business Continuity Name", placeholder="Document name...").classes("w-full font-[segoe ui] mt-2").props("outlined maxlength=100")
+                        business_continuity_signed_date = ui.input('Signed Date', value='').classes("w-full font-[segoe ui] mt-2").props("outlined")
+                        with ui.menu().props('no-parent-event') as bc_signed_menu:
+                            with ui.date().props('mask=YYYY-MM-DD').bind_value(business_continuity_signed_date, forward=lambda d: d, backward=lambda d: d):
+                                with ui.row().classes('justify-end'):
+                                    ui.button('Close', on_click=bc_signed_menu.close).props('flat')
+                        with business_continuity_signed_date.add_slot('append'):
+                            ui.icon('edit_calendar').on('click', bc_signed_menu.open).classes('cursor-pointer')
+                        async def handle_business_continuity_upload(e):
+                            if hasattr(e, 'file') and e.file:
+                                file_content = await e.file.read()
+                                business_continuity_file['file'] = file_content
+                                ui.notify(f'Business Continuity Plan document uploaded: {e.file.name}', type='positive')
+                        business_continuity_upload = ui.upload(on_upload=handle_business_continuity_upload, auto_upload=True, multiple=False, label="Upload (PDF, optional)").props('accept=.pdf color=primary outlined').classes("w-full mt-2")
+
+                    with ui.element('div').classes(label_cell_classes):
+                        ui.label("Disaster Recovery Plan").classes(label_classes)
+                    with ui.element('div').classes(input_cell_classes + " flex flex-col"):
+                        disaster_recovery_file = {'file': None}
+                        disaster_recovery_name = ui.input(label="Disaster Recovery Name", placeholder="Document name...").classes("w-full font-[segoe ui] mt-2").props("outlined maxlength=100")
+                        disaster_recovery_signed_date = ui.input('Signed Date', value='').classes("w-full font-[segoe ui] mt-2").props("outlined")
+                        with ui.menu().props('no-parent-event') as dr_signed_menu:
+                            with ui.date().props('mask=YYYY-MM-DD').bind_value(disaster_recovery_signed_date, forward=lambda d: d, backward=lambda d: d):
+                                with ui.row().classes('justify-end'):
+                                    ui.button('Close', on_click=dr_signed_menu.close).props('flat')
+                        with disaster_recovery_signed_date.add_slot('append'):
+                            ui.icon('edit_calendar').on('click', dr_signed_menu.open).classes('cursor-pointer')
+                        async def handle_disaster_recovery_upload(e):
+                            if hasattr(e, 'file') and e.file:
+                                file_content = await e.file.read()
+                                disaster_recovery_file['file'] = file_content
+                                ui.notify(f'Disaster Recovery Plan document uploaded: {e.file.name}', type='positive')
+                        disaster_recovery_upload = ui.upload(on_upload=handle_disaster_recovery_upload, auto_upload=True, multiple=False, label="Upload (PDF, optional)").props('accept=.pdf color=primary outlined').classes("w-full mt-2")
+
+                # Row 11c - Insurance Policy (Risk Assessment section, optional)
+                with ui.element('div').classes(f"{row_classes} min-h-[200px]"):
+                    with ui.element('div').classes(label_cell_classes):
+                        ui.label("Insurance Policy").classes(label_classes)
+                    with ui.element('div').classes(input_cell_classes + " flex flex-col"):
+                        insurance_policy_file = {'file': None}
+                        insurance_policy_name = ui.input(label="Insurance Policy Name", placeholder="Document name...").classes("w-full font-[segoe ui] mt-2").props("outlined maxlength=100")
+                        insurance_policy_signed_date = ui.input('Signed Date', value='').classes("w-full font-[segoe ui] mt-2").props("outlined")
+                        with ui.menu().props('no-parent-event') as ins_signed_menu:
+                            with ui.date().props('mask=YYYY-MM-DD').bind_value(insurance_policy_signed_date, forward=lambda d: d, backward=lambda d: d):
+                                with ui.row().classes('justify-end'):
+                                    ui.button('Close', on_click=ins_signed_menu.close).props('flat')
+                        with insurance_policy_signed_date.add_slot('append'):
+                            ui.icon('edit_calendar').on('click', ins_signed_menu.open).classes('cursor-pointer')
+                        async def handle_insurance_policy_upload(e):
+                            if hasattr(e, 'file') and e.file:
+                                file_content = await e.file.read()
+                                insurance_policy_file['file'] = file_content
+                                ui.notify(f'Insurance Policy document uploaded: {e.file.name}', type='positive')
+                        insurance_policy_upload = ui.upload(on_upload=handle_insurance_policy_upload, auto_upload=True, multiple=False, label="Upload (PDF, optional)").props('accept=.pdf color=primary outlined').classes("w-full mt-2")
+                    with ui.element('div').classes(label_cell_classes):
+                        ui.label("").classes(label_classes)
+                    with ui.element('div').classes(input_cell_classes):
+                        ui.label("").classes(input_classes)
                 
                 # Row 12 - Attention (standard size row for description)
                 with ui.element('div').classes(f"{row_classes} h-24"):
@@ -1210,10 +1361,10 @@ def new_vendor():
                             # Reset vendor email fields
                             for inp in email_inputs:
                                 inp.value = ""
-                            due_diligence_date.value = "2025-08-25"
-                            next_due_input.value = "30"
+                            due_diligence_date.value = ""
+                            next_required_dd_date.value = ""
                             next_alert_input.value = "15"
-                            freq_input.value = "90"
+                            freq_input.value = "90 days"
                             
                             # Reset file data
                             due_diligence_file['file'] = None
@@ -1228,6 +1379,15 @@ def new_vendor():
                             risk_assessment_file['file'] = None
                             risk_assessment_name.value = ""
                             risk_assessment_signed_date.value = ""
+                            business_continuity_file['file'] = None
+                            business_continuity_name.value = ""
+                            business_continuity_signed_date.value = ""
+                            disaster_recovery_file['file'] = None
+                            disaster_recovery_name.value = ""
+                            disaster_recovery_signed_date.value = ""
+                            insurance_policy_file['file'] = None
+                            insurance_policy_name.value = ""
+                            insurance_policy_signed_date.value = ""
                             attention_input.value = ""
                             
                             # Reset upload components UI
@@ -1235,10 +1395,17 @@ def new_vendor():
                             nda_upload.reset()
                             integrity_policy_upload.reset()
                             risk_assessment_upload.reset()
+                            business_continuity_upload.reset()
+                            disaster_recovery_upload.reset()
+                            insurance_policy_upload.reset()
                             
                             # Hide all error labels
                             ab_error.text = moa_error.text = bank_error.text = cif_error.text = ""
-                            vendor_name_error.text = contact_person_error.text = address1_error.text = address2_error.text = city_error.text = state_error.text = zip_error.text = country_error.text = phone_area_code_error.text = primary_phone_error.text = due_diligence_error.text = next_due_error.text = next_alert_error.text = freq_error.text = attention_error.text = ""
+                            vendor_name_error.text = contact_person_error.text = address1_error.text = address2_error.text = city_error.text = state_error.text = zip_error.text = country_error.text = phone_area_code_error.text = primary_phone_error.text = due_diligence_error.text = next_required_dd_date_error.text = next_alert_error.text = freq_error.text = attention_error.text = ""
+                            due_diligence_upload_error.text = nda_upload_error.text = risk_assessment_upload_error.text = ""
+                            due_diligence_upload_error.style('display:none')
+                            nda_upload_error.style('display:none')
+                            risk_assessment_upload_error.style('display:none')
                             # Additional address block error labels
                             city2_error.text = state2_error.text = zip2_error.text = ""
                             ab_error.style('display:none')
@@ -1257,7 +1424,7 @@ def new_vendor():
                             primary_phone_error.style('display:none')
                             primary_email_error.style('display:none')
                             due_diligence_error.style('display:none')
-                            next_due_error.style('display:none')
+                            next_required_dd_date_error.style('display:none')
                             next_alert_error.style('display:none')
                             freq_error.style('display:none')
                             attention_error.style('display:none')
@@ -1283,31 +1450,71 @@ def new_vendor():
                                 validate_zip(),
                                 validate_all_vendor_phones(),
                                 validate_all_vendor_emails(),
-                                validate_due_diligence(),
-                                validate_next_due(),
-                                validate_next_alert(),
-                                validate_freq(),
                                 validate_attention()
                             ]
+                            # AC: Last Due Diligence Date mandatory only when visible (Due Diligence Required = YES)
+                            if (dd_required_select.value or "").strip().lower() == "yes":
+                                validations.extend([
+                                    validate_due_diligence(),
+                                    validate_next_required_dd_date(),
+                                    validate_next_alert(),
+                                    validate_freq(),
+                                ])
                             if not all(validations):
                                 ui.notify('Please fix all required fields before submitting.', type='negative')
                                 return
+                            # AC 4: Prevent submit if mandatory documents are missing; show message at specific field
+                            due_diligence_upload_error.text = ''
+                            due_diligence_upload_error.style('display:none')
+                            nda_upload_error.text = ''
+                            nda_upload_error.style('display:none')
+                            risk_assessment_upload_error.text = ''
+                            risk_assessment_upload_error.style('display:none')
+                            doc_required_msg = "Please upload this required document"
+                            if (dd_required_select.value or "").strip().lower() == "yes":
+                                if not due_diligence_file.get('file'):
+                                    due_diligence_upload_error.text = doc_required_msg
+                                    due_diligence_upload_error.style('display:block')
+                                    ui.notify(doc_required_msg + ": Due Diligence", type='negative')
+                                    return
+                                if not nda_file.get('file'):
+                                    nda_upload_error.text = doc_required_msg
+                                    nda_upload_error.style('display:block')
+                                    ui.notify(doc_required_msg + ": Non-Disclosure Agreement", type='negative')
+                                    return
+                                if (moa_select.value or "").strip().lower() == "yes" and not risk_assessment_file.get('file'):
+                                    risk_assessment_upload_error.text = doc_required_msg
+                                    risk_assessment_upload_error.style('display:block')
+                                    ui.notify(doc_required_msg + ": Risk Assessment Form", type='negative')
+                                    return
                             # Determine if due diligence is required based on uploaded files
                             has_due_diligence_docs = bool(due_diligence_file.get('file') or nda_file.get('file'))
-                            
-                            # Validate and return date (already in YYYY-MM-DD format)
+
+                            def parse_mm_dd_yy_to_iso(date_str):
+                                """Parse MM/DD/YY to YYYY-MM-DD for API. AC 3: date format MM/DD/YY."""
+                                if not date_str or not date_str.strip():
+                                    return None
+                                s = date_str.strip().replace('-', '/')
+                                parts = s.split('/')
+                                if len(parts) != 3:
+                                    return None
+                                try:
+                                    mm, dd, yy = int(parts[0]), int(parts[1]), int(parts[2])
+                                    year = (2000 + yy) if yy < 100 else yy
+                                    if not (1 <= mm <= 12 and 1 <= dd <= 31):
+                                        return None
+                                    return f"{year:04d}-{mm:02d}-{dd:02d}"
+                                except (ValueError, TypeError):
+                                    return None
+
                             def validate_date_format(date_str):
-                                """All dates are now in YYYY-MM-DD format from the date pickers"""
-                                if not date_str:
+                                """Accept MM/DD/YY (or YYYY-MM-DD) and return YYYY-MM-DD for API."""
+                                if not date_str or not date_str.strip():
                                     return None
                                 date_str = date_str.strip()
-                                if not date_str:
-                                    return None
-                                # Date should already be in YYYY-MM-DD format
                                 if len(date_str) == 10 and date_str[4] == '-' and date_str[7] == '-':
                                     return date_str
-                                print(f"Invalid date format: {date_str}, expected YYYY-MM-DD")
-                                return None
+                                return parse_mm_dd_yy_to_iso(date_str)
                             
                             # Collect all field values in backend format
                             # Build addresses according to ACs:
@@ -1383,16 +1590,19 @@ def new_vendor():
                             if bank_select.value in ["Aruba Bank", "Orco Bank"]:
                                 vendor_data["cif"] = cif_input.value
                             
-                            # Add due diligence fields if required
-                            if has_due_diligence_docs:
+                            # Add due diligence fields only when Due Diligence Required = YES (AC 1 & 4)
+                            if (dd_required_select.value or "").strip().lower() == "yes":
                                 last_dd_date = validate_date_format(due_diligence_date.value)
                                 if not last_dd_date:
-                                    ui.notify('Please select a valid Last Due Diligence Date (format: YYYY-MM-DD)', type='negative')
+                                    ui.notify('Please enter a valid Last Due Diligence Date (format: MM/DD/YY)', type='negative')
+                                    return
+                                next_dd_date_iso = validate_date_format(next_required_dd_date.value)
+                                if not next_dd_date_iso:
+                                    ui.notify('Please provide the Next Required Due Diligence Date (format: MM/DD/YY)', type='negative')
                                     return
                                 vendor_data["last_due_diligence_date"] = last_dd_date
-                                vendor_data["next_required_due_diligence_days"] = f"{next_due_input.value} days"
-                                vendor_data["next_required_due_diligence_alert_days"] = int(next_alert_input.value)
-                                vendor_data["next_required_due_diligence_alert_frequency"] = f"{freq_input.value} days"
+                                vendor_data["next_required_due_diligence_date"] = next_dd_date_iso
+                                vendor_data["next_required_due_diligence_alert_frequency"] = freq_input.value
                             # Use environment variable or default to 127.0.0.1 (more reliable than localhost in Docker)
                             api_host = os.getenv("API_BASE_URL", "http://127.0.0.1:8000")
                             url = f"{api_host}{settings.api_v1_prefix}/vendors/"
@@ -1496,6 +1706,45 @@ def new_vendor():
                                 files['integrity_policy_doc'] = ('integrity_policy.pdf', integrity_policy_file['file'], 'application/pdf')
                                 files['integrity_policy_name'] = (None, ip_name_val)
                                 files['integrity_policy_signed_date'] = (None, ip_date_val)
+                            
+                            if business_continuity_file.get('file'):
+                                bc_name_val = business_continuity_name.value.strip() if business_continuity_name.value else ''
+                                bc_date_val = business_continuity_signed_date.value.strip() if business_continuity_signed_date.value else ''
+                                if not bc_name_val or not bc_date_val:
+                                    ui.notify('Please provide document name and signed date for Business Continuity Plan', type='negative')
+                                    return
+                                if not validate_date_format(bc_date_val):
+                                    ui.notify(f'Invalid date format for Business Continuity signed date. Expected YYYY-MM-DD', type='negative')
+                                    return
+                                files['business_continuity_doc'] = ('business_continuity.pdf', business_continuity_file['file'], 'application/pdf')
+                                files['business_continuity_name'] = (None, bc_name_val)
+                                files['business_continuity_signed_date'] = (None, bc_date_val)
+                            
+                            if disaster_recovery_file.get('file'):
+                                dr_name_val = disaster_recovery_name.value.strip() if disaster_recovery_name.value else ''
+                                dr_date_val = disaster_recovery_signed_date.value.strip() if disaster_recovery_signed_date.value else ''
+                                if not dr_name_val or not dr_date_val:
+                                    ui.notify('Please provide document name and signed date for Disaster Recovery Plan', type='negative')
+                                    return
+                                if not validate_date_format(dr_date_val):
+                                    ui.notify(f'Invalid date format for Disaster Recovery signed date. Expected YYYY-MM-DD', type='negative')
+                                    return
+                                files['disaster_recovery_doc'] = ('disaster_recovery.pdf', disaster_recovery_file['file'], 'application/pdf')
+                                files['disaster_recovery_name'] = (None, dr_name_val)
+                                files['disaster_recovery_signed_date'] = (None, dr_date_val)
+                            
+                            if insurance_policy_file.get('file'):
+                                ins_name_val = insurance_policy_name.value.strip() if insurance_policy_name.value else ''
+                                ins_date_val = insurance_policy_signed_date.value.strip() if insurance_policy_signed_date.value else ''
+                                if not ins_name_val or not ins_date_val:
+                                    ui.notify('Please provide document name and signed date for Insurance Policy', type='negative')
+                                    return
+                                if not validate_date_format(ins_date_val):
+                                    ui.notify(f'Invalid date format for Insurance Policy signed date. Expected YYYY-MM-DD', type='negative')
+                                    return
+                                files['insurance_policy_doc'] = ('insurance_policy.pdf', insurance_policy_file['file'], 'application/pdf')
+                                files['insurance_policy_name'] = (None, ins_name_val)
+                                files['insurance_policy_signed_date'] = (None, ins_date_val)
                             
                             try:
                                 # Debug: Log the data being sent
