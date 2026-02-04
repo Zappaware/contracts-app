@@ -61,8 +61,9 @@ def manager():
         active_contracts_count = 0
     
     
-    # Quick Stats Cards - Only 3 cards as requested
-    with ui.element("div").classes("max-w-6xl mx-auto w-full"):
+    # Single container: cards + Contracts Requiring Attention table (same as admin view, table visible on load)
+    with ui.column().classes("max-w-6xl mx-auto w-full gap-0"):
+        # Quick Stats Cards - Only 3 cards as requested
         with ui.row().classes(
             "grid grid-cols-1 md:grid-cols-3 mt-8 gap-6 w-full"
         ):
@@ -93,7 +94,7 @@ def manager():
                     ui.label("Review manager responses and updates").classes("text-sm text-gray-500 mt-2")
                     ui.label("15").classes("text-2xl font-medium text-primary mt-2")
 
-    # ===== COMMENTED OUT: Vendor List Section =====
+        # ===== Contracts Requiring Attention table (same as admin – visible on manager load) =====
     # with ui.element("div").classes("max-w-6xl mt-8 mx-auto w-full"):
     #     ui.label("Vendor List").classes("text-h5 ml-4 font-bold ")
     #
@@ -280,6 +281,9 @@ def manager():
                     # Get contract type value
                     contract_type = contract.contract_type.value if hasattr(contract.contract_type, 'value') else str(contract.contract_type)
                     
+                    # Contract owner (Manager) name - same as admin mode table
+                    manager_name = f"{contract.contract_owner.first_name} {contract.contract_owner.last_name}" if contract.contract_owner else "Unknown"
+                    
                     rows.append({
                         "id": contract.id,  # Database ID for linking
                         "contract_id": contract.contract_id,
@@ -292,6 +296,7 @@ def manager():
                         "status": status,
                         "status_class": status_class,
                         "row_class": row_class,
+                        "manager": manager_name,
                         "my_role": my_role,
                         "role_color": role_color,
                         "role_class": role_class,
@@ -351,6 +356,13 @@ def manager():
             "align": "left",
         },
         {
+            "name": "manager",
+            "label": "Manager",
+            "field": "manager",
+            "align": "left",
+            "sortable": True,
+        },
+        {
             "name": "my_role",
             "label": "My Role",
             "field": "my_role",
@@ -366,20 +378,17 @@ def manager():
 
     contract_rows = get_contracts_requiring_attention()
     
-    # Container for the contracts table (visible by default)
-    contracts_table_container = ui.element("div").classes("max-w-6xl mt-8 mx-auto w-full")
-    contracts_table_container.visible = True
-    
-    with contracts_table_container:
-        # Section header - Contract Manager/Backup
+    # Table section: same as admin "Contracts Requiring Attention" table, visible when manager page loads
+    with ui.element("div").classes("mt-8 w-full"):
+        # Section header - same as admin mode "Contracts Requiring Attention" table
         with ui.row().classes('items-center justify-between ml-4 mb-4 w-full'):
             with ui.row().classes('items-center gap-2'):
                 ui.icon('warning', color='orange').style('font-size: 32px')
-                ui.label("Contract Manager/Backup: Contracts Requiring Attention").classes("text-h5 font-bold")
+                ui.label("Contracts Requiring Attention").classes("text-h5 font-bold")
         
-        # Description row
+        # Description row - same as admin mode
         with ui.row().classes('ml-4 mb-4 w-full'):
-            ui.label("Contracts approaching or past their expiration date that require your attention").classes(
+            ui.label("Contracts approaching or past their expiration date").classes(
                 "text-sm text-gray-500"
             )
         
@@ -406,7 +415,7 @@ def manager():
                 elif role_filter.value == 'Backup':
                     base_rows = [row for row in base_rows if row.get('my_role') == 'Backup']
             
-            # Apply search filter
+            # Apply search filter (include Manager like admin mode)
             search_term = (search_input.value or "").lower()
             if search_term:
                 filtered = [
@@ -415,6 +424,7 @@ def manager():
                     or search_term in (row['vendor_name'] or "").lower()
                     or search_term in (row['contract_type'] or "").lower()
                     or search_term in (row['description'] or "").lower()
+                    or search_term in (row.get('manager', '') or "").lower()
                     or search_term in (row.get('my_role', '') or "").lower()
                 ]
                 base_rows = filtered
@@ -435,9 +445,9 @@ def manager():
             role_filter.value = 'All'
             filter_contracts()
         
-        # Search input for filtering contracts (above the table)
+        # Search input for filtering contracts (above the table) - same as admin mode
         with ui.row().classes('w-full ml-4 mr-4 mb-6 gap-2 px-2'):
-            search_input = ui.input(placeholder='Search by Contract ID, Vendor, Type, Description, or Role...').classes(
+            search_input = ui.input(placeholder='Search by Contract ID, Vendor, Type, Description, or Manager...').classes(
                 'flex-1'
             ).props('outlined dense clearable')
             with search_input.add_slot('prepend'):
