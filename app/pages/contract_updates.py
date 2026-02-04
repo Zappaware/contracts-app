@@ -1,5 +1,5 @@
 from datetime import datetime, timedelta, date
-from nicegui import ui
+from nicegui import ui, app
 import io
 import base64
 import httpx
@@ -7,7 +7,15 @@ from app.utils.vendor_lookup import get_vendor_id_by_name
 from app.utils.navigation import get_dashboard_url
 from app.db.database import SessionLocal
 from sqlalchemy.orm import joinedload
-from app.models.contract import ContractUpdate, ContractUpdateStatus, Contract
+from app.models.contract import (
+    ContractUpdate,
+    ContractUpdateStatus,
+    Contract,
+    ContractStatusType,
+    ContractTerminationType,
+    User,
+    UserRole,
+)
 from app.models.vendor import Vendor
 try:
     import pandas as pd
@@ -17,6 +25,25 @@ except ImportError:
 
 
 def contract_updates():
+    # Current user (for My Role column)
+    current_user_id = None
+    current_user_role = None
+    try:
+        current_username = app.storage.user.get("username", None) if app.storage.user else None
+        if current_username:
+            db_user = SessionLocal()
+            try:
+                u = db_user.query(User).filter(User.email == current_username).first()
+                if not u:
+                    u = db_user.query(User).filter(User.email.ilike(f"%{current_username}%")).first()
+                if u:
+                    current_user_id = u.id
+                    current_user_role = u.role.value if hasattr(u.role, "value") else str(u.role)
+            finally:
+                db_user.close()
+    except Exception as e:
+        print(f"Error resolving current user for contract_updates: {e}")
+
     # Navigation
     with ui.row().classes("max-w-6xl mx-auto mt-4"):
         with ui.link(target=get_dashboard_url()).classes('no-underline'):
@@ -253,6 +280,14 @@ def contract_updates():
             # Look up vendor_id from vendor_name
             vendor_id = get_vendor_id_by_name(contract["vendor_name"])
             
+            # My Role for display: map owned/backup to ticket labels; mock may show Contract Manager, Backup, Owner, N/A
+            role_val = contract.get("role", "owned")
+            if role_val == "owned":
+                my_role_mock = "Contract Manager"
+            elif role_val == "backup":
+                my_role_mock = "Backup"
+            else:
+                my_role_mock = "N/A"
             row_data = {
                 "contract_id": contract["contract_id"],
                 "vendor_name": contract["vendor_name"],
@@ -262,6 +297,7 @@ def contract_updates():
                 "expiration_date": exp_date.strftime("%Y-%m-%d"),
                 "expiration_timestamp": exp_date.timestamp(),  # For sorting
                 "manager": contract["manager"],
+                "my_role": my_role_mock,
                 "role": contract["role"],
                 "response_provided_by": contract["response_provided_by"],
                 "response_date": contract["response_date"].strftime("%Y-%m-%d"),
@@ -318,9 +354,9 @@ def contract_updates():
             "sort-order": "ad",  # Ascending/Descending
         },
         {
-            "name": "manager",
-            "label": "Contract Owner",
-            "field": "manager",
+            "name": "my_role",
+            "label": "My Role",
+            "field": "my_role",
             "align": "left",
             "sortable": True,
         },
@@ -421,15 +457,42 @@ def contract_updates():
                     exp_date_str = "N/A"
                     exp_timestamp = 0
                 
-                # Determine manager name and role
+                # Manager name (kept for dialogs)
                 manager_name = f"{contract.contract_owner.first_name} {contract.contract_owner.last_name}" if contract and contract.contract_owner else "Unknown"
+                
+                # My Role: for Contract Admin show the role of who took action; for others show logged-in user's role
+                response_provided_by_user_id = update.response_provided_by_user_id if update else None
+                if current_user_role == UserRole.CONTRACT_ADMIN.value:
+                    # Admin view: show the role of the user who provided the response (Contract Manager, Backup, or Owner)
+                    if contract and response_provided_by_user_id:
+                        if contract.contract_owner_id == response_provided_by_user_id:
+                            my_role = "Contract Manager"
+                        elif contract.contract_owner_backup_id == response_provided_by_user_id:
+                            my_role = "Backup"
+                        elif contract.contract_owner_manager_id == response_provided_by_user_id:
+                            my_role = "Owner"
+                        else:
+                            my_role = "N/A"
+                    else:
+                        # No response yet: show Contract Manager as primary role for the contract
+                        my_role = "Contract Manager" if contract else "N/A"
+                elif current_user_id and contract:
+                    if contract.contract_owner_id == current_user_id:
+                        my_role = "Contract Manager"
+                    elif contract.contract_owner_backup_id == current_user_id:
+                        my_role = "Backup"
+                    elif contract.contract_owner_manager_id == current_user_id:
+                        my_role = "Owner"
+                    else:
+                        my_role = "N/A"
+                else:
+                    my_role = "N/A"
                 
                 # Determine who provided the response
                 response_provided_by = None
                 role = "owned"
                 if update.response_provided_by:
                     response_provided_by = f"{update.response_provided_by.first_name} {update.response_provided_by.last_name}"
-                    # Determine if it's owner or backup
                     if contract and contract.contract_owner_id == update.response_provided_by_user_id:
                         role = "owned"
                     elif contract and contract.contract_owner_backup_id == update.response_provided_by_user_id:
@@ -462,6 +525,10 @@ def contract_updates():
                 # Get status value
                 status_value = update.status.value if hasattr(update.status, 'value') else str(update.status)
                 
+                # Decision from Contract Manager/Backup/Owner (Renew/Terminate)
+                decision_value = update.decision if update.decision else None
+                decision_comments_value = update.decision_comments if update.decision_comments else ""
+
                 row_data = {
                     "id": contract_db_id,  # Use contract DB ID for linking to contract-info page
                     "update_id": update.id,  # Keep update ID for API calls
@@ -473,12 +540,15 @@ def contract_updates():
                     "expiration_date": exp_date_str,
                     "expiration_timestamp": exp_timestamp,
                     "manager": manager_name,
+                    "my_role": my_role,
                     "role": role,
                     "response_provided_by": response_provided_by,
                     "response_date": response_date_str,
                     "has_document": update.has_document if update.has_document else False,
                     "status": status_value,
                     "admin_comments": update.admin_comments,
+                    "decision": decision_value,
+                    "decision_comments": decision_comments_value,
                     "returned_reason": update.returned_reason,
                     "returned_date": returned_date_str,
                     "correction_date": correction_date_str,
@@ -540,11 +610,11 @@ def contract_updates():
         
         # Filter section with dropdowns
         with ui.row().classes('w-full ml-4 mr-4 mb-4 gap-4 px-2 flex-wrap'):
-            # Contract Owner filter
+            # My Role filter
             with ui.column().classes('flex-1 min-w-[200px]'):
-                ui.label("Filter by Contract Owner:").classes("text-sm font-medium mb-1")
+                ui.label("Filter by My Role:").classes("text-sm font-medium mb-1")
                 owner_filter = ui.select(
-                    options=['All', 'William Defoe', 'John Doe'],
+                    options=['All', 'Contract Manager', 'Backup', 'Owner', 'N/A'],
                     value='All',
                     on_change=lambda e: apply_filters()
                 ).classes('w-full').props('outlined dense')
@@ -583,9 +653,9 @@ def contract_updates():
             # Show all contracts regardless of role
             base_rows = contract_rows
             
-            # Apply owner filter
+            # Apply My Role filter
             if owner_filter.value and owner_filter.value != 'All':
-                base_rows = [row for row in base_rows if row['manager'] == owner_filter.value]
+                base_rows = [row for row in base_rows if row.get('my_role') == owner_filter.value]
             
             # Apply vendor filter
             if vendor_filter.value and vendor_filter.value != 'All':
@@ -611,7 +681,7 @@ def contract_updates():
                     or search_term in (row['vendor_name'] or "").lower()
                     or search_term in (row['contract_type'] or "").lower()
                     or search_term in (row['description'] or "").lower()
-                    or search_term in (row['manager'] or "").lower()
+                    or search_term in (row.get('my_role', '') or "").lower()
                     or search_term in (row.get('status', '') or "").lower()
                     or (search_term == 'returned' and row.get('status') == 'returned')
                     or (search_term == 'updated' and row.get('status') == 'updated')
@@ -795,7 +865,273 @@ def contract_updates():
             </q-td>
         ''')
         
-        # Add slot for status column with visual distinction
+        # Add slot for My Role column with badge styling
+        contracts_table.add_slot('body-cell-my_role', '''
+            <q-td :props="props">
+                <q-badge
+                    v-if="props.value === 'Contract Manager'"
+                    color="blue"
+                    :label="props.value"
+                    class="font-semibold"
+                />
+                <q-badge
+                    v-else-if="props.value === 'Backup'"
+                    color="orange"
+                    text-color="white"
+                    :label="props.value"
+                    class="font-semibold"
+                />
+                <q-badge
+                    v-else-if="props.value === 'Owner'"
+                    color="primary"
+                    :label="props.value"
+                    class="font-semibold"
+                />
+                <span v-else class="text-gray-500">{{ props.value || 'N/A' }}</span>
+            </q-td>
+        ''')
+        
+        # --- Contract Decision Dialog (open when user clicks status) ---
+        selected_contract = {}
+        
+        with ui.dialog() as contract_decision_dialog, ui.card().classes("min-w-[900px] max-w-5xl max-h-[85vh] overflow-y-auto"):
+            ui.label("Contract Decision").classes("text-h5 mb-4 text-blue-600")
+            dialog_content = ui.column().classes("w-full gap-4")
+        
+        def populate_dialog_content():
+            """Populate dialog with contract/update data: Decision, Admin comments, Action taken by, Documents & comments, Complete/Cancel."""
+            dialog_content.clear()
+            update = None
+            contract_obj = None
+            acted_by_name = "N/A"
+            manager_comments = ""
+            contract_db_id = selected_contract.get("contract_db_id") or selected_contract.get("id")
+            update_id = selected_contract.get("update_id")
+            try:
+                db2 = SessionLocal()
+                try:
+                    contract_obj = (
+                        db2.query(Contract)
+                        .options(joinedload(Contract.documents))
+                        .filter(Contract.id == contract_db_id)
+                        .first()
+                    )
+                    if update_id:
+                        update = db2.query(ContractUpdate).filter(ContractUpdate.id == update_id).first()
+                    if not update and contract_db_id:
+                        update = (
+                            db2.query(ContractUpdate)
+                            .filter(ContractUpdate.contract_id == contract_db_id)
+                            .order_by(ContractUpdate.created_at.desc())
+                            .first()
+                        )
+                    if update and update.response_provided_by_user_id:
+                        acted_user = db2.query(User).filter(User.id == update.response_provided_by_user_id).first()
+                        if acted_user:
+                            acted_by_name = f"{acted_user.first_name} {acted_user.last_name}"
+                    if update and update.decision_comments:
+                        manager_comments = update.decision_comments
+                finally:
+                    db2.close()
+            except Exception as e:
+                print(f"Error loading contract/update for dialog: {e}")
+            
+            # Build options for decision: match stored value (Renew/Terminate or Extend)
+            prev_decision = (update.decision if update and update.decision else None) or selected_contract.get("decision")
+            if prev_decision == "Extend":
+                prev_decision = "Renew"
+            decision_options = ["Please select", "Renew", "Terminate"]
+            initial_decision = prev_decision if prev_decision in decision_options else "Please select"
+            
+            with dialog_content:
+                # Contract summary + who last took action
+                with ui.row().classes("mb-4 p-4 bg-gray-50 rounded-lg w-full"):
+                    with ui.column().classes("gap-1"):
+                        ui.label(f"Contract ID: {selected_contract.get('contract_id', 'N/A')}").classes("font-bold text-lg")
+                        ui.label(f"Vendor: {selected_contract.get('vendor_name', 'N/A')}").classes("text-gray-600")
+                        ui.label(f"Expiration Date: {selected_contract.get('expiration_date', 'N/A')}").classes("text-gray-600")
+                        ui.label(f"Action Taken By: {acted_by_name}").classes("text-gray-600")
+                
+                # Decision section (user can see previous decision and modify)
+                ui.label("Decision").classes("text-lg font-bold")
+                decision_select = ui.select(
+                    options=decision_options,
+                    value=initial_decision
+                ).classes("w-full").props("outlined dense")
+                
+                # When Renew: end date required
+                end_date_container = ui.column().classes("w-full")
+                with end_date_container:
+                    initial_exp = (update.initial_expiration_date.strftime("%Y-%m-%d") if update and getattr(update, 'initial_expiration_date', None) and hasattr(update.initial_expiration_date, 'strftime') else None) or selected_contract.get("initial_expiration", "")
+                    end_date_input = ui.input("End Date (required for Renew)", value=initial_exp).props("type=date outlined dense").classes("w-full")
+                
+                # When Terminate: termination document and issue date required
+                term_doc_container = ui.column().classes("w-full")
+                with term_doc_container:
+                    ui.label("Termination Document & Issue Date (required for Terminate)").classes("text-sm font-medium")
+                    term_doc_select = ui.select(
+                        options=["Select a document..."],
+                        value="Select a document..."
+                    ).classes("w-full").props("outlined dense")
+                    term_issue_date_input = ui.input("Issue Date", value="").props("type=date outlined dense").classes("w-full")
+                    if contract_obj and contract_obj.documents:
+                        doc_options = ["Select a document..."] + [
+                            f"{doc.custom_document_name or doc.file_name} ({doc.document_signed_date.strftime('%Y-%m-%d') if hasattr(doc.document_signed_date, 'strftime') else doc.document_signed_date})"
+                            for doc in contract_obj.documents
+                        ]
+                        term_doc_select.options = doc_options
+                        if doc_options and len(doc_options) > 1:
+                            term_doc_select.value = doc_options[1]
+                            d0 = contract_obj.documents[0]
+                            term_issue_date_input.value = d0.document_signed_date.strftime("%Y-%m-%d") if hasattr(d0.document_signed_date, 'strftime') else str(d0.document_signed_date)
+                    else:
+                        ui.label("No documents uploaded for this contract. Please add a termination document via the contract details page before completing with Terminate.").classes("text-sm text-amber-600 italic")
+                
+                def toggle_decision_requirements():
+                    if decision_select.value == "Renew":
+                        end_date_container.visible = True
+                        term_doc_container.visible = False
+                    elif decision_select.value == "Terminate":
+                        end_date_container.visible = False
+                        term_doc_container.visible = True
+                    else:
+                        end_date_container.visible = False
+                        term_doc_container.visible = False
+                
+                decision_select.on_value_change(lambda e: toggle_decision_requirements())
+                toggle_decision_requirements()
+                
+                # Contract Admin comments (view only)
+                ui.label("Contract Admin Comments (Review)").classes("text-lg font-bold mt-2")
+                admin_comments_text = (update.admin_comments if update and update.admin_comments else "") or selected_contract.get("admin_comments", "") or "No comments from Contract Admin."
+                ui.textarea(value=admin_comments_text).classes("w-full").props("outlined readonly")
+                
+                # Documents & Comments from Contract Manager/Backup/Owner: view and modify (comments editable; documents: view, remove, replace)
+                ui.label("Documents & Comments").classes("text-lg font-bold mt-2")
+                with ui.card().classes("p-4 bg-white border w-full"):
+                    ui.label("Comments from Contract Manager / Backup / Owner (you can add comments below):").classes("font-medium")
+                    manager_comments_input = ui.textarea(value=manager_comments or "").classes("w-full").props("outlined")
+                    
+                    ui.separator()
+                    ui.label("Contract Documents (view, download, replace):").classes("font-medium mt-2")
+                    if contract_obj and contract_obj.documents:
+                        for doc in contract_obj.documents:
+                            with ui.row().classes("items-center justify-between w-full gap-2 py-1"):
+                                ui.label(doc.custom_document_name or doc.file_name).classes("text-sm")
+                                doc_date_str = doc.document_signed_date.strftime("%Y-%m-%d") if hasattr(doc.document_signed_date, 'strftime') else str(doc.document_signed_date)
+                                ui.label(f"Issue date: {doc_date_str}").classes("text-xs text-gray-500")
+                                with ui.row().classes("gap-2"):
+                                    ui.button("Download", icon="download", on_click=lambda p=doc.file_path, n=doc.file_name: ui.download(p, filename=n)).props("flat color=primary size=sm")
+                                    ui.button("Replace", icon="upload", on_click=lambda: ui.notify("Use contract document upload to replace this document.", type="info")).props("flat color=secondary size=sm")
+                                    ui.button("Remove", icon="delete", on_click=lambda: ui.notify("Document removal can be done from the contract details page.", type="info")).props("flat color=negative size=sm")
+                    else:
+                        ui.label("No contract documents uploaded.").classes("text-gray-500 italic")
+                
+                # Actions: Complete, Cancel
+                with ui.row().classes("gap-3 justify-end mt-4 w-full"):
+                    def do_complete():
+                        decision_value = decision_select.value
+                        if decision_value == "Please select":
+                            ui.notify("Please select a decision (Renew or Terminate).", type="negative")
+                            return
+                        if decision_value == "Renew":
+                            end_val = (end_date_input.value or "").strip()
+                            if not end_val:
+                                ui.notify("End date is required when decision is Renew.", type="negative")
+                                return
+                        if decision_value == "Terminate":
+                            if not (contract_obj and contract_obj.documents):
+                                ui.notify("Termination document and issue date are required when decision is Terminate. Please ensure at least one document is uploaded for this contract.", type="negative")
+                                return
+                            doc_sel = term_doc_select.value
+                            if not doc_sel or doc_sel == "Select a document...":
+                                ui.notify("Please select a termination document.", type="negative")
+                                return
+                            issue_val = (term_issue_date_input.value or "").strip()
+                            if not issue_val:
+                                ui.notify("Please provide the termination document issue date.", type="negative")
+                                return
+                        nonlocal contract_rows
+                        try:
+                            db3 = SessionLocal()
+                            try:
+                                upd = db3.query(ContractUpdate).filter(ContractUpdate.id == (update_id or 0)).first()
+                                if not upd and contract_db_id:
+                                    upd = (
+                                        db3.query(ContractUpdate)
+                                        .filter(ContractUpdate.contract_id == contract_db_id)
+                                        .order_by(ContractUpdate.created_at.desc())
+                                        .first()
+                                    )
+                                if not upd:
+                                    upd = ContractUpdate(contract_id=contract_db_id, status=ContractUpdateStatus.COMPLETED)
+                                    db3.add(upd)
+                                contract_db = db3.query(Contract).filter(Contract.id == contract_db_id).first()
+                                if not contract_db:
+                                    ui.notify("Contract not found", type="negative")
+                                    return
+                                if decision_value == "Renew":
+                                    from datetime import datetime as dt
+                                    try:
+                                        new_end = dt.strptime((end_date_input.value or "").strip(), "%Y-%m-%d").date()
+                                    except Exception:
+                                        ui.notify("Invalid end date.", type="negative")
+                                        return
+                                    contract_db.end_date = new_end
+                                    contract_db.last_modified_by = app.storage.user.get("username", "SYSTEM") if app.storage.user else "SYSTEM"
+                                    contract_db.last_modified_date = datetime.utcnow()
+                                    upd.initial_expiration_date = new_end
+                                elif decision_value == "Terminate":
+                                    contract_db.status = ContractStatusType.TERMINATED
+                                    contract_db.contract_termination = ContractTerminationType.YES
+                                    contract_db.last_modified_by = app.storage.user.get("username", "SYSTEM") if app.storage.user else "SYSTEM"
+                                    contract_db.last_modified_date = datetime.utcnow()
+                                upd.status = ContractUpdateStatus.COMPLETED
+                                upd.decision = "Renew" if decision_value == "Renew" else "Terminate"
+                                upd.decision_comments = manager_comments_input.value or ""
+                                upd.updated_at = datetime.utcnow()
+                                db3.commit()
+                                ui.notify("Review completed", type="positive")
+                                reload_contract_updates()
+                                apply_filters()
+                                if current_tab['value'] == 'returned':
+                                    switch_tab('returned')
+                            finally:
+                                db3.close()
+                        except Exception as e:
+                            ui.notify(f"Error completing review: {e}", type="negative")
+                            import traceback
+                            traceback.print_exc()
+                        contract_decision_dialog.close()
+                    
+                    ui.button("Complete", icon="check_circle", on_click=do_complete).props("color=positive")
+                    ui.button("Cancel", icon="cancel", on_click=contract_decision_dialog.close).props("flat color=grey")
+        
+        def open_contract_decision_dialog(row: dict) -> None:
+            """Open the Contract Decision dialog for the clicked contract row."""
+            selected_contract.clear()
+            selected_contract["contract_id"] = row.get("contract_id", "")
+            selected_contract["contract_db_id"] = row.get("id", 0)
+            selected_contract["update_id"] = row.get("update_id")
+            selected_contract["vendor_name"] = row.get("vendor_name", "N/A")
+            selected_contract["expiration_date"] = row.get("expiration_date", "N/A")
+            selected_contract["admin_comments"] = row.get("admin_comments", "")
+            selected_contract["decision"] = row.get("decision")
+            selected_contract["initial_expiration"] = row.get("initial_expiration", "")
+            populate_dialog_content()
+            contract_decision_dialog.open()
+        
+        def on_status_click(e) -> None:
+            try:
+                row = e.args
+                if isinstance(row, dict) and (row.get("id") is not None or row.get("contract_id")):
+                    open_contract_decision_dialog(row)
+            except Exception as ex:
+                ui.notify(f"Could not open Contract Decision dialog: {ex}", type="negative")
+        
+        contracts_table.on("status_click", on_status_click)
+        
+        # Add slot for status column: clickable to open Contract Decision pop-up
         contracts_table.add_slot('body-cell-status', '''
             <q-td :props="props">
                 <div v-if="props.row.status === 'returned'" class="flex items-center justify-center">
@@ -805,24 +1141,30 @@ def contract_updates():
                         size="sm" 
                         icon="undo"
                         dense
-                        class="font-semibold"
+                        class="font-semibold cursor-pointer"
+                        @click="$parent.$emit('status_click', props.row)"
                     />
                 </div>
                 <div v-else-if="props.row.status === 'updated'" class="flex items-center justify-center">
                     <q-btn 
                         label="Updated" 
-                        color="positive" 
                         size="sm" 
                         icon="check_circle"
                         dense
-                        class="font-semibold"
+                        color="positive"
+                        class="font-semibold cursor-pointer"
+                        @click="$parent.$emit('status_click', props.row)"
                     />
                 </div>
                 <div v-else class="flex items-center justify-center">
-                    <q-badge 
-                        color="grey" 
+                    <q-btn
+                        flat
+                        dense
+                        no-caps
                         :label="props.row.status"
-                        class="font-semibold"
+                        color="grey"
+                        class="font-semibold cursor-pointer"
+                        @click="$parent.$emit('status_click', props.row)"
                     />
                 </div>
             </q-td>
