@@ -22,7 +22,8 @@ def contract_info(contract_id: int):
             joinedload(Contract.contract_owner),
             joinedload(Contract.contract_owner_backup),
             joinedload(Contract.contract_owner_manager),
-            joinedload(Contract.documents)
+            joinedload(Contract.documents),
+            joinedload(Contract.termination_documents)
         ).filter(Contract.id == contract_id).first()
         
         if not contract:
@@ -516,4 +517,168 @@ def contract_info(contract_id: int):
                             download_btn.on_click(make_download_handler(doc.file_path, doc.custom_document_name, doc.file_name))
             else:
                 ui.label("No documents uploaded").classes("text-gray-500 italic")
+
+        # Termination Documents section (AC: show only if there are termination docs, or for Super User/Contract Admin show Add option)
+        from nicegui import app
+        user_role = app.storage.user.get("user_role") or ""
+        can_manage_termination_docs = user_role in ("Contract Admin", "Super User")
+        termination_docs = list(contract.termination_documents or [])
+
+        def _download_termination_doc(doc_path: str, doc_name: str, file_name: str):
+            import os
+            if os.path.exists(doc_path):
+                with open(doc_path, "rb") as f:
+                    file_content = f.read()
+                import base64
+                b64_content = base64.b64encode(file_content).decode()
+                ui.run_javascript(f"""
+                    const link = document.createElement('a');
+                    link.href = 'data:application/pdf;base64,{b64_content}';
+                    link.download = '{file_name}';
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                """)
+                ui.notify(f"Downloaded {doc_name}", type="positive")
+            else:
+                ui.notify(f"File not found: {doc_name}", type="negative")
+
+        if len(termination_docs) > 0 or can_manage_termination_docs:
+            with ui.card().classes("w-full max-w-5xl mx-auto mt-6 p-6"):
+                ui.label("Termination Documents").classes("text-h5 mb-4 text-blue-600 font-bold")
+
+                if len(termination_docs) > 0:
+                    ui.badge(f"{len(termination_docs)} document(s)", color="green").classes("text-sm font-semibold mb-4")
+                    for tdoc in termination_docs:
+                        with ui.row().classes("items-center gap-4 p-3 bg-gray-50 rounded-lg mb-2 w-full"):
+                            with ui.column().classes("flex-1"):
+                                ui.label(tdoc.document_name).classes("font-medium text-gray-800")
+                                doc_date_str = tdoc.document_date.strftime("%Y-%m-%d") if tdoc.document_date else "N/A"
+                                ui.label(f"Document date: {doc_date_str}").classes("text-sm text-gray-600")
+                            with ui.row().classes("gap-2"):
+                                view_btn = ui.button("View", icon="visibility").props("color=primary flat size=sm")
+                                download_btn = ui.button("Download", icon="download").props("color=secondary flat size=sm")
+                                view_btn.on_click(lambda p=tdoc.file_path, n=tdoc.document_name, f=tdoc.file_name: _download_termination_doc(p, n, f))
+                                download_btn.on_click(lambda p=tdoc.file_path, n=tdoc.document_name, f=tdoc.file_name: _download_termination_doc(p, n, f))
+                                if can_manage_termination_docs:
+                                    edit_btn = ui.button("Edit", icon="edit").props("flat size=sm")
+                                    delete_btn = ui.button("Delete", icon="delete").props("flat color=negative size=sm")
+                                    edit_btn.on_click(lambda tid=tdoc.id: _open_edit_termination_dialog(tid))
+                                    delete_btn.on_click(lambda tid=tdoc.id: _open_delete_termination_dialog(tid))
+
+                if can_manage_termination_docs:
+                    if len(termination_docs) > 0:
+                        ui.separator().classes("my-4")
+                    add_btn = ui.button("Add Termination Document", icon="add").props("color=primary")
+                    add_btn.on_click(lambda: _open_add_termination_dialog())
+
+        uploaded_file_ref = {"name": None, "content": None}
+
+        async def _on_termination_file_upload(e):
+            uploaded_file_ref["name"] = e.file.name
+            uploaded_file_ref["content"] = await e.file.read()
+
+        def _open_add_termination_dialog():
+            uploaded_file_ref["name"] = None
+            uploaded_file_ref["content"] = None
+            with ui.dialog() as add_dialog, ui.card().classes("min-w-[400px]"):
+                ui.label("Add Termination Document").classes("text-h6 mb-4")
+                doc_name_input = ui.input(label="Document name", placeholder="e.g. Termination letter").classes("w-full").props("outlined")
+                doc_date_input = ui.input(label="Document date", placeholder="YYYY-MM-DD").classes("w-full").props("outlined type=date")
+                ui.upload(label="PDF file", on_upload=_on_termination_file_upload).classes("w-full").props("accept=.pdf")
+                with ui.row().classes("gap-2 mt-4"):
+                    ui.button("Cancel", on_click=add_dialog.close).props("flat")
+                    ui.button("Upload", on_click=lambda: _do_upload_termination_doc(add_dialog, doc_name_input, doc_date_input, uploaded_file_ref)).props("color=primary")
+            add_dialog.open()
+
+        def _open_edit_termination_dialog(doc_id: int):
+            tdoc = next((d for d in termination_docs if d.id == doc_id), None)
+            if not tdoc:
+                return
+            with ui.dialog() as edit_dialog, ui.card().classes("min-w-[400px]"):
+                ui.label("Edit Termination Document").classes("text-h6 mb-4")
+                name_input = ui.input(label="Document name", value=tdoc.document_name).classes("w-full").props("outlined")
+                date_input = ui.input(label="Document date", value=tdoc.document_date.strftime("%Y-%m-%d") if tdoc.document_date else "").classes("w-full").props("outlined type=date")
+                with ui.row().classes("gap-2 mt-4"):
+                    ui.button("Cancel", on_click=edit_dialog.close).props("flat")
+                    ui.button("Save", on_click=lambda: _do_update_termination_doc(edit_dialog, contract.id, doc_id, name_input, date_input)).props("color=primary")
+            edit_dialog.open()
+
+        def _open_delete_termination_dialog(doc_id: int):
+            with ui.dialog() as del_dialog, ui.card():
+                ui.label("Delete this termination document?").classes("mb-4")
+                with ui.row().classes("gap-2"):
+                    ui.button("Cancel", on_click=del_dialog.close).props("flat")
+                    ui.button("Delete", on_click=lambda: _do_delete_termination_doc(del_dialog, contract.id, doc_id)).props("color=negative")
+            del_dialog.open()
+
+        async def _do_upload_termination_doc(dialog, name_input, date_input, file_ref):
+            name = (name_input.value or "").strip()
+            date_val = date_input.value or ""
+            if not name:
+                ui.notify("Please enter document name", type="negative")
+                return
+            if not date_val:
+                ui.notify("Please enter document date", type="negative")
+                return
+            if not file_ref.get("content"):
+                ui.notify("Please select a PDF file", type="negative")
+                return
+            import httpx
+            fname = file_ref.get("name") or "document.pdf"
+            file_content = file_ref["content"]
+            try:
+                async with httpx.AsyncClient() as client:
+                    response = await client.post(
+                        f"http://localhost:8000/api/v1/contracts/{contract.id}/termination-documents",
+                        data={"document_name": name, "document_date": date_val},
+                        files={"file": (fname, file_content, "application/pdf")},
+                    )
+                if response.status_code == 201:
+                    ui.notify("Termination document uploaded", type="positive")
+                    dialog.close()
+                    ui.navigate.reload()
+                else:
+                    ui.notify(response.json().get("detail", "Upload failed"), type="negative")
+            except Exception as e:
+                ui.notify(str(e), type="negative")
+
+        async def _do_update_termination_doc(dialog, cid: int, doc_id: int, name_input, date_input):
+            name = (name_input.value or "").strip()
+            date_val = date_input.value or ""
+            if not name:
+                ui.notify("Please enter document name", type="negative")
+                return
+            if not date_val:
+                ui.notify("Please enter document date", type="negative")
+                return
+            try:
+                import httpx
+                async with httpx.AsyncClient() as client:
+                    response = await client.put(
+                        f"http://localhost:8000/api/v1/contracts/{cid}/termination-documents/{doc_id}",
+                        json={"document_name": name, "document_date": date_val},
+                    )
+                if response.status_code == 200:
+                    ui.notify("Termination document updated", type="positive")
+                    dialog.close()
+                    ui.navigate.reload()
+                else:
+                    ui.notify(response.json().get("detail", "Update failed"), type="negative")
+            except Exception as e:
+                ui.notify(str(e), type="negative")
+
+        async def _do_delete_termination_doc(dialog, cid: int, doc_id: int):
+            try:
+                import httpx
+                async with httpx.AsyncClient() as client:
+                    response = await client.delete(f"http://localhost:8000/api/v1/contracts/{cid}/termination-documents/{doc_id}")
+                if response.status_code == 204:
+                    ui.notify("Termination document deleted", type="positive")
+                    dialog.close()
+                    ui.navigate.reload()
+                else:
+                    ui.notify(response.json().get("detail", "Delete failed"), type="negative")
+            except Exception as e:
+                ui.notify(str(e), type="negative")
 

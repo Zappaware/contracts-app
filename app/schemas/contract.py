@@ -88,6 +88,51 @@ class ContractDocumentResponse(ContractDocumentBase):
         from_attributes = True
 
 
+# Termination Document Schemas
+class TerminationDocumentBase(BaseModel):
+    document_name: str = Field(..., min_length=1, max_length=255, description="Display name for the termination document")
+    document_date: date = Field(..., description="Document date")
+
+    @validator("document_name")
+    def validate_document_name(cls, v):
+        if not v or not v.strip():
+            raise ValueError("Document name cannot be empty")
+        if not re.match(r"^[-a-zA-Z0-9|&\s]+$", v.strip()):
+            raise ValueError("Document name can only contain letters, numbers, spaces, and the characters: - | &")
+        return v.strip()
+
+    @validator("document_date")
+    def validate_document_date(cls, v):
+        if v > date.today():
+            raise ValueError("Document date cannot be in the future")
+        return v
+
+
+class TerminationDocumentResponse(TerminationDocumentBase):
+    id: int
+    contract_id: int
+    file_name: str
+    file_path: str
+    file_size: int
+    content_type: str
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class TerminationDocumentUpdate(BaseModel):
+    """Optional fields for updating a termination document."""
+    document_name: Optional[str] = Field(None, min_length=1, max_length=255)
+    document_date: Optional[date] = None
+
+
+class TerminationDocumentFromContractDocument(BaseModel):
+    """Create a termination document by copying an existing contract document (e.g. on Complete Terminate)."""
+    contract_document_id: int = Field(..., gt=0)
+    document_date: date = Field(...)
+
+
 # Contract Schemas
 class ContractBase(BaseModel):
     vendor_id: int = Field(..., gt=0, description="ID of the vendor")

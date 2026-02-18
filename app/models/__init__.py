@@ -14,6 +14,7 @@ from .vendor import (
 from .contract import (
     Contract,
     ContractDocument,
+    TerminationDocument,
     ContractUpdate,
     User,
     ContractType,
@@ -43,6 +44,7 @@ __all__ = [
     "DocumentType",
     "Contract",
     "ContractDocument",
+    "TerminationDocument",
     "ContractUpdate",
     "User",
     "ContractType",

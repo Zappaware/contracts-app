@@ -155,6 +155,7 @@ class Contract(Base):
     contract_owner_backup = relationship("User", foreign_keys=[contract_owner_backup_id], back_populates="backup_contracts")
     contract_owner_manager = relationship("User", foreign_keys=[contract_owner_manager_id], back_populates="managed_contracts")
     documents = relationship("ContractDocument", back_populates="contract", cascade="all, delete-orphan")
+    termination_documents = relationship("TerminationDocument", back_populates="contract", cascade="all, delete-orphan")
     updates = relationship("ContractUpdate", back_populates="contract", cascade="all, delete-orphan")
 
 
@@ -209,6 +210,28 @@ class ContractDocument(Base):
     
     # Relationships
     contract = relationship("Contract", back_populates="documents")
+
+
+class TerminationDocument(Base):
+    """Termination documents linked to a contract (separate from main contract documents)."""
+    __tablename__ = "termination_documents"
+
+    id = Column(Integer, primary_key=True, index=True)
+    contract_id = Column(Integer, ForeignKey("contracts.id"), nullable=False)
+    
+    # Document Information
+    file_name = Column(String(255), nullable=False)
+    document_name = Column(String(255), nullable=False)  # User-defined display name
+    document_date = Column(Date, nullable=False)  # Document date (per AC)
+    file_path = Column(String(500), nullable=False)
+    file_size = Column(Integer, nullable=False)
+    content_type = Column(String(100), nullable=False)
+    
+    # Timestamps
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    # Relationships
+    contract = relationship("Contract", back_populates="termination_documents")
 
 
 class ContractUpdate(Base):

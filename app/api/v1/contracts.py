@@ -11,7 +11,9 @@ from app.schemas.contract import (
     ContractCreate, ContractUpdate, ContractDetailResponse,
     ContractListResponse, ContractSearchResponse,
     UserCreate, UserResponse, UserListResponse, ContractValidationEnums,
-    ContractSummary, ContractDocumentResponse
+    ContractSummary, ContractDocumentResponse,
+    TerminationDocumentResponse, TerminationDocumentUpdate,
+    TerminationDocumentFromContractDocument,
 )
 from app.models.contract import (
     ContractType, DepartmentType, NoticePeriodType, ExpirationNoticePeriodType,
@@ -302,6 +304,128 @@ async def upload_contract_document(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error uploading document: {str(e)}"
         )
+
+
+# --- Termination documents ---
+@router.get("/{contract_id}/termination-documents", response_model=List[TerminationDocumentResponse])
+def list_termination_documents(contract_id: int, db: Session = Depends(get_db)):
+    """List all termination documents for a contract. All roles can view."""
+    contract_service = ContractService(db)
+    contract = contract_service.get_contract_by_id(contract_id)
+    if not contract:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Contract not found")
+    # Load termination_documents if not loaded
+    from sqlalchemy.orm import joinedload
+    from app.models.contract import Contract as ContractModel
+    contract = db.query(ContractModel).options(joinedload(ContractModel.termination_documents)).filter(ContractModel.id == contract_id).first()
+    return contract.termination_documents or []
+
+
+@router.post("/{contract_id}/termination-documents", response_model=TerminationDocumentResponse, status_code=status.HTTP_201_CREATED)
+async def upload_termination_document(
+    contract_id: int,
+    document_name: str = Form(..., description="Document display name"),
+    document_date: str = Form(..., description="Document date (YYYY-MM-DD)"),
+    file: UploadFile = File(..., description="PDF file"),
+    db: Session = Depends(get_db)
+):
+    """Upload a termination document. Contract Admin and Super User only (enforced in UI)."""
+    contract_service = ContractService(db)
+    try:
+        doc_date = datetime.fromisoformat(document_date).date()
+        doc = await contract_service.upload_termination_document(contract_id, file, document_name, doc_date)
+        return doc
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+
+
+@router.post(
+    "/{contract_id}/termination-documents/from-contract-document",
+    response_model=TerminationDocumentResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_termination_document_from_contract_document(
+    contract_id: int,
+    body: TerminationDocumentFromContractDocument,
+    db: Session = Depends(get_db),
+):
+    """
+    Create a termination document by copying an existing contract document
+    (e.g. when Contract Admin completes review with decision Terminate).
+    """
+    contract_service = ContractService(db)
+    try:
+        doc = contract_service.add_termination_document_from_contract_document(
+            contract_id,
+            body.contract_document_id,
+            body.document_date,
+        )
+        return doc
+    except HTTPException:
+        raise
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+
+@router.get("/{contract_id}/termination-documents/{doc_id}", response_model=TerminationDocumentResponse)
+def get_termination_document(contract_id: int, doc_id: int, db: Session = Depends(get_db)):
+    """Get one termination document. All roles can view."""
+    contract_service = ContractService(db)
+    doc = contract_service.get_termination_document(contract_id, doc_id)
+    if not doc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Termination document not found")
+    return doc
+
+
+@router.put("/{contract_id}/termination-documents/{doc_id}", response_model=TerminationDocumentResponse)
+def update_termination_document(
+    contract_id: int,
+    doc_id: int,
+    body: TerminationDocumentUpdate,
+    db: Session = Depends(get_db)
+):
+    """Update termination document name/date. Contract Admin and Super User only (enforced in UI)."""
+    contract_service = ContractService(db)
+    try:
+        doc = contract_service.update_termination_document(
+            contract_id, doc_id,
+            document_name=body.document_name,
+            document_date=body.document_date
+        )
+        if not doc:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Termination document not found")
+        return doc
+    except HTTPException:
+        raise
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+
+@router.delete("/{contract_id}/termination-documents/{doc_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_termination_document(contract_id: int, doc_id: int, db: Session = Depends(get_db)):
+    """Delete a termination document. Contract Admin and Super User only (enforced in UI)."""
+    contract_service = ContractService(db)
+    ok = contract_service.delete_termination_document(contract_id, doc_id)
+    if not ok:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Termination document not found")
+
+
+@router.get("/{contract_id}/termination-documents/{doc_id}/download")
+def download_termination_document(contract_id: int, doc_id: int, db: Session = Depends(get_db)):
+    """Download termination document file. All roles can download."""
+    from fastapi.responses import FileResponse
+    contract_service = ContractService(db)
+    doc = contract_service.get_termination_document(contract_id, doc_id)
+    if not doc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Termination document not found")
+    import os
+    if not os.path.exists(doc.file_path):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File not found")
+    return FileResponse(doc.file_path, filename=doc.file_name, media_type=doc.content_type or "application/pdf")
 
 
 @router.get("/summary/dashboard", response_model=ContractSummary)

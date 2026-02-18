@@ -7,7 +7,8 @@ import os
 import uuid
 from fastapi import UploadFile, HTTPException
 
-from app.models.contract import Contract, User, ContractDocument, ContractStatusType
+from app.models.contract import Contract, User, ContractDocument, TerminationDocument, ContractStatusType
+import shutil
 from app.models.vendor import Vendor
 from app.schemas.contract import ContractCreate, ContractUpdate, UserCreate, ContractSummary
 from app.services.vendor_service import VendorService
@@ -265,6 +266,133 @@ class ContractService:
         self.db.refresh(document)
         
         return document
+
+    # --- Termination documents (separate from contract documents) ---
+    async def upload_termination_document(
+        self,
+        contract_id: int,
+        file: UploadFile,
+        document_name: str,
+        document_date: date
+    ) -> TerminationDocument:
+        """Upload and save a termination document for a contract."""
+        if not self.vendor_service.validate_pdf_file(file):
+            raise HTTPException(status_code=400, detail="Only valid PDF files are allowed")
+        if not self.vendor_service.validate_custom_document_name(document_name):
+            raise HTTPException(
+                status_code=400,
+                detail="Document name can only contain letters, numbers, spaces, and the characters: - | &"
+            )
+        if document_date > date.today():
+            raise HTTPException(status_code=400, detail="Document date cannot be in the future")
+        contract = self.db.query(Contract).filter(Contract.id == contract_id).first()
+        if not contract:
+            raise HTTPException(status_code=404, detail="Contract not found")
+        file_path = await self.save_uploaded_file(file, contract.contract_id, "termination")
+        doc = TerminationDocument(
+            contract_id=contract_id,
+            file_name=file.filename,
+            document_name=document_name.strip(),
+            document_date=document_date,
+            file_path=file_path,
+            file_size=file.size,
+            content_type=file.content_type
+        )
+        self.db.add(doc)
+        self.db.commit()
+        self.db.refresh(doc)
+        return doc
+
+    def get_termination_document(self, contract_id: int, doc_id: int) -> Optional[TerminationDocument]:
+        """Get a single termination document by contract and document id."""
+        return (
+            self.db.query(TerminationDocument)
+            .filter(TerminationDocument.contract_id == contract_id, TerminationDocument.id == doc_id)
+            .first()
+        )
+
+    def update_termination_document(
+        self, contract_id: int, doc_id: int, document_name: Optional[str] = None, document_date: Optional[date] = None
+    ) -> Optional[TerminationDocument]:
+        """Update termination document name and/or date."""
+        doc = self.get_termination_document(contract_id, doc_id)
+        if not doc:
+            return None
+        if document_name is not None:
+            if not self.vendor_service.validate_custom_document_name(document_name):
+                raise HTTPException(
+                    status_code=400,
+                    detail="Document name can only contain letters, numbers, spaces, and the characters: - | &"
+                )
+            doc.document_name = document_name.strip()
+        if document_date is not None:
+            if document_date > date.today():
+                raise HTTPException(status_code=400, detail="Document date cannot be in the future")
+            doc.document_date = document_date
+        self.db.commit()
+        self.db.refresh(doc)
+        return doc
+
+    def delete_termination_document(self, contract_id: int, doc_id: int) -> bool:
+        """Delete a termination document and optionally remove file from disk."""
+        doc = self.get_termination_document(contract_id, doc_id)
+        if not doc:
+            return False
+        file_path = doc.file_path
+        self.db.delete(doc)
+        self.db.commit()
+        if os.path.exists(file_path):
+            try:
+                os.remove(file_path)
+            except OSError:
+                pass
+        return True
+
+    def add_termination_document_from_contract_document(
+        self, contract_id: int, contract_document_id: int, document_date: date
+    ) -> TerminationDocument:
+        """
+        Copy an existing contract document into the Termination Documents section
+        (e.g. when completing a review with decision Terminate).
+        """
+        contract = self.db.query(Contract).filter(Contract.id == contract_id).first()
+        if not contract:
+            raise HTTPException(status_code=404, detail="Contract not found")
+        contract_doc = (
+            self.db.query(ContractDocument)
+            .filter(
+                ContractDocument.id == contract_document_id,
+                ContractDocument.contract_id == contract_id,
+            )
+            .first()
+        )
+        if not contract_doc:
+            raise HTTPException(status_code=404, detail="Contract document not found")
+        if document_date > date.today():
+            raise HTTPException(status_code=400, detail="Document date cannot be in the future")
+        if not os.path.exists(contract_doc.file_path):
+            raise HTTPException(status_code=404, detail="Contract document file not found")
+        # Copy file to termination folder
+        upload_dir = os.path.join("uploads", "contracts", contract.contract_id)
+        os.makedirs(upload_dir, exist_ok=True)
+        ext = os.path.splitext(contract_doc.file_name)[1] or ".pdf"
+        new_filename = f"termination_{uuid.uuid4()}{ext}"
+        new_path = os.path.join(upload_dir, new_filename)
+        shutil.copy2(contract_doc.file_path, new_path)
+        file_size = os.path.getsize(new_path)
+        term_doc = TerminationDocument(
+            contract_id=contract_id,
+            file_name=contract_doc.file_name,
+            document_name=contract_doc.custom_document_name,
+            document_date=document_date,
+            file_path=new_path,
+            file_size=file_size,
+            content_type=contract_doc.content_type or "application/pdf",
+        )
+        self.db.add(term_doc)
+        self.db.commit()
+        self.db.refresh(term_doc)
+        return term_doc
 
     async def save_uploaded_file(self, file: UploadFile, contract_id: str, document_type: str) -> str:
         """
