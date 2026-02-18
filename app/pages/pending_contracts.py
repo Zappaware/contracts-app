@@ -2,9 +2,18 @@ from datetime import datetime, timedelta, date
 from nicegui import ui, app
 import io
 import base64
+import httpx
 from app.db.database import SessionLocal
 from app.services.contract_service import ContractService
-from app.models.contract import ContractStatusType, User
+from app.models.contract import (
+    Contract,
+    ContractStatusType,
+    ContractTerminationType,
+    ContractUpdate,
+    ContractUpdateStatus,
+    User,
+)
+from sqlalchemy.orm import joinedload
 from app.utils.navigation import get_dashboard_url
 try:
     import pandas as pd
@@ -89,10 +98,6 @@ def pending_contracts():
             # Map contract data to table row format
             rows = []
             for contract in contracts:
-                # Get contract owner name
-                owner_name = f"{contract.contract_owner.first_name} {contract.contract_owner.last_name}"
-                backup_name = f"{contract.contract_owner_backup.first_name} {contract.contract_owner_backup.last_name}"
-                
                 # Get vendor info
                 vendor_name = contract.vendor.vendor_name if contract.vendor else "Unknown"
                 vendor_id = contract.vendor.id if contract.vendor else None
@@ -340,13 +345,19 @@ def pending_contracts():
             </q-td>
         ''')
         
-        # Add slot for custom styling of status column
+        # Add slot for status column: clickable to open Contract Decision pop-up
         contracts_table.add_slot('body-cell-status', '''
             <q-td :props="props">
-                <div class="text-orange-600 font-semibold flex items-center gap-1">
-                    <q-icon name="pending" color="orange" size="sm" />
+                <q-btn
+                    flat
+                    dense
+                    no-caps
+                    class="text-orange-600 font-semibold cursor-pointer"
+                    @click="$parent.$emit('status_click', props.row)"
+                >
+                    <q-icon name="pending" color="orange" size="sm" class="q-mr-xs" />
                     {{ props.value }}
-                </div>
+                </q-btn>
             </q-td>
         ''')
         
@@ -361,7 +372,258 @@ def pending_contracts():
                 <span v-else class="text-gray-500">{{ props.value || 'N/A' }}</span>
             </q-td>
         ''')
-        
+
+        # --- Contract Decision pop-up (when user clicks status in Pending Documents list) ---
+        selected_contract = {}
+
+        with ui.dialog().props("max-width=640px") as contract_decision_dialog, ui.card().classes("w-full max-w-3xl max-h-[90vh] overflow-y-auto p-6"):
+            ui.label("Contract Decision").classes("text-h5 mb-4 text-blue-600 font-bold")
+            dialog_content = ui.column().classes("w-full gap-4")
+
+        def populate_dialog_content():
+            dialog_content.clear()
+            contract_db_id = selected_contract.get("id") or selected_contract.get("contract_db_id")
+            contract_obj = None
+            update = None
+            acted_by_name = "N/A"
+            existing_comments = ""
+            try:
+                db2 = SessionLocal()
+                try:
+                    contract_obj = (
+                        db2.query(Contract)
+                        .options(
+                            joinedload(Contract.documents),
+                            joinedload(Contract.termination_documents),
+                            joinedload(Contract.contract_owner),
+                            joinedload(Contract.contract_owner_backup),
+                            joinedload(Contract.contract_owner_manager),
+                        )
+                        .filter(Contract.id == contract_db_id)
+                        .first()
+                    )
+                    if contract_obj:
+                        owner_name = f"{contract_obj.contract_owner.first_name} {contract_obj.contract_owner.last_name}" if contract_obj.contract_owner else "N/A"
+                        backup_name = f"{contract_obj.contract_owner_backup.first_name} {contract_obj.contract_owner_backup.last_name}" if contract_obj.contract_owner_backup else "N/A"
+                        manager_name = f"{contract_obj.contract_owner_manager.first_name} {contract_obj.contract_owner_manager.last_name}" if contract_obj.contract_owner_manager else "N/A"
+                        acted_by_name = f"Contract Manager: {owner_name}, Backup: {backup_name}, Owner: {manager_name}"
+                    update = (
+                        db2.query(ContractUpdate)
+                        .filter(ContractUpdate.contract_id == contract_db_id)
+                        .order_by(ContractUpdate.created_at.desc())
+                        .first()
+                    )
+                    if update and update.response_provided_by_user_id:
+                        acted_user = db2.query(User).filter(User.id == update.response_provided_by_user_id).first()
+                        if acted_user:
+                            acted_by_name = f"{acted_user.first_name} {acted_user.last_name}"
+                    if update and getattr(update, "decision_comments", None):
+                        existing_comments = update.decision_comments or ""
+                    prev_decision = (update.decision if update and update.decision else None) or selected_contract.get("decision") or "Terminate"
+                    if prev_decision == "Extend":
+                        prev_decision = "Renew"
+                finally:
+                    db2.close()
+            except Exception as e:
+                print(f"Error loading contract for dialog: {e}")
+                prev_decision = "Terminate"
+
+            with dialog_content:
+                # Display Status of Pending Documents within the pop-up
+                with ui.row().classes("mb-2 items-center gap-2"):
+                    ui.label("Status:").classes("text-sm font-medium text-gray-600")
+                    ui.badge("Pending Documents", color="orange").classes("text-sm font-semibold")
+
+                # Contract summary
+                with ui.row().classes("mb-4 p-4 bg-gray-50 rounded-lg w-full"):
+                    with ui.column().classes("gap-1"):
+                        ui.label(f"Contract ID: {selected_contract.get('contract_id', 'N/A')}").classes("font-bold text-lg")
+                        ui.label(f"Vendor: {selected_contract.get('vendor_name', 'N/A')}").classes("text-gray-600")
+                        ui.label(f"Expiration Date: {selected_contract.get('expiration_date', 'N/A')}").classes("text-gray-600")
+                        ui.label(f"Action taken by: {acted_by_name}").classes("text-gray-600 text-sm")
+
+                # Decision section (renamed from Termination Decision)
+                ui.label("Decision").classes("text-lg font-bold")
+                decision_options = ["Terminate", "Renew"]
+                decision_select = ui.select(
+                    options=decision_options,
+                    value=prev_decision if prev_decision in decision_options else "Terminate"
+                ).classes("w-full").props("outlined dense")
+
+                end_date_container = ui.column().classes("w-full")
+                with end_date_container:
+                    end_date_input = ui.input("End Date (required for Renew)", value=selected_contract.get("expiration_date") or "").props("type=date outlined dense").classes("w-full")
+
+                term_doc_container = ui.column().classes("w-full")
+                with term_doc_container:
+                    ui.label("Termination Document (required for Terminate). Upload below if missing.").classes("text-sm font-medium")
+                    term_doc_upload_ref = {"name": None, "content": None}
+                    term_doc_name_input = ui.input("Document name", placeholder="e.g. Termination letter").props("outlined dense").classes("w-full")
+                    term_doc_date_input = ui.input("Issue Date", value="").props("type=date outlined dense").classes("w-full")
+
+                    async def on_term_file_upload(e):
+                        term_doc_upload_ref["name"] = e.file.name
+                        term_doc_upload_ref["content"] = await e.file.read()
+                        set_complete_state()
+
+                    ui.upload(on_upload=on_term_file_upload, label="Upload PDF (required for Terminate)").props("accept=.pdf outlined dense").classes("w-full")
+
+                def toggle_decision_requirements():
+                    if decision_select.value == "Renew":
+                        end_date_container.visible = True
+                        term_doc_container.visible = False
+                    else:
+                        end_date_container.visible = False
+                        term_doc_container.visible = True
+
+                decision_select.on_value_change(lambda e: toggle_decision_requirements())
+                toggle_decision_requirements()
+
+                # Documents & Comments: view uploaded docs and add comments (same comment box)
+                ui.label("Documents & Comments").classes("text-lg font-bold mt-2")
+                with ui.card().classes("p-4 bg-white border w-full"):
+                    ui.label("Comments (Contract Manager / Backup / Owner can add comments below):").classes("font-medium")
+                    comments_input = ui.textarea(value=existing_comments).classes("w-full").props("outlined")
+                    ui.separator()
+                    ui.label("Contract documents:").classes("font-medium mt-2")
+                    if contract_obj and contract_obj.documents:
+                        for doc in contract_obj.documents:
+                            with ui.row().classes("items-center justify-between w-full gap-2 py-1"):
+                                ui.label(doc.custom_document_name or doc.file_name).classes("text-sm")
+                                doc_date_str = doc.document_signed_date.strftime("%Y-%m-%d") if getattr(doc.document_signed_date, "strftime", None) else str(doc.document_signed_date)
+                                ui.label(f"Issue date: {doc_date_str}").classes("text-xs text-gray-500")
+                                ui.button("Download", icon="download", on_click=lambda p=doc.file_path, n=doc.file_name: ui.download(p, filename=n)).props("flat color=primary size=sm")
+                    else:
+                        ui.label("No contract documents uploaded.").classes("text-gray-500 italic")
+                    ui.label("Termination documents:").classes("font-medium mt-2")
+                    if contract_obj and contract_obj.termination_documents:
+                        for tdoc in contract_obj.termination_documents:
+                            with ui.row().classes("items-center justify-between w-full gap-2 py-1"):
+                                ui.label(tdoc.document_name).classes("text-sm")
+                                tdate_str = tdoc.document_date.strftime("%Y-%m-%d") if getattr(tdoc.document_date, "strftime", None) else str(tdoc.document_date)
+                                ui.label(f"Document date: {tdate_str}").classes("text-xs text-gray-500")
+                                ui.button("Download", icon="download", on_click=lambda p=tdoc.file_path, n=tdoc.file_name: ui.download(p, filename=n)).props("flat color=primary size=sm")
+                    else:
+                        ui.label("No termination documents yet. Upload above when Decision is Terminate.").classes("text-gray-500 italic")
+
+                # Complete (gray/disabled when Terminate and no doc) and Cancel
+                with ui.row().classes("gap-3 justify-end mt-4 w-full"):
+                    complete_btn = ui.button("Complete", icon="check_circle").props("color=positive")
+                    ui.button("Cancel", icon="cancel", on_click=contract_decision_dialog.close).props("flat color=grey")
+
+                def can_complete():
+                    if decision_select.value == "Renew":
+                        return bool((end_date_input.value or "").strip())
+                    # Terminate: need at least one termination doc (existing or just uploaded)
+                    has_existing = contract_obj and contract_obj.termination_documents and len(contract_obj.termination_documents) > 0
+                    has_upload = term_doc_upload_ref.get("content")
+                    return has_existing or bool(has_upload)
+
+                def set_complete_state():
+                    # Complete is always clickable; when Terminate and no doc it appears gray and click shows message
+                    if can_complete():
+                        complete_btn.props(remove="color=grey")
+                        complete_btn.props("color=positive")
+                    else:
+                        complete_btn.props(remove="color=positive")
+                        complete_btn.props("color=grey")
+
+                def do_complete():
+                    if not can_complete():
+                        ui.notify("Please upload the Termination Document", type="negative")
+                        return
+                    decision_value = decision_select.value
+                    if decision_value == "Renew":
+                        end_val = (end_date_input.value or "").strip()
+                        if not end_val:
+                            ui.notify("End date is required for Renew.", type="negative")
+                            return
+                        try:
+                            new_end = datetime.strptime(end_val, "%Y-%m-%d").date()
+                        except Exception:
+                            ui.notify("Invalid end date.", type="negative")
+                            return
+                        try:
+                            modified_by = app.storage.user.get("username", "SYSTEM") if app.storage.user else "SYSTEM"
+                            with httpx.Client(timeout=30.0) as client:
+                                r = client.put(
+                                    f"http://localhost:8000/api/v1/contracts/{contract_db_id}?modified_by={modified_by}",
+                                    json={"end_date": end_val, "status": "Active"},
+                                )
+                            if r.status_code != 200:
+                                ui.notify(r.json().get("detail", "Failed to update contract"), type="negative")
+                                return
+                        except Exception as e:
+                            ui.notify(f"Error updating contract: {e}", type="negative")
+                            return
+                        ui.notify("Review completed. Contract renewed and status set to Active.", type="positive")
+                    else:
+                        # Terminate: ensure we have a termination doc (upload if from form)
+                        has_upload = term_doc_upload_ref.get("content")
+                        if has_upload:
+                            tname = (term_doc_name_input.value or "").strip()
+                            tdate = (term_doc_date_input.value or "").strip()
+                            if not tname or not tdate:
+                                ui.notify("Document name and Issue Date are required for the uploaded termination document.", type="negative")
+                                return
+                            try:
+                                with httpx.Client(timeout=30.0) as client:
+                                    r = client.post(
+                                        f"http://localhost:8000/api/v1/contracts/{contract_db_id}/termination-documents",
+                                        data={"document_name": tname, "document_date": tdate},
+                                        files={"file": (term_doc_upload_ref["name"] or "document.pdf", term_doc_upload_ref["content"], "application/pdf")},
+                                    )
+                                if r.status_code not in (200, 201):
+                                    ui.notify(r.json().get("detail", "Failed to store termination document"), type="negative")
+                                    return
+                            except Exception as e:
+                                ui.notify(f"Error storing termination document: {e}", type="negative")
+                                return
+                        db3 = SessionLocal()
+                        try:
+                            c = db3.query(Contract).filter(Contract.id == contract_db_id).first()
+                            if not c:
+                                ui.notify("Contract not found", type="negative")
+                                return
+                            c.status = ContractStatusType.TERMINATED
+                            c.contract_termination = ContractTerminationType.YES
+                            db3.commit()
+                        finally:
+                            db3.close()
+                        ui.notify("Review completed. Contract terminated.", type="positive")
+                    contract_decision_dialog.close()
+                    contract_rows[:] = fetch_pending_documents_contracts()
+                    contracts_table.rows = contract_rows
+                    contracts_table.update()
+                    count_label.text = f"Total: {len(contract_rows)} contracts"
+
+                complete_btn.on_click(do_complete)
+                set_complete_state()
+                decision_select.on_value_change(lambda e: set_complete_state())
+                end_date_input.on_value_change(lambda e: set_complete_state())
+                term_doc_name_input.on_value_change(lambda e: set_complete_state())
+                term_doc_date_input.on_value_change(lambda e: set_complete_state())
+
+        def open_contract_decision_dialog(row: dict):
+            selected_contract.clear()
+            selected_contract["id"] = row.get("id")
+            selected_contract["contract_id"] = row.get("contract_id", "")
+            selected_contract["vendor_name"] = row.get("vendor_name", "N/A")
+            selected_contract["expiration_date"] = row.get("expiration_date", "N/A")
+            selected_contract["decision"] = row.get("decision")
+            populate_dialog_content()
+            contract_decision_dialog.open()
+
+        def on_status_click(e):
+            try:
+                row = e.args
+                if isinstance(row, dict) and (row.get("id") is not None or row.get("contract_id")):
+                    open_contract_decision_dialog(row)
+            except Exception as ex:
+                ui.notify(f"Could not open Contract Decision: {ex}", type="negative")
+
+        contracts_table.on("status_click", on_status_click)
+
         # Function to generate Excel report
         def open_generate_dialog():
             """Open dialog for date range selection and report generation"""
