@@ -1,9 +1,12 @@
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 
 import requests
-from nicegui import ui
+from nicegui import ui, app
 from app.utils.vendor_lookup import get_vendor_id_by_name
+from app.db.database import SessionLocal
+from app.models.contract import Contract, ContractUpdate, ContractUpdateStatus, User, ContractStatusType, ContractTerminationType
+from sqlalchemy.orm import joinedload
 
 
 def home_page():
@@ -50,7 +53,24 @@ def home_page():
     except Exception as e:
         print(f"Error fetching active contracts count: {e}")
         active_contracts_count = 0
-    
+
+    # Fetch contracts requiring attention count (expiring soon or past due)
+    contracts_requiring_attention_count = 0
+    try:
+        from app.db.database import SessionLocal
+        from app.services.contract_service import ContractService
+        db = SessionLocal()
+        try:
+            contract_service = ContractService(db)
+            _, contracts_requiring_attention_count = contract_service.get_contracts_requiring_attention(
+                skip=0, limit=1, days_ahead=30
+            )
+        finally:
+            db.close()
+    except Exception as e:
+        print(f"Error fetching contracts requiring attention count: {e}")
+        contracts_requiring_attention_count = 0
+
     # Function to show the contracts table
     def show_contracts_table():
         contracts_table_container.visible = True
@@ -59,60 +79,60 @@ def home_page():
     # Function to handle owned/backup toggle
     
     # Quick Stats Cards (shrink to table width)
-    with ui.element("div").classes("max-w-6xl mx-auto w-full"):
+    with ui.element("div").classes("max-w-7xl mx-auto w-full"):
         with ui.row().classes(
-            "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 mt-8 gap-6 w-full"
+            "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 mt-8 gap-6 w-full items-start"
         ):
             # Row 1
             with ui.link(target='/active-contracts').classes('no-underline w-full').style('text-decoration: none !important;'):
                 with ui.card().classes("w-full cursor-pointer hover:bg-gray-50 transition-colors shadow-lg").props('flat'):
                     with ui.row().classes('items-center gap-2'):
                         ui.icon('article', color='primary').style('font-size: 28px')
-                ui.label("Active Contracts").classes("text-lg font-bold")
-                ui.label("Currently active contracts").classes("text-sm text-gray-500")
-                ui.label(str(active_contracts_count)).classes("text-2xl font-medium text-primary mt-2")
+                        ui.label("Active Contracts").classes("text-lg font-bold")
+                    ui.label("Currently active contracts").classes("text-sm text-gray-500 mt-2")
+                    ui.label(str(active_contracts_count)).classes("text-2xl font-medium text-primary mt-2")
             with ui.link(target='/pending-contracts').classes('no-underline w-full').style('text-decoration: none !important;'):
                 with ui.card().classes("w-full cursor-pointer hover:bg-gray-50 transition-colors shadow-lg").props('flat'):
                     with ui.row().classes('items-center gap-2'):
                         ui.icon('edit', color='primary').style('font-size: 28px')
-                ui.label("Pending Documents").classes("text-lg font-bold")
-                ui.label("Contracts missing documents").classes("text-sm text-gray-500")
-                ui.label("12").classes("text-2xl font-medium text-primary mt-2")
+                        ui.label("Pending Documents").classes("text-lg font-bold")
+                    ui.label("Contracts missing documents").classes("text-sm text-gray-500 mt-2")
+                    ui.label("12").classes("text-2xl font-medium text-primary mt-2")
             with ui.link(target='/contract-managers').classes('no-underline w-full').style('text-decoration: none !important;'):
                 with ui.card().classes("w-full cursor-pointer hover:bg-gray-50 transition-colors shadow-lg").props('flat'):
                     with ui.row().classes('items-center gap-2'):
                         ui.icon('people', color='primary').style('font-size: 28px')
-                    ui.label("User Administration").classes("text-lg font-bold")
-                    ui.label("View user responsibilities").classes("text-sm text-gray-500")
+                        ui.label("User Administration").classes("text-lg font-bold")
+                    ui.label("View user responsibilities").classes("text-sm text-gray-500 mt-2")
                     ui.label("15").classes("text-2xl font-medium text-primary mt-2")
-            
+
             # Row 2
             with ui.link(target='/pending-reviews').classes('no-underline w-full').style('text-decoration: none !important;'):
                 with ui.card().classes("w-full cursor-pointer hover:bg-gray-50 transition-colors shadow-lg").props('flat'):
                     with ui.row().classes('items-center gap-2'):
                         ui.icon('pending', color='primary').style('font-size: 28px')
-                ui.label("Pending Reviews").classes("text-lg font-bold")
-                ui.label("Contracts awaiting review").classes("text-sm text-gray-500")
-                ui.label("23").classes("text-2xl font-medium text-primary mt-2")
+                        ui.label("Pending Reviews").classes("text-lg font-bold")
+                    ui.label("Contracts awaiting review").classes("text-sm text-gray-500 mt-2")
+                    ui.label("23").classes("text-2xl font-medium text-primary mt-2")
             with ui.link(target='/vendors').classes('no-underline w-full').style('text-decoration: none !important;'):
                 with ui.card().classes("w-full cursor-pointer hover:bg-gray-50 transition-colors shadow-lg").props('flat'):
                     with ui.row().classes('items-center gap-2'):
                         ui.icon('business', color='primary').style('font-size: 28px')
-                ui.label("Vendors List").classes("text-lg font-bold")
-                ui.label("View all registered vendors").classes("text-sm text-gray-500")
-                ui.label(str(vendor_count)).classes("text-2xl font-medium text-primary mt-2")
+                        ui.label("Vendors List").classes("text-lg font-bold")
+                    ui.label("View all registered vendors").classes("text-sm text-gray-500 mt-2")
+                    ui.label(str(vendor_count)).classes("text-2xl font-medium text-primary mt-2")
             with ui.card().classes("w-full cursor-pointer hover:bg-gray-50 transition-colors shadow-lg").props('flat').on('click', show_contracts_table):
                 with ui.row().classes('items-center gap-2'):
                     ui.icon('warning', color='primary').style('font-size: 28px')
-                ui.label("Contracts Requiring Attention").classes("text-lg font-bold")
-                ui.label("Contracts approaching or past their expiration date").classes("text-sm text-gray-500")
-                ui.label("8").classes("text-2xl font-medium text-primary mt-2")
+                    ui.label("Contracts Requiring Attention").classes("text-lg font-bold")
+                ui.label("Contracts approaching or past their expiration date").classes("text-sm text-gray-500 mt-2")
+                ui.label(str(contracts_requiring_attention_count)).classes("text-2xl font-medium text-primary mt-2")
             with ui.link(target='/contract-updates').classes('no-underline w-full').style('text-decoration: none !important;'):
                 with ui.card().classes("w-full cursor-pointer hover:bg-gray-50 transition-colors shadow-lg").props('flat'):
                     with ui.row().classes('items-center gap-2'):
                         ui.icon('update', color='primary').style('font-size: 28px')
-                    ui.label("Contract Updates").classes("text-lg font-bold")
-                    ui.label("Review manager responses and updates").classes("text-sm text-gray-500")
+                        ui.label("Contract Updates").classes("text-lg font-bold")
+                    ui.label("Review manager responses and updates").classes("text-sm text-gray-500 mt-2")
                     ui.label("15").classes("text-2xl font-medium text-primary mt-2")
 
     # ===== COMMENTED OUT: Recent Activity Section =====
@@ -248,125 +268,69 @@ def home_page():
 
     
     # ===== NEW SECTION: Contracts Requiring Attention =====
-    
-    # Mock data for contracts requiring attention (since API is not available yet)
-    def get_mock_contracts():
+
+    def get_contracts_requiring_attention():
         """
-        Simulates contracts that have reached their notification window.
-        This will be replaced with actual API call when available.
+        Fetch contracts that are expiring soon or have reached their end date
+        from the backend. Status logic matches mock: "X days past due" (red)
+        or "X days remaining" (yellow).
         """
-        today = datetime.now()
-        
-        mock_contracts = [
-            {
-                "contract_id": "CTR-2024-001",
-                "vendor_name": "Acme Corp",
-                "contract_type": "Service Agreement",
-                "description": "IT Support Services",
-                "expiration_date": today - timedelta(days=5),  # 5 days past due
-                "manager": "William Defoe",
-                "role": "owned"
-            },
-            {
-                "contract_id": "CTR-2024-012",
-                "vendor_name": "Beta Technologies",
-                "contract_type": "Software License",
-                "description": "Enterprise Software Licensing",
-                "expiration_date": today - timedelta(days=15),  # 15 days past due
-                "manager": "John Doe",
-                "role": "backup"
-            },
-            {
-                "contract_id": "CTR-2024-023",
-                "vendor_name": "Gamma Consulting",
-                "contract_type": "Consulting",
-                "description": "Business Process Optimization",
-                "expiration_date": today + timedelta(days=10),  # 10 days remaining
-                "manager": "William Defoe",
-                "role": "owned"
-            },
-            {
-                "contract_id": "CTR-2024-034",
-                "vendor_name": "Delta Logistics",
-                "contract_type": "Transportation",
-                "description": "Freight and Delivery Services",
-                "expiration_date": today + timedelta(days=5),  # 5 days remaining
-                "manager": "John Doe",
-                "role": "backup"
-            },
-            {
-                "contract_id": "CTR-2023-089",
-                "vendor_name": "Epsilon Security",
-                "contract_type": "Security Services",
-                "description": "Building Security and Monitoring",
-                "expiration_date": today - timedelta(days=30),  # 30 days past due
-                "manager": "William Defoe",
-                "role": "owned"
-            },
-            {
-                "contract_id": "CTR-2024-045",
-                "vendor_name": "Zeta Solutions",
-                "contract_type": "Maintenance",
-                "description": "Equipment Maintenance Contract",
-                "expiration_date": today + timedelta(days=20),  # 20 days remaining
-                "manager": "John Doe",
-                "role": "backup"
-            },
-            {
-                "contract_id": "CTR-2024-056",
-                "vendor_name": "Eta Services",
-                "contract_type": "Cleaning Services",
-                "description": "Office Cleaning and Janitorial",
-                "expiration_date": today - timedelta(days=2),  # 2 days past due
-                "manager": "William Defoe",
-                "role": "owned"
-            },
-            {
-                "contract_id": "CTR-2024-067",
-                "vendor_name": "Theta Communications",
-                "contract_type": "Telecommunications",
-                "description": "Internet and Phone Services",
-                "expiration_date": today + timedelta(days=15),  # 15 days remaining
-                "manager": "John Doe",
-                "role": "backup"
-            },
-        ]
-        
+        today = date.today()
         rows = []
-        for contract in mock_contracts:
-            exp_date = contract["expiration_date"]
-            days_diff = (today - exp_date).days
-            
-            # Calculate status and visual indicators
-            if days_diff > 0:
-                # Past due - RED
-                status = f"{days_diff} days past due"
-                status_class = "expired"
-                row_class = "bg-red-50"
-            else:
-                # Approaching expiration - WARNING
-                status = f"{abs(days_diff)} days remaining"
-                status_class = "warning"
-                row_class = "bg-yellow-50"
-            
-            # Look up vendor_id from vendor_name
-            vendor_id = get_vendor_id_by_name(contract["vendor_name"])
-            
-            rows.append({
-                "contract_id": contract["contract_id"],
-                "vendor_name": contract["vendor_name"],
-                "vendor_id": vendor_id,  # Add vendor_id for routing
-                "contract_type": contract["contract_type"],
-                "description": contract["description"],
-                "expiration_date": exp_date.strftime("%Y-%m-%d"),
-                "expiration_timestamp": exp_date.timestamp(),  # For sorting
-                "status": status,
-                "status_class": status_class,
-                "row_class": row_class,
-                "manager": contract["manager"],
-                "role": contract["role"],
-            })
-        
+        try:
+            from app.db.database import SessionLocal
+            from app.services.contract_service import ContractService
+
+            db = SessionLocal()
+            try:
+                contract_service = ContractService(db)
+                contracts, _ = contract_service.get_contracts_requiring_attention(
+                    skip=0,
+                    limit=1000,
+                    days_ahead=30
+                )
+
+                for contract in contracts:
+                    exp_date = contract.end_date
+                    days_diff = (today - exp_date).days
+
+                    # Calculate status and visual indicators (based on mock logic)
+                    if days_diff > 0:
+                        # Past due - RED
+                        status = f"{days_diff} days past due"
+                        status_class = "expired"
+                        row_class = "bg-red-50"
+                    else:
+                        # Approaching expiration - WARNING
+                        status = f"{abs(days_diff)} days remaining"
+                        status_class = "warning"
+                        row_class = "bg-yellow-50"
+
+                    vendor_name = contract.vendor.vendor_name if contract.vendor else "Unknown"
+                    vendor_id = contract.vendor.id if contract.vendor else None
+                    contract_type = contract.contract_type.value if hasattr(contract.contract_type, 'value') else str(contract.contract_type)
+                    manager_name = f"{contract.contract_owner.first_name} {contract.contract_owner.last_name}" if contract.contract_owner else "Unknown"
+
+                    rows.append({
+                        "id": contract.id,
+                        "contract_id": contract.contract_id,
+                        "vendor_name": vendor_name,
+                        "vendor_id": vendor_id,
+                        "contract_type": contract_type,
+                        "description": contract.contract_description or "",
+                        "expiration_date": exp_date.strftime("%Y-%m-%d"),
+                        "expiration_timestamp": datetime.combine(exp_date, datetime.min.time()).timestamp(),
+                        "status": status,
+                        "status_class": status_class,
+                        "row_class": row_class,
+                        "manager": manager_name,
+                    })
+            finally:
+                db.close()
+        except Exception as e:
+            print(f"Error fetching contracts requiring attention: {e}")
+            import traceback
+            traceback.print_exc()
         return rows
 
     contract_columns = [
@@ -425,21 +389,21 @@ def home_page():
         "headerClasses": "bg-[#144c8e] text-white",
     }
 
-    contract_rows = get_mock_contracts()
+    contract_rows = get_contracts_requiring_attention()
     
     # Container for the contracts table (initially hidden)
-    contracts_table_container = ui.element("div").classes("max-w-6xl mt-8 mx-auto w-full")
+    contracts_table_container = ui.element("div").classes("max-w-7xl mt-8 mx-auto w-full")
     contracts_table_container.visible = False
     
     with contracts_table_container:
-        # Section header with toggle
-        with ui.row().classes('items-center justify-between ml-4 mb-4 w-full'):
+        # Section header - left-aligned with table
+        with ui.row().classes('items-center justify-start mb-4 w-full px-4'):
             with ui.row().classes('items-center gap-2'):
                 ui.icon('warning', color='orange').style('font-size: 32px')
                 ui.label("Contracts Requiring Attention").classes("text-h5 font-bold")
         
-        # Description row
-        with ui.row().classes('ml-4 mb-4 w-full'):
+        # Description row - left-aligned with table
+        with ui.row().classes('mb-4 w-full justify-start px-4'):
             ui.label("Contracts approaching or past their expiration date").classes(
                 "text-sm text-gray-500"
             )
@@ -468,8 +432,8 @@ def home_page():
             search_input.value = ""
             filter_contracts()  # Use filter_contracts to respect current role
         
-        # Search input for filtering contracts (above the table)
-        with ui.row().classes('w-full ml-4 mr-4 mb-6 gap-2 px-2'):
+        # Search input for filtering contracts (above the table) - left-aligned with table
+        with ui.row().classes('w-full mb-6 gap-2 justify-start px-4'):
             search_input = ui.input(placeholder='Search by Contract ID, Vendor, Type, Description, or Manager...').classes(
                 'flex-1'
             ).props('outlined dense clearable')
@@ -478,17 +442,18 @@ def home_page():
             ui.button(icon='search', on_click=filter_contracts).props('color=primary')
             ui.button(icon='clear', on_click=clear_search).props('color=secondary')
         
-        # Create table after search bar (showing all contracts)
+        # Create table after search bar (showing all contracts) - left-aligned with header
         initial_rows = contract_rows
-        contracts_table = ui.table(
-            columns=contract_columns,
-            column_defaults=contract_columns_defaults,
-            rows=initial_rows,
-            pagination=10,
-            row_key="contract_id"
-        ).classes("w-full").props("flat bordered").classes(
-            "contracts-table shadow-lg rounded-lg overflow-hidden"
-        )
+        with ui.element("div").classes("w-full px-4"):
+            contracts_table = ui.table(
+                columns=contract_columns,
+                column_defaults=contract_columns_defaults,
+                rows=initial_rows,
+                pagination=10,
+                row_key="contract_id"
+            ).classes("w-full").props("flat bordered").classes(
+                "contracts-table shadow-lg rounded-lg overflow-hidden"
+            )
         
         search_input.on_value_change(filter_contracts)
         
@@ -508,6 +473,16 @@ def home_page():
             }
         """)
         
+        # Add slot for contract ID with clickable link
+        contracts_table.add_slot('body-cell-contract_id', '''
+            <q-td :props="props">
+                <a v-if="props.row.id" :href="'/contract-info/' + props.row.id" class="text-blue-600 hover:text-blue-800 underline cursor-pointer font-semibold">
+                    {{ props.value }}
+                </a>
+                <span v-else class="text-gray-600">{{ props.value }}</span>
+            </q-td>
+        ''')
+        
         # Add slot for vendor name with clickable link
         contracts_table.add_slot('body-cell-vendor_name', '''
             <q-td :props="props">
@@ -517,21 +492,190 @@ def home_page():
                 <span v-else class="text-gray-600">{{ props.value }}</span>
             </q-td>
         ''')
-        
-        # Add slot for custom styling of status column
+
+        # Contract Decision Dialog (same as pending_reviews.py)
+        selected_contract = {}
+        with ui.dialog() as contract_decision_dialog, ui.card().classes("min-w-[900px] max-w-5xl max-h-[85vh] overflow-y-auto"):
+            ui.label("Contract Decision").classes("text-h5 mb-4 text-blue-600")
+            dialog_content = ui.column().classes("w-full gap-4")
+
+        def populate_contract_decision_dialog():
+            dialog_content.clear()
+            update = None
+            contract_obj = None
+            acted_by_name = "N/A"
+            manager_comments = ""
+            try:
+                db2 = SessionLocal()
+                try:
+                    contract_obj = db2.query(Contract).options(joinedload(Contract.documents)).filter(
+                        Contract.id == selected_contract.get("contract_db_id")
+                    ).first()
+                    update = (
+                        db2.query(ContractUpdate)
+                        .filter(ContractUpdate.contract_id == selected_contract.get("contract_db_id"))
+                        .order_by(ContractUpdate.created_at.desc())
+                        .first()
+                    )
+                    if update and update.response_provided_by_user_id:
+                        acted_user = db2.query(User).filter(User.id == update.response_provided_by_user_id).first()
+                        if acted_user:
+                            acted_by_name = f"{acted_user.first_name} {acted_user.last_name}"
+                    if update and update.decision_comments:
+                        manager_comments = update.decision_comments
+                finally:
+                    db2.close()
+            except Exception as e:
+                print(f"Error loading contract data: {e}")
+
+            with dialog_content:
+                with ui.row().classes("mb-4 p-4 bg-gray-50 rounded-lg w-full"):
+                    with ui.column().classes("gap-1"):
+                        ui.label(f"Contract ID: {selected_contract.get('contract_id', 'N/A')}").classes("font-bold text-lg")
+                        ui.label(f"Vendor: {selected_contract.get('vendor_name', 'N/A')}").classes("text-gray-600")
+                        ui.label(f"Expiration Date: {selected_contract.get('expiration_date', 'N/A')}").classes("text-gray-600")
+                        ui.label(f"Status: {selected_contract.get('status', 'N/A')}").classes("text-gray-600")
+                        ui.label(f"Action Taken By: {acted_by_name}").classes("text-gray-600")
+
+                ui.label("Decision").classes("text-lg font-bold")
+                decision_select = ui.select(
+                    options=["Please select", "Extend", "Terminate"],
+                    value=(update.decision if update and update.decision else "Please select")
+                ).props("outlined dense")
+
+                ui.label("Documents & Comments").classes("text-lg font-bold mt-2")
+                with ui.card().classes("p-4 bg-white border w-full"):
+                    ui.label("Comments from Contract Manager / Backup / Owner:").classes("font-medium")
+                    ui.textarea(value=manager_comments or "N/A").classes("w-full").props("outlined readonly")
+                    ui.separator()
+                    ui.label("Contract Documents:").classes("font-medium mt-2")
+                    if contract_obj and contract_obj.documents:
+                        for doc in contract_obj.documents:
+                            with ui.row().classes("items-center justify-between w-full"):
+                                ui.label(doc.custom_document_name or doc.file_name).classes("text-sm")
+                                with ui.row().classes("gap-2"):
+                                    ui.button("Download", icon="download", on_click=lambda p=doc.file_path, n=doc.file_name: ui.download(p, filename=n)).props("flat color=primary")
+                    else:
+                        ui.label("No contract documents uploaded.").classes("text-gray-500 italic")
+
+                ui.label("Contract Admin Remarks (optional)").classes("font-medium mt-2")
+                admin_remarks = ui.textarea(value=(update.admin_comments if update and update.admin_comments else "")).classes("w-full").props("outlined")
+
+                with ui.row().classes("gap-3 justify-end mt-4 w-full"):
+                    def do_complete():
+                        nonlocal contract_rows
+                        try:
+                            db3 = SessionLocal()
+                            try:
+                                upd = (
+                                    db3.query(ContractUpdate)
+                                    .filter(ContractUpdate.contract_id == selected_contract.get("contract_db_id"))
+                                    .order_by(ContractUpdate.created_at.desc())
+                                    .first()
+                                )
+                                if not upd:
+                                    upd = ContractUpdate(contract_id=selected_contract.get("contract_db_id"), status=ContractUpdateStatus.COMPLETED)
+                                    db3.add(upd)
+                                contract_obj_db = db3.query(Contract).filter(Contract.id == selected_contract.get("contract_db_id")).first()
+                                if not contract_obj_db:
+                                    ui.notify("Error: Contract not found", type="negative")
+                                    return
+                                decision_value = decision_select.value
+                                if decision_value == "Extend":
+                                    if not upd.initial_expiration_date:
+                                        ui.notify("Cannot complete: missing new expiration date from Contract Manager / Backup / Owner.", type="negative")
+                                        return
+                                    contract_obj_db.end_date = upd.initial_expiration_date
+                                    contract_obj_db.last_modified_by = app.storage.user.get("username", "SYSTEM")
+                                    contract_obj_db.last_modified_date = datetime.utcnow()
+                                elif decision_value == "Terminate":
+                                    contract_obj_db.status = ContractStatusType.TERMINATED
+                                    contract_obj_db.contract_termination = ContractTerminationType.YES
+                                    contract_obj_db.last_modified_by = app.storage.user.get("username", "SYSTEM")
+                                    contract_obj_db.last_modified_date = datetime.utcnow()
+                                upd.status = ContractUpdateStatus.COMPLETED
+                                upd.decision = decision_select.value
+                                upd.admin_comments = admin_remarks.value
+                                upd.updated_at = datetime.utcnow()
+                                db3.commit()
+                                ui.notify("Review completed", type="positive")
+                                contract_rows = get_contracts_requiring_attention()
+                                contracts_table.rows = contract_rows
+                                contracts_table.update()
+                            finally:
+                                db3.close()
+                        except Exception as e:
+                            ui.notify(f"Error completing review: {e}", type="negative")
+                        contract_decision_dialog.close()
+
+                    def do_send_back():
+                        nonlocal contract_rows
+                        try:
+                            db3 = SessionLocal()
+                            try:
+                                upd = (
+                                    db3.query(ContractUpdate)
+                                    .filter(ContractUpdate.contract_id == selected_contract.get("contract_db_id"))
+                                    .order_by(ContractUpdate.created_at.desc())
+                                    .first()
+                                )
+                                if not upd:
+                                    upd = ContractUpdate(contract_id=selected_contract.get("contract_db_id"), status=ContractUpdateStatus.RETURNED)
+                                    db3.add(upd)
+                                upd.status = ContractUpdateStatus.RETURNED
+                                upd.decision = decision_select.value
+                                upd.admin_comments = admin_remarks.value
+                                upd.returned_reason = admin_remarks.value
+                                upd.returned_date = datetime.utcnow()
+                                upd.updated_at = datetime.utcnow()
+                                db3.commit()
+                                ui.notify("Sent back to Contract Manager / Backup / Owner", type="info")
+                                contract_rows = get_contracts_requiring_attention()
+                                contracts_table.rows = contract_rows
+                                contracts_table.update()
+                            finally:
+                                db3.close()
+                        except Exception as e:
+                            ui.notify(f"Error sending back: {e}", type="negative")
+                        contract_decision_dialog.close()
+
+                    ui.button("Complete", icon="check_circle", on_click=do_complete).props("color=positive")
+                    ui.button("Send Back", icon="arrow_back", on_click=do_send_back).props("color=orange")
+                    ui.button("Cancel", icon="cancel", on_click=contract_decision_dialog.close).props("flat color=grey")
+
+        def open_contract_decision_dialog(row: dict):
+            selected_contract.clear()
+            selected_contract["contract_id"] = row.get("contract_id", "")
+            selected_contract["contract_db_id"] = row.get("id", 0)
+            selected_contract["vendor_name"] = row.get("vendor_name", "N/A")
+            selected_contract["expiration_date"] = row.get("expiration_date", "N/A")
+            selected_contract["status"] = row.get("status", "N/A")
+            populate_contract_decision_dialog()
+            contract_decision_dialog.open()
+
+        def on_status_click(e):
+            try:
+                row = e.args
+                if isinstance(row, dict) and row.get("id") is not None:
+                    open_contract_decision_dialog(row)
+            except Exception as ex:
+                ui.notify(f"Could not open Contract Decision dialog: {ex}", type="negative")
+
+        contracts_table.on("status_click", on_status_click)
+
+        # Add slot for status column - clickable to open Contract Decision modal
         contracts_table.add_slot('body-cell-status', '''
             <q-td :props="props">
-                <div v-if="props.value.includes('Termination Pending')" class="text-orange-700 font-bold flex items-center gap-1">
-                    <q-icon name="pending" color="orange" size="sm" />
-                    {{ props.value }}
-                </div>
-                <div v-else-if="props.value.includes('past due')" class="text-red-700 font-bold flex items-center gap-1">
-                    <q-icon name="error" color="red" size="sm" />
-                    {{ props.value }}
-                </div>
-                <div v-else class="text-orange-600 font-semibold flex items-center gap-1">
-                    <q-icon name="warning" color="orange" size="sm" />
-                    {{ props.value }}
-                </div>
+                <q-btn
+                    flat
+                    no-caps
+                    dense
+                    :icon="props.value.includes('past due') ? 'error' : 'warning'"
+                    :color="props.value.includes('past due') ? 'red' : 'orange'"
+                    :label="props.value"
+                    class="font-semibold cursor-pointer"
+                    style="text-transform:none;"
+                    @click="$parent.$emit('status_click', props.row)"
+                />
             </q-td>
         ''')

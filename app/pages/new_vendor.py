@@ -22,11 +22,9 @@ def new_vendor():
     with ui.element("div").classes(
         "flex flex-col items-center justify-center mt-8 w-full "
     ):
-        ui.input(label="Vendor search", placeholder="Search for existing vendors...").classes("w-1/2 mt-4 font-[segoe ui]").props("outlined")
         # Removed "New Vendor" button per request
-        
         # Add vendor details section as a div-based table with 4 columns
-    with ui.element("div").classes("w-full border rounded border-gray-300 max-w-7xl mt-8 p-6 mx-auto flex flex-col min-h-[600px] h-auto bg-white overflow-auto"):
+        with ui.element("div").classes("w-full border rounded border-gray-300 max-w-7xl mt-8 p-6 mx-auto flex flex-col min-h-[600px] h-auto bg-white overflow-auto"):
             # Define style classes as constants to avoid duplication
             label_classes = "text-white font-[segoe ui] py-2 px-4 h-full flex items-center"
             input_classes = "w-full font-[segoe ui]"

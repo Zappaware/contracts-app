@@ -1099,7 +1099,80 @@ def seed_vendors_and_contracts():
                 "currency": CurrencyType.USD,
                 "start_offset_days": -305,
                 "duration_days": 365  # Expiring within 90 days
-            }
+            },
+            # === Contracts Requiring Attention: expired or expiring within 30 days ===
+            {
+                "description": "IT Support Services - EXPIRED 5 days ago",
+                "contract_type": ContractType.SERVICE_AGREEMENT,
+                "department": DepartmentType.IT,
+                "amount": 35000.00,
+                "currency": CurrencyType.USD,
+                "start_offset_days": -370,
+                "duration_days": 365  # end_date = today - 5
+            },
+            {
+                "description": "Software License - EXPIRED 15 days ago",
+                "contract_type": ContractType.SOFTWARE_LICENSE,
+                "department": DepartmentType.IT,
+                "amount": 28000.00,
+                "currency": CurrencyType.USD,
+                "start_offset_days": -380,
+                "duration_days": 365  # end_date = today - 15
+            },
+            {
+                "description": "Security Services - EXPIRED 30 days ago",
+                "contract_type": ContractType.SERVICE_AGREEMENT,
+                "department": DepartmentType.OPERATIONS,
+                "amount": 42000.00,
+                "currency": CurrencyType.USD,
+                "start_offset_days": -395,
+                "duration_days": 365  # end_date = today - 30
+            },
+            {
+                "description": "Cleaning Services - EXPIRED 2 days ago",
+                "contract_type": ContractType.SERVICE_AGREEMENT,
+                "department": DepartmentType.OPERATIONS,
+                "amount": 12000.00,
+                "currency": CurrencyType.AWG,
+                "start_offset_days": -367,
+                "duration_days": 365  # end_date = today - 2
+            },
+            {
+                "description": "Consulting - Expiring in 10 days",
+                "contract_type": ContractType.CONSULTING_AGREEMENT,
+                "department": DepartmentType.FINANCE,
+                "amount": 45000.00,
+                "currency": CurrencyType.USD,
+                "start_offset_days": -355,
+                "duration_days": 365  # end_date = today + 10
+            },
+            {
+                "description": "Freight and Delivery - Expiring in 5 days",
+                "contract_type": ContractType.SERVICE_AGREEMENT,
+                "department": DepartmentType.OPERATIONS,
+                "amount": 32000.00,
+                "currency": CurrencyType.USD,
+                "start_offset_days": -360,
+                "duration_days": 365  # end_date = today + 5
+            },
+            {
+                "description": "Equipment Maintenance - Expiring in 20 days",
+                "contract_type": ContractType.MAINTENANCE_CONTRACT,
+                "department": DepartmentType.OPERATIONS,
+                "amount": 25000.00,
+                "currency": CurrencyType.USD,
+                "start_offset_days": -345,
+                "duration_days": 365  # end_date = today + 20
+            },
+            {
+                "description": "Telecommunications - Expiring in 15 days",
+                "contract_type": ContractType.SERVICE_AGREEMENT,
+                "department": DepartmentType.IT,
+                "amount": 18000.00,
+                "currency": CurrencyType.USD,
+                "start_offset_days": -350,
+                "duration_days": 365  # end_date = today + 15
+            },
         ]
         
         # Expand contracts list to 50 by duplicating and modifying existing ones
@@ -1275,8 +1348,15 @@ def seed_vendors_and_contracts():
         # Count contracts expiring within 90 days
         contracts_expiring_soon = 0
         for contract in all_contracts:
-            if date.today() <= contract.end_date <= date.today() + timedelta(days=90):
+            if contract.end_date and date.today() <= contract.end_date <= date.today() + timedelta(days=90):
                 contracts_expiring_soon += 1
+
+        # Count contracts requiring attention (expired or expiring within 30 days)
+        contracts_requiring_attention = 0
+        for contract in all_contracts:
+            if contract.end_date and contract.end_date <= date.today() + timedelta(days=30):
+                if contract.status in (ContractStatusType.ACTIVE, ContractStatusType.EXPIRED, ContractStatusType.PENDING_TERMINATION):
+                    contracts_requiring_attention += 1
         
         print("\n" + "="*70)
         print("SUMMARY")
@@ -1286,6 +1366,7 @@ def seed_vendors_and_contracts():
         print(f"  - With documents: {contracts_with_docs}")
         print(f"  - Without documents: {contracts_without_docs} (will appear in Pending Documents)")
         print(f"  - Expiring within 90 days: {contracts_expiring_soon} (will appear in Pending Reviews)")
+        print(f"  - Requiring attention (expired or expiring within 30 days): {contracts_requiring_attention}")
         print(f"Contract Updates:")
         print(f"  - Returned: {returned_count}")
         print(f"  - Updated: {updated_count}")

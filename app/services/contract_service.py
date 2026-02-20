@@ -581,6 +581,43 @@ class ContractService:
         
         return contracts, total_count
 
+    def get_contracts_requiring_attention(
+        self,
+        skip: int = 0,
+        limit: int = 1000,
+        days_ahead: int = 30
+    ) -> tuple[List[Contract], int]:
+        """
+        Get contracts that are expiring soon or have reached their end date.
+        Based on mock data logic: includes "X days past due" (expired) and
+        "X days remaining" (expiring within notification window).
+        Returns: (contracts, total_count)
+        """
+        from sqlalchemy import or_
+
+        today = date.today()
+        cutoff_date = today + timedelta(days=days_ahead)
+
+        query = (
+            self.db.query(Contract)
+            .filter(
+                or_(
+                    Contract.status == ContractStatusType.ACTIVE,
+                    Contract.status == ContractStatusType.EXPIRED,
+                )
+            )
+            .filter(Contract.end_date.isnot(None))
+            .filter(Contract.end_date <= cutoff_date)
+        )
+
+        # Get total count before pagination
+        total_count = query.count()
+
+        # Apply pagination - MSSQL requires ORDER BY when using OFFSET
+        contracts = query.order_by(Contract.id).offset(skip).limit(limit).all()
+
+        return contracts, total_count
+
     def create_user(self, user_data: UserCreate) -> User:
         """
         Create a new user

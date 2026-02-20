@@ -62,7 +62,8 @@ def manager():
     
     
     # Single container: cards + Contracts Requiring Attention table (same as admin view, table visible on load)
-    with ui.column().classes("max-w-6xl mx-auto w-full gap-0"):
+    # Use max-w-7xl (1280px) for wider table - was max-w-6xl (1152px)
+    with ui.column().classes("max-w-7xl mx-auto w-full gap-0 min-w-0"):
         # Quick Stats Cards - Only 3 cards as requested
         with ui.row().classes(
             "grid grid-cols-1 md:grid-cols-3 mt-8 gap-6 w-full"
@@ -379,22 +380,22 @@ def manager():
     contract_rows = get_contracts_requiring_attention()
     
     # Table section: same as admin "Contracts Requiring Attention" table, visible when manager page loads
-    with ui.element("div").classes("mt-8 w-full"):
-        # Section header - same as admin mode "Contracts Requiring Attention" table
-        with ui.row().classes('items-center justify-between ml-4 mb-4 w-full'):
+    with ui.element("div").classes("mt-8 w-full min-w-0 px-4"):
+        # Section header - left-aligned with table
+        with ui.row().classes('items-center justify-start mb-4 w-full'):
             with ui.row().classes('items-center gap-2'):
                 ui.icon('warning', color='orange').style('font-size: 32px')
                 ui.label("Contracts Requiring Attention").classes("text-h5 font-bold")
         
-        # Description row - same as admin mode
-        with ui.row().classes('ml-4 mb-4 w-full'):
+        # Description row - left-aligned with table
+        with ui.row().classes('mb-4 w-full justify-start'):
             ui.label("Contracts approaching or past their expiration date").classes(
                 "text-sm text-gray-500"
             )
         
-        # Role filter dropdown
+        # Role filter dropdown - left-aligned with table
         role_filter = None
-        with ui.row().classes('w-full ml-4 mr-4 mb-4 gap-4 px-2'):
+        with ui.row().classes('w-full mb-4 gap-4 justify-start'):
             with ui.column().classes('flex-1 min-w-[200px]'):
                 ui.label("Filter by Role:").classes("text-sm font-medium mb-1")
                 role_filter = ui.select(
@@ -445,8 +446,8 @@ def manager():
             role_filter.value = 'All'
             filter_contracts()
         
-        # Search input for filtering contracts (above the table) - same as admin mode
-        with ui.row().classes('w-full ml-4 mr-4 mb-6 gap-2 px-2'):
+        # Search input for filtering contracts (above the table) - left-aligned with table
+        with ui.row().classes('w-full mb-6 gap-2 justify-start'):
             search_input = ui.input(placeholder='Search by Contract ID, Vendor, Type, Description, or Manager...').classes(
                 'flex-1'
             ).props('outlined dense clearable')
@@ -463,17 +464,18 @@ def manager():
             ui.label("No contracts requiring attention").classes("text-xl font-semibold text-gray-600 mb-2")
             ui.label("You currently have no contracts that have reached their notification window.").classes("text-gray-500")
         
-        # Create table after search bar
+        # Create table after search bar - wrap in overflow container to prevent right-side clipping
         initial_rows = contract_rows if contract_rows else []
-        contracts_table = ui.table(
-            columns=contract_columns,
-            column_defaults=contract_columns_defaults,
-            rows=initial_rows,
-            pagination=10,
-            row_key="contract_id"
-        ).classes("w-full").props("flat bordered").classes(
-            "contracts-table shadow-lg rounded-lg overflow-hidden"
-        )
+        with ui.element("div").classes("w-full overflow-x-auto min-w-0"):
+            contracts_table = ui.table(
+                columns=contract_columns,
+                column_defaults=contract_columns_defaults,
+                rows=initial_rows,
+                pagination=10,
+                row_key="contract_id"
+            ).classes("w-full min-w-[800px]").props("flat bordered").classes(
+                "contracts-table shadow-lg rounded-lg overflow-hidden"
+            )
         
         # Show empty state if no contracts
         if not initial_rows:
@@ -536,21 +538,30 @@ def manager():
             </q-td>
         ''')
         
-        # Add slot for custom styling of status column
+        # Add slot for status column - clickable to open Contract Decision (Extend/Terminate) modal
+        def on_status_click(e):
+            try:
+                row = e.args
+                if isinstance(row, dict) and row.get("id") is not None:
+                    open_contract_dialog(row)
+            except Exception as ex:
+                ui.notify(f"Could not open Contract Decision dialog: {ex}", type="negative")
+
+        contracts_table.on("status_click", on_status_click)
+
         contracts_table.add_slot('body-cell-status', '''
             <q-td :props="props">
-                <div v-if="props.value.includes('Termination Pending')" class="text-orange-700 font-bold flex items-center gap-1">
-                    <q-icon name="pending" color="orange" size="sm" />
-                    {{ props.value }}
-                </div>
-                <div v-else-if="props.value.includes('past due')" class="text-red-700 font-bold flex items-center gap-1">
-                    <q-icon name="error" color="red" size="sm" />
-                    {{ props.value }}
-                </div>
-                <div v-else class="text-orange-600 font-semibold flex items-center gap-1">
-                    <q-icon name="warning" color="orange" size="sm" />
-                    {{ props.value }}
-                </div>
+                <q-btn
+                    flat
+                    no-caps
+                    dense
+                    :icon="props.value.includes('past due') ? 'error' : (props.value.includes('Termination Pending') ? 'pending' : 'warning')"
+                    :color="props.value.includes('past due') ? 'red' : 'orange'"
+                    :label="props.value"
+                    class="font-semibold cursor-pointer"
+                    style="text-transform:none;"
+                    @click="$parent.$emit('status_click', props.row)"
+                />
             </q-td>
         ''')
         

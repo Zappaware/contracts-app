@@ -107,7 +107,7 @@ def new_contract():
             input_cell_classes = "bg-white p-2 w-[33.3%]"
             
             # Create a custom table-like layout using divs
-            with ui.element("div").classes("w-full border-collapse flex flex-col"):
+            with ui.element("div").classes("w-full border-collapse flex flex-col").props(f'id="c204"'):
                 
                 # Row 1 - Termination Notice & Contract Expiration Date
                 with ui.element('div').classes(f"{row_classes} {std_row_height}"):
@@ -329,58 +329,7 @@ def new_contract():
                 
                 
 
-                # Row 6 - Contract Termination & Payment Method
-                with ui.element('div').classes(f"{row_classes} {std_row_height}"):
-                    with ui.element('div').classes(label_cell_classes):
-                        ui.label("Contract Termination").classes(label_classes)
-                    with ui.element('div').classes(input_cell_classes):
-                        with ui.element("div").classes("py-1"):
-                            ui.switch("Yes")
-                    with ui.element('div').classes(label_cell_classes):
-                        ui.label("Payment Method").classes(label_classes)
-                    with ui.element('div').classes(input_cell_classes + " flex flex-col"):
-                        payment_select = ui.select(options=["Invoice", "Standing Order"], label="Please Select*").classes(input_classes).props("outlined")
-                        payment_error = ui.label('').classes('text-red-600 text-xs mt-1 min-h-[18px]').style('display:none')
-                        def validate_payment(e=None):
-                            value = payment_select.value or ''
-                            if not value.strip() or value == "Please Select":
-                                payment_error.text = "Please select the payment method."
-                                payment_error.style('display:block')
-                                payment_select.classes('border border-red-600')
-                                return False
-                            else:
-                                payment_error.text = ''
-                                payment_error.style('display:none')
-                                payment_select.classes(remove='border border-red-600')
-                                return True
-                        payment_select.on('blur', validate_payment)
-
-                # Row 7 - Comments
-                with ui.element('div').classes(f"{row_classes} {std_row_height}"):
-                    with ui.element('div').classes(label_cell_classes):
-                        ui.label("").classes(label_classes)
-                    with ui.element('div').classes(input_cell_classes):
-                        ui.label("").classes(input_classes)
-                    with ui.element('div').classes(label_cell_classes):
-                        ui.label("Comments").classes(label_classes)
-                    with ui.element('div').classes(input_cell_classes + " flex flex-col"):
-                        comments_input = ui.input(label="Comments*").classes(input_classes).props("outlined maxlength=100")
-                        comments_error = ui.label('').classes('text-red-600 text-xs mt-1 min-h-[18px]').style('display:none')
-                        def validate_comments(e=None):
-                            value = comments_input.value or ''
-                            if not value.strip():
-                                comments_error.text = "Please enter comments."
-                                comments_error.style('display:block')
-                                comments_input.classes('border border-red-600')
-                                return False
-                            else:
-                                comments_error.text = ''
-                                comments_error.style('display:none')
-                                comments_input.classes(remove='border border-red-600')
-                                return True
-                        comments_input.on('blur', validate_comments)
-
-                # Row 8 - Notify when Expired? & Attention
+                # Row 6 - Notify when Expired? (left) & Payment Method (right)
                 with ui.element('div').classes(f"{row_classes} {std_row_height}"):
                     with ui.element('div').classes(label_cell_classes):
                         ui.label("Notify when Expired?").classes(label_classes)
@@ -402,50 +351,25 @@ def new_contract():
                                 return True
                         notify_select.on('blur', validate_notify)
                     with ui.element('div').classes(label_cell_classes):
-                        ui.label("Attention").classes(label_classes)
+                        ui.label("Payment Method").classes(label_classes)
                     with ui.element('div').classes(input_cell_classes + " flex flex-col"):
-                        attention_input = ui.input(label="Attention*").classes(input_classes).props("outlined maxlength=100")
-                        attention_error = ui.label('').classes('text-red-600 text-xs mt-1 min-h-[18px]').style('display:none')
-                        def validate_attention(e=None):
-                            value = attention_input.value or ''
-                            if not value.strip():
-                                attention_error.text = "Please enter attention."
-                                attention_error.style('display:block')
-                                attention_input.classes('border border-red-600')
+                        payment_select = ui.select(options=["Invoice", "Standing Order"], label="Please Select*").classes(input_classes).props("outlined")
+                        payment_error = ui.label('').classes('text-red-600 text-xs mt-1 min-h-[18px]').style('display:none')
+                        def validate_payment(e=None):
+                            value = payment_select.value or ''
+                            if not value.strip() or value == "Please Select":
+                                payment_error.text = "Please select the payment method."
+                                payment_error.style('display:block')
+                                payment_select.classes('border border-red-600')
                                 return False
                             else:
-                                attention_error.text = ''
-                                attention_error.style('display:none')
-                                attention_input.classes(remove='border border-red-600')
+                                payment_error.text = ''
+                                payment_error.style('display:none')
+                                payment_select.classes(remove='border border-red-600')
                                 return True
-                        attention_input.on('blur', validate_attention)
+                        payment_select.on('blur', validate_payment)
 
-                # Row 9 - Last Revision User & Last Revision Date
-                with ui.element('div').classes(f"{row_classes} {std_row_height}"):
-                    with ui.element('div').classes(label_cell_classes):
-                        ui.label("Last Revision User").classes(label_classes)
-                    with ui.element('div').classes(input_cell_classes + " flex flex-col"):
-                        revision_user_input = ui.input(label="Last Revision User*").classes(input_classes).props("outlined maxlength=60")
-                        revision_user_error = ui.label('').classes('text-red-600 text-xs mt-1 min-h-[18px]').style('display:none')
-                        def validate_revision_user(e=None):
-                            value = revision_user_input.value or ''
-                            if not value.strip():
-                                revision_user_error.text = "Please enter the last revision user."
-                                revision_user_error.style('display:block')
-                                revision_user_input.classes('border border-red-600')
-                                return False
-                            else:
-                                revision_user_error.text = ''
-                                revision_user_error.style('display:none')
-                                revision_user_input.classes(remove='border border-red-600')
-                                return True
-                        revision_user_input.on('blur', validate_revision_user)
-                    with ui.element('div').classes(label_cell_classes):
-                        ui.label("Last Revision Date").classes(label_classes)
-                    with ui.element('div').classes(input_cell_classes):
-                        last_revision_date_input = ui.input(label="Last Revision Date").classes(input_classes).props("outlined")
-                
-                # Row 10.2 - Contract Manager & Upload Details
+                # Row 7 - Contract Manager (left) & Comments (right)
                 with ui.element('div').classes(f"{row_classes} {std_row_height}"):
                     with ui.element('div').classes(label_cell_classes):
                         ui.label("Contract Manager").classes(label_classes)
@@ -472,17 +396,30 @@ def new_contract():
                                 return True
                         
                         contract_manager_select.on('blur', validate_contract_manager)
-                    
                     with ui.element('div').classes(label_cell_classes):
-                        ui.label("Upload Details").classes(label_classes)
-                    with ui.element('div').classes(input_cell_classes):
-                        upload_details_input = ui.input(label="Description", placeholder="Enter a description for these files").classes(input_classes).props("outlined")
-                
-                # Row 10.3 - Contract Owner & Vendor Contract
+                        ui.label("Comments").classes(label_classes)
+                    with ui.element('div').classes(input_cell_classes + " flex flex-col"):
+                        comments_input = ui.input(label="Comments*").classes(input_classes).props("outlined maxlength=100")
+                        comments_error = ui.label('').classes('text-red-600 text-xs mt-1 min-h-[18px]').style('display:none')
+                        def validate_comments(e=None):
+                            value = comments_input.value or ''
+                            if not value.strip():
+                                comments_error.text = "Please enter comments."
+                                comments_error.style('display:block')
+                                comments_input.classes('border border-red-600')
+                                return False
+                            else:
+                                comments_error.text = ''
+                                comments_error.style('display:none')
+                                comments_input.classes(remove='border border-red-600')
+                                return True
+                        comments_input.on('blur', validate_comments)
+
+                # Row 8 - Contract Owner (left) & Attention (right)
                 with ui.element('div').classes(f"{row_classes} {std_row_height}"):
                     with ui.element('div').classes(label_cell_classes):
                         ui.label("Contract Owner").classes(label_classes)
-                    with ui.element('div').classes(input_cell_classes + " flex flex-col pt-8"):
+                    with ui.element('div').classes(input_cell_classes + " flex flex-col"):
                         contract_owner_options = list(contract_managers_data.keys())
                         contract_owner_select = ui.select(
                             options=contract_owner_options, 
@@ -505,10 +442,62 @@ def new_contract():
                                 return True
                         
                         contract_owner_select.on('blur', validate_contract_owner)
-                    
+                    with ui.element('div').classes(label_cell_classes):
+                        ui.label("Attention").classes(label_classes)
+                    with ui.element('div').classes(input_cell_classes + " flex flex-col"):
+                        attention_input = ui.input(label="Attention*").classes(input_classes).props("outlined maxlength=100")
+                        attention_error = ui.label('').classes('text-red-600 text-xs mt-1 min-h-[18px]').style('display:none')
+                        def validate_attention(e=None):
+                            value = attention_input.value or ''
+                            if not value.strip():
+                                attention_error.text = "Please enter attention."
+                                attention_error.style('display:block')
+                                attention_input.classes('border border-red-600')
+                                return False
+                            else:
+                                attention_error.text = ''
+                                attention_error.style('display:none')
+                                attention_input.classes(remove='border border-red-600')
+                                return True
+                        attention_input.on('blur', validate_attention)
+
+                # Row 10.2 - Contract Manager (Backup) (left) & Upload Details (right)
+                with ui.element('div').classes(f"{row_classes} {std_row_height}"):
+                    with ui.element('div').classes(label_cell_classes):
+                        ui.label("Contract Manager (Backup)").classes(label_classes)
+                    with ui.element('div').classes(input_cell_classes + " flex flex-col"):
+                        contract_backup_options = list(contract_managers_data.keys())
+                        contract_backup_select = ui.select(
+                            options=contract_backup_options, 
+                            value="Please select",
+                            label="Contract Manager (Backup)*"
+                        ).classes(input_classes).props("outlined use-input")
+                        contract_backup_error = ui.label('').classes('text-red-600 text-xs mt-1 min-h-[18px]').style('display:none')
+                        
+                        def validate_contract_backup(e=None):
+                            value = contract_backup_select.value or ''
+                            if not value.strip() or value == "Please select":
+                                contract_backup_error.text = "Please select a person."
+                                contract_backup_error.style('display:block')
+                                contract_backup_select.classes('border border-red-600')
+                                return False
+                            else:
+                                contract_backup_error.text = ''
+                                contract_backup_error.style('display:none')
+                                contract_backup_select.classes(remove='border border-red-600')
+                                return True
+                        
+                        contract_backup_select.on('blur', validate_contract_backup)
+                    with ui.element('div').classes(label_cell_classes):
+                        ui.label("Upload Details").classes(label_classes)
+                    with ui.element('div').classes(input_cell_classes):
+                        upload_details_input = ui.input(label="Description", placeholder="Enter a description for these files").classes(input_classes).props("outlined")
+                
+                # Row 10.3 - Vendor Contract (left) & Attachments (right)
+                with ui.element('div').classes(f"{row_classes} {std_row_height}"):
                     with ui.element('div').classes(label_cell_classes):
                         ui.label("Vendor Contract").classes(label_classes)
-                    with ui.element('div').classes(input_cell_classes + " flex flex-col py-2"):
+                    with ui.element('div').classes(input_cell_classes + " flex flex-col py-2 pt-8"):
                         # Storage for uploaded file (matching new_vendor.py pattern) - MUST be before handler
                         vendor_contract_file = {'file': None}
                         
@@ -634,38 +623,11 @@ def new_contract():
                             vendor_contract_error.style('display:none')
                             vendor_contract_upload.classes(remove='border border-red-600')
                             return True
-                
-                # Row 10.4 - Contract Manager (Backup) & Attachments
-                with ui.element('div').classes(f"{row_classes} {std_row_height}"):
-                    with ui.element('div').classes(label_cell_classes):
-                        ui.label("Contract Manager (Backup)").classes(label_classes)
-                    with ui.element('div').classes(input_cell_classes + " flex flex-col pt-8"):
-                        contract_backup_options = list(contract_managers_data.keys())
-                        contract_backup_select = ui.select(
-                            options=contract_backup_options, 
-                            value="Please select",
-                            label="Contract Manager (Backup)*"
-                        ).classes(input_classes).props("outlined use-input")
-                        contract_backup_error = ui.label('').classes('text-red-600 text-xs mt-1 min-h-[18px]').style('display:none')
-                        
-                        def validate_contract_backup(e=None):
-                            value = contract_backup_select.value or ''
-                            if not value.strip() or value == "Please select":
-                                contract_backup_error.text = "Please select a person."
-                                contract_backup_error.style('display:block')
-                                contract_backup_select.classes('border border-red-600')
-                                return False
-                            else:
-                                contract_backup_error.text = ''
-                                contract_backup_error.style('display:none')
-                                contract_backup_select.classes(remove='border border-red-600')
-                                return True
-                        
-                        contract_backup_select.on('blur', validate_contract_backup)
                     
                     with ui.element('div').classes(label_cell_classes):
                         ui.label("Attachments").classes(label_classes)
                     with ui.element('div').classes(f"{input_cell_classes} pt-4 pb-0"):
+                        uploaded_files_container = ui.element("div").classes("flex flex-col gap-1 mb-2")
                         with ui.card().classes("w-full h-auto p-0 mt-4"):
                             
                             async def handle_upload(e):
@@ -712,12 +674,10 @@ def new_contract():
                         comments_input.value = ""
                         notify_select.value = None
                         attention_input.value = ""
-                        revision_user_input.value = ""
                         contract_manager_select.value = "Please select"
                         contract_owner_select.value = "Please select"
                         contract_backup_select.value = "Please select"
                         upload_details_input.value = ""
-                        last_revision_date_input.value = ""
                         vendor_contract_uploaded = False
                         vendor_contract_file_name = None
                         vendor_contract_file_display.classes(add='hidden')
@@ -741,7 +701,6 @@ def new_contract():
                             validate_comments(),
                             validate_notify(),
                             validate_attention(),
-                            validate_revision_user(),
                             validate_contract_manager(),
                             validate_contract_owner(),
                             validate_contract_backup(),
