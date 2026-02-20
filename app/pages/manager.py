@@ -95,97 +95,7 @@ def manager():
                     ui.label("Review manager responses and updates").classes("text-sm text-gray-500 mt-2")
                     ui.label("15").classes("text-2xl font-medium text-primary mt-2")
 
-        # ===== Contracts Requiring Attention table (same as admin – visible on manager load) =====
-    # with ui.element("div").classes("max-w-6xl mt-8 mx-auto w-full"):
-    #     ui.label("Vendor List").classes("text-h5 ml-4 font-bold ")
-    #
-    # columns = [
-    #     {
-    #         "name": "id",
-    #         "label": "Id",
-    #         "field": "id",
-    #         "align": "left",
-    #     },
-    #     {
-    #         "name": "name",
-    #         "label": "Name",
-    #         "field": "name",
-    #         "align": "left",
-    #     },
-    #     {
-    #         "name": "contact",
-    #         "label": "Contact Person",
-    #         "field": "contact",
-    #         "align": "left",
-    #     },
-    #     {
-    #         "name": "country",
-    #         "label": "Country",
-    #         "field": "country",
-    #         "align": "left",
-    #     },
-    #     {
-    #         "name": "telephone",
-    #         "label": "Telephone",
-    #         "field": "telephone",
-    #         "align": "left",
-    #     },
-    #     {
-    #         "name": "email",
-    #         "label": "Email",
-    #         "field": "email",
-    #         "align": "left",
-    #     },
-    #     {
-    #         "name": "D.D. Performed",
-    #         "label": "D.D. Performed",
-    #         "field": "dd_performed",
-    #         "align": "left",
-    #     },
-    #     {
-    #         "name": "attention",
-    #         "label": "Attention",
-    #         "field": "attention",
-    #         "align": "left",
-    #     },
-    # ]
-    # columns_defaults = {
-    #     "align": "left",
-    #     "headerClasses": "bg-[#144c8e] text-white",
-    # }
-    # def fetch_vendors():
-    #     url = "http://localhost:8000/api/v1/vendors/"
-    #     try:
-    #         response = requests.get(url)
-    #         response.raise_for_status()
-    #         vendor_list = response.json()
-    #         # Map backend vendor data to table row format
-    #         rows = []
-    #         for v in vendor_list:
-    #             rows.append({
-    #                 "id": v.get("id", ""),
-    #                 "name": v.get("vendor_name", ""),
-    #                 "contact": v.get("vendor_contact_person", ""),
-    #                 "country": v.get("vendor_country", ""),
-    #                 "telephone": v.get("phones", [{}])[0].get("phone_number", "") if v.get("phones") else "",
-    #                 "email": v.get("emails", [{}])[0].get("email", "") if v.get("emails") else "",
-    #                 "dd_performed": "Yes" if v.get("due_diligence_required", "No") == "Yes" else "No",
-    #                 "attention": v.get("attention", "")
-    #             })
-    #         return rows
-    #     except Exception as e:
-    #         ui.notify(f"Error fetching vendors: {e}", type="negative")
-    #         return []
-    #
-    # rows = fetch_vendors()
-    #
-    # with ui.element("div").classes("max-w-6xl mx-auto w-full"):
-    #     ui.table(
-    #         columns=columns, column_defaults=columns_defaults, rows=rows, pagination=3
-    #     ).classes("w-full").props("flat").classes(
-    #         "vendor-table shadow-lg rounded-lg overflow-hidden"
-    #     )
-    #     ui.add_css(".vendor-table thead tr { background-color: #144c8e !important; }")
+        
 
     
     # ===== NEW SECTION: Contracts Requiring Attention =====
@@ -379,8 +289,8 @@ def manager():
 
     contract_rows = get_contracts_requiring_attention()
     
-    # Table section: same as admin "Contracts Requiring Attention" table, visible when manager page loads
-    with ui.element("div").classes("mt-8 w-full min-w-0 px-4"):
+    # Table section: inside card container to match top cards, visible when manager page loads
+    with ui.card().classes("mt-8 w-full min-w-0 shadow-lg max-w-7xl mx-auto").props('flat'):
         # Section header - left-aligned with table
         with ui.row().classes('items-center justify-start mb-4 w-full'):
             with ui.row().classes('items-center gap-2'):
