@@ -417,7 +417,8 @@ def contract_updates():
                 joinedload(ContractUpdate.response_provided_by)
             ).join(Contract)
             
-            updates = query.order_by(ContractUpdate.created_at.desc()).all()
+            # Exclude completed updates - they are removed from the contract updates list
+            updates = query.filter(ContractUpdate.status != ContractUpdateStatus.COMPLETED).order_by(ContractUpdate.created_at.desc()).all()
             
             print(f"Found {len(updates)} contract updates from database")
             
@@ -902,8 +903,8 @@ def contract_updates():
         # --- Contract Decision Dialog (open when user clicks status) ---
         selected_contract = {}
         
-        with ui.dialog() as contract_decision_dialog, ui.card().classes("min-w-[900px] max-w-5xl max-h-[85vh] overflow-y-auto"):
-            ui.label("Contract Decision").classes("text-h5 mb-4 text-blue-600")
+        with ui.dialog().props("max-width=640px") as contract_decision_dialog, ui.card().classes("w-full max-w-3xl max-h-[90vh] overflow-y-auto p-6"):
+            ui.label("Contract Decision").classes("text-h5 mb-4 text-blue-600 font-bold")
             dialog_content = ui.column().classes("w-full gap-4")
         
         def populate_dialog_content():
@@ -952,6 +953,13 @@ def contract_updates():
             initial_decision = prev_decision if prev_decision in decision_options else "Please select"
             
             with dialog_content:
+                # Status badge (same as pending_contracts / contracts requiring attention)
+                status_badge = (selected_contract.get("status") or "N/A").replace("updated", "Updated")
+                badge_color = "negative" if status_badge == "returned" else ("primary" if status_badge == "Review" else ("positive" if status_badge == "Updated" else "grey"))
+                with ui.row().classes("mb-2 items-center gap-2"):
+                    ui.label("Status:").classes("text-sm font-medium text-gray-600")
+                    ui.badge(status_badge, color=badge_color).classes("text-sm font-semibold")
+
                 # Contract summary + who last took action
                 with ui.row().classes("mb-4 p-4 bg-gray-50 rounded-lg w-full"):
                     with ui.column().classes("gap-1"):
@@ -983,26 +991,21 @@ def contract_updates():
                 
                 # When Terminate: termination document and issue date required (stored on Contract Profile after Complete)
                 term_doc_container = ui.column().classes("w-full")
+                term_doc_select = None  # Only created when we have documents (avoids Quasar "Invalid value" for placeholder)
                 with term_doc_container:
                     ui.label("Termination Document & Issue Date (required for Terminate). Stored in Termination Documents on Complete.").classes("text-sm font-medium")
-                    term_doc_select = ui.select(
-                        options=[{"value": 0, "label": "Select a document..."}],
-                        value=0
-                    ).classes("w-full").props("outlined dense")
-                    term_issue_date_input = ui.input("Issue Date", value="").props("type=date outlined dense").classes("w-full")
                     if contract_obj and contract_obj.documents:
-                        doc_options = [{"value": 0, "label": "Select a document..."}] + [
-                            {
-                                "value": doc.id,
-                                "label": f"{doc.custom_document_name or doc.file_name} ({doc.document_signed_date.strftime('%Y-%m-%d') if hasattr(doc.document_signed_date, 'strftime') else doc.document_signed_date})"
-                            }
+                        doc_options = {
+                            str(doc.id): f"{doc.custom_document_name or doc.file_name} ({doc.document_signed_date.strftime('%Y-%m-%d') if hasattr(doc.document_signed_date, 'strftime') else doc.document_signed_date})"
                             for doc in contract_obj.documents
-                        ]
-                        term_doc_select.options = doc_options
-                        term_doc_select.value = doc_options[1]["value"] if len(doc_options) > 1 else 0
+                        }
+                        first_doc_id_str = str(contract_obj.documents[0].id)
+                        term_doc_select = ui.select(options=doc_options, value=first_doc_id_str).classes("w-full").props("outlined dense")
+                        term_issue_date_input = ui.input("Issue Date", value="").props("type=date outlined dense").classes("w-full")
                         d0 = contract_obj.documents[0]
                         term_issue_date_input.value = d0.document_signed_date.strftime("%Y-%m-%d") if hasattr(d0.document_signed_date, "strftime") else str(d0.document_signed_date)
                     else:
+                        term_issue_date_input = ui.input("Issue Date", value="").props("type=date outlined dense").classes("w-full")
                         ui.label("No documents uploaded for this contract. Please add a termination document via the contract details page before completing with Terminate.").classes("text-sm text-amber-600 italic")
                 
                 def toggle_decision_requirements():
@@ -1019,10 +1022,14 @@ def contract_updates():
                 decision_select.on_value_change(lambda e: toggle_decision_requirements())
                 toggle_decision_requirements()
                 
-                # Contract Admin comments (view only)
+                # Contract Admin comments: view-only for manager; editable for admin when status is Review (for Send back reason)
                 ui.label("Contract Admin Comments (Review)").classes("text-lg font-bold mt-2")
                 admin_comments_text = (update.admin_comments if update and update.admin_comments else "") or selected_contract.get("admin_comments", "") or "No comments from Contract Admin."
-                ui.textarea(value=admin_comments_text).classes("w-full").props("outlined readonly")
+                status_raw = selected_contract.get("status_raw", "")
+                is_admin_review = status_raw == ContractUpdateStatus.PENDING_REVIEW.value and current_user_role == UserRole.CONTRACT_ADMIN.value
+                admin_remarks_input = ui.textarea(value=admin_comments_text).classes("w-full").props(
+                    "outlined" + (" readonly" if not is_admin_review else "")
+                )
                 
                 # Documents & Comments from Contract Manager/Backup/Owner: view and modify (comments editable; documents: view, remove, replace)
                 ui.label("Documents & Comments").classes("text-lg font-bold mt-2")
@@ -1045,12 +1052,92 @@ def contract_updates():
                     else:
                         ui.label("No contract documents uploaded.").classes("text-gray-500 italic")
                 
-                # Actions: Complete, Cancel
+                # Actions: Save (manager, returned only), Complete, Send Back (admin, review only), Cancel
                 with ui.row().classes("gap-3 justify-end mt-4 w-full"):
+                    def do_save():
+                        """Save changes without changing status (manager, returned only)."""
+                        if status_raw != ContractUpdateStatus.RETURNED.value or current_user_role == UserRole.CONTRACT_ADMIN.value:
+                            return
+                        nonlocal contract_rows
+                        try:
+                            db3 = SessionLocal()
+                            try:
+                                upd = db3.query(ContractUpdate).filter(ContractUpdate.id == (update_id or 0)).first()
+                                if not upd and contract_db_id:
+                                    upd = (
+                                        db3.query(ContractUpdate)
+                                        .filter(ContractUpdate.contract_id == contract_db_id)
+                                        .order_by(ContractUpdate.created_at.desc())
+                                        .first()
+                                    )
+                                if not upd:
+                                    ui.notify("Contract update not found", type="negative")
+                                    return
+                                upd.decision_comments = manager_comments_input.value or ""
+                                dec = decision_select.value
+                                if dec and dec != "Please select":
+                                    upd.decision = "Extend" if dec == "Renew" else dec
+                                end_val = (end_date_input.value or "").strip() if dec == "Renew" else None
+                                if end_val:
+                                    try:
+                                        upd.initial_expiration_date = datetime.strptime(end_val.replace("/", "-"), "%Y-%m-%d").date()
+                                    except Exception:
+                                        pass
+                                upd.updated_at = datetime.utcnow()
+                                db3.commit()
+                                ui.notify("Changes saved. Status remains Returned.", type="positive")
+                                reload_contract_updates()
+                                apply_filters()
+                            finally:
+                                db3.close()
+                        except Exception as e:
+                            ui.notify(f"Error saving: {e}", type="negative")
+                        contract_decision_dialog.close()
+
+                    def do_send_back():
+                        """Send back: admin changes status from Review to Returned."""
+                        if status_raw != ContractUpdateStatus.PENDING_REVIEW.value or current_user_role != UserRole.CONTRACT_ADMIN.value:
+                            return
+                        reason = (admin_remarks_input.value or "").strip()
+                        if not reason:
+                            ui.notify("Please provide a reason for sending back.", type="negative")
+                            return
+                        nonlocal contract_rows
+                        try:
+                            db3 = SessionLocal()
+                            try:
+                                upd = db3.query(ContractUpdate).filter(ContractUpdate.id == (update_id or 0)).first()
+                                if not upd and contract_db_id:
+                                    upd = (
+                                        db3.query(ContractUpdate)
+                                        .filter(ContractUpdate.contract_id == contract_db_id)
+                                        .order_by(ContractUpdate.created_at.desc())
+                                        .first()
+                                    )
+                                if not upd:
+                                    ui.notify("Contract update not found", type="negative")
+                                    return
+                                upd.status = ContractUpdateStatus.RETURNED
+                                upd.admin_comments = reason
+                                upd.returned_reason = reason
+                                upd.returned_date = datetime.utcnow()
+                                upd.updated_at = datetime.utcnow()
+                                db3.commit()
+                                ui.notify("Sent back to Contract Manager. Status is now Returned.", type="info")
+                                reload_contract_updates()
+                                apply_filters()
+                                if current_tab["value"] == "returned":
+                                    switch_tab("returned")
+                            finally:
+                                db3.close()
+                        except Exception as e:
+                            ui.notify(f"Error sending back: {e}", type="negative")
+                        contract_decision_dialog.close()
+
                     def do_complete():
                         status_raw = selected_contract.get("status_raw", "")
                         # AC 1: Complete – Returned: Manager/Backup/Owner resubmits → update status to Review, route to Contract Admin
-                        if status_raw == "returned" and current_user_role != UserRole.CONTRACT_ADMIN.value:
+                        if status_raw == ContractUpdateStatus.RETURNED.value and current_user_role != UserRole.CONTRACT_ADMIN.value:
                             nonlocal contract_rows
                             try:
                                 db3 = SessionLocal()
@@ -1066,10 +1153,21 @@ def contract_updates():
                                     if not upd:
                                         ui.notify("Contract update not found", type="negative")
                                         return
+                                    # Update status from Returned to Review (PENDING_REVIEW), route to Contract Admin
                                     upd.status = ContractUpdateStatus.PENDING_REVIEW
                                     upd.response_provided_by_user_id = current_user_id
                                     upd.response_date = datetime.utcnow()
                                     upd.decision_comments = manager_comments_input.value or ""
+                                    # Save decision and end date from form for admin review
+                                    dec = decision_select.value
+                                    if dec and dec != "Please select":
+                                        upd.decision = "Extend" if dec == "Renew" else dec
+                                    end_val = (end_date_input.value or "").strip() if dec == "Renew" else None
+                                    if end_val:
+                                        try:
+                                            upd.initial_expiration_date = datetime.strptime(end_val.replace("/", "-"), "%Y-%m-%d").date()
+                                        except Exception:
+                                            pass
                                     upd.updated_at = datetime.utcnow()
                                     db3.commit()
                                     ui.notify("Contract resubmitted for review. It has been routed to Contract Admin.", type="positive")
@@ -1085,7 +1183,14 @@ def contract_updates():
                                 traceback.print_exc()
                             contract_decision_dialog.close()
                             return
-                        # AC 2 & 3: Complete – Review (Contract Admin): Renew or Terminate
+                        # AC 2 & 3: Complete – Review (Contract Admin only): Renew or Terminate
+                        # Only Contract Admin can complete when status is Review (pending_review)
+                        if status_raw == ContractUpdateStatus.PENDING_REVIEW.value and current_user_role != UserRole.CONTRACT_ADMIN.value:
+                            ui.notify("This contract is awaiting Contract Admin review. Only Contract Admin can complete the Renew or Terminate decision.", type="info")
+                            return
+                        if status_raw != ContractUpdateStatus.PENDING_REVIEW.value:
+                            ui.notify("Only contracts in Review status can be completed with Renew or Terminate.", type="info")
+                            return
                         decision_value = decision_select.value
                         if decision_value == "Please select":
                             ui.notify("Please select a decision (Renew or Terminate).", type="negative")
@@ -1099,8 +1204,8 @@ def contract_updates():
                             if not (contract_obj and contract_obj.documents):
                                 ui.notify("Termination document and issue date are required when decision is Terminate. Please ensure at least one document is uploaded for this contract.", type="negative")
                                 return
-                            selected_doc_id = term_doc_select.value
-                            if not selected_doc_id or (isinstance(selected_doc_id, int) and selected_doc_id <= 0):
+                            selected_doc_id = term_doc_select.value if term_doc_select else None
+                            if not selected_doc_id:
                                 ui.notify("Please select a termination document.", type="negative")
                                 return
                             issue_val = (term_issue_date_input.value or "").strip()
@@ -1161,6 +1266,7 @@ def contract_updates():
                                     contract_db.last_modified_date = datetime.utcnow()
                                     upd.initial_expiration_date = new_end
                                 elif decision_value == "Terminate":
+                                    # AC 3: Update contract status to Inactive (Terminated)
                                     contract_db.status = ContractStatusType.TERMINATED
                                     contract_db.contract_termination = ContractTerminationType.YES
                                     contract_db.last_modified_by = app.storage.user.get("username", "SYSTEM") if app.storage.user else "SYSTEM"
@@ -1171,7 +1277,7 @@ def contract_updates():
                                 upd.updated_at = datetime.utcnow()
                                 db3.commit()
                                 # Terminate: store selected document in Termination Documents section on Contract Profile
-                                if decision_value == "Terminate" and selected_doc_id and (isinstance(selected_doc_id, int) and selected_doc_id > 0):
+                                if decision_value == "Terminate" and selected_doc_id:
                                     try:
                                         with httpx.Client(timeout=30.0) as client:
                                             r = client.post(
@@ -1195,7 +1301,13 @@ def contract_updates():
                             traceback.print_exc()
                         contract_decision_dialog.close()
                     
+                    # Save: manager only, when status is returned - saves without changing status
+                    if status_raw == ContractUpdateStatus.RETURNED.value and current_user_role != UserRole.CONTRACT_ADMIN.value:
+                        ui.button("Save", icon="save", on_click=do_save).props("color=primary")
                     ui.button("Complete", icon="check_circle", on_click=do_complete).props("color=positive")
+                    # Send Back: admin only, when status is review - changes to returned
+                    if status_raw == ContractUpdateStatus.PENDING_REVIEW.value and current_user_role == UserRole.CONTRACT_ADMIN.value:
+                        ui.button("Send Back", icon="undo", on_click=do_send_back).props("color=negative")
                     ui.button("Cancel", icon="cancel", on_click=contract_decision_dialog.close).props("flat color=grey")
         
         def open_contract_decision_dialog(row: dict) -> None:
@@ -1216,22 +1328,29 @@ def contract_updates():
         
         def on_status_click(e) -> None:
             try:
-                row = e.args
-                if isinstance(row, dict) and (row.get("id") is not None or row.get("contract_id")):
-                    open_contract_decision_dialog(row)
+                row = e.args[0] if isinstance(e.args, (list, tuple)) and len(e.args) > 0 else e.args
+                if not isinstance(row, dict):
+                    ui.notify("Could not open Contract Decision dialog: invalid row data", type="negative")
+                    return
+                row_id = row.get("id")
+                contract_id = row.get("contract_id")
+                if (row_id is None or row_id == 0) and not contract_id:
+                    ui.notify("Could not open Contract Decision dialog: missing contract data", type="negative")
+                    return
+                open_contract_decision_dialog(row)
             except Exception as ex:
                 ui.notify(f"Could not open Contract Decision dialog: {ex}", type="negative")
         
         contracts_table.on("status_click", on_status_click)
         
-        # Add slot for status column: clickable to open Contract Decision pop-up (Returned, Updated, Review, completed)
+        # Add slot for status column: clickable buttons per status, opens Contract Decision pop-up
         contracts_table.add_slot('body-cell-status', '''
             <q-td :props="props">
                 <div v-if="props.row.status === 'returned'" class="flex items-center justify-center">
-                    <q-btn 
-                        label="Returned" 
-                        color="negative" 
-                        size="sm" 
+                    <q-btn
+                        label="Returned"
+                        color="negative"
+                        size="sm"
                         icon="undo"
                         dense
                         class="font-semibold cursor-pointer"
@@ -1239,9 +1358,9 @@ def contract_updates():
                     />
                 </div>
                 <div v-else-if="props.row.status === 'Updated' || props.row.status === 'updated'" class="flex items-center justify-center">
-                    <q-btn 
-                        label="Updated" 
-                        size="sm" 
+                    <q-btn
+                        label="Updated"
+                        size="sm"
                         icon="check_circle"
                         dense
                         color="positive"
@@ -1250,9 +1369,9 @@ def contract_updates():
                     />
                 </div>
                 <div v-else-if="props.row.status === 'Review'" class="flex items-center justify-center">
-                    <q-btn 
-                        label="Review" 
-                        size="sm" 
+                    <q-btn
+                        label="Review"
+                        size="sm"
                         icon="rate_review"
                         dense
                         color="primary"
