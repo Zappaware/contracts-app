@@ -64,23 +64,23 @@ def pending_reviews():
     contract_rows = []
     
     
-    # Fetch contracts needing review from database
+    # Fetch contracts pending admin review from database
     def fetch_contracts_needing_review():
         """
-        Fetches active contracts expiring within 90 days that need review.
+        Fetches contracts for admin review:
+        1. Primary: ContractUpdate status=PENDING_REVIEW (manager sent Renew or Terminate with doc)
+        2. Fallback: Contracts expiring within 90 days (when no ContractUpdate entries exist)
         """
         db = SessionLocal()
         try:
             contract_service = ContractService(db)
             
-            # Get contracts needing review (expiring within 90 days)
-            contracts, _ = contract_service.get_contracts_needing_review(
+            # Only contracts with ContractUpdate PENDING_REVIEW (manager sent Renew or Terminate with doc)
+            contracts, _ = contract_service.get_contracts_pending_admin_review(
                 skip=0,
-                limit=1000,
-                days_ahead=90
+                limit=1000
             )
-            
-            print(f"Found {len(contracts)} contracts needing review from database")
+            print(f"Found {len(contracts)} contracts pending admin review from database")
             
             if not contracts:
                 print("No contracts needing review found in database")
@@ -343,8 +343,8 @@ def pending_reviews():
         # Contract Decision Dialog - same as vendor_info.py
         selected_contract = {}
         
-        with ui.dialog() as contract_decision_dialog, ui.card().classes("min-w-[900px] max-w-5xl max-h-[85vh] overflow-y-auto"):
-            ui.label("Contract Decision").classes("text-h5 mb-4 text-blue-600")
+        with ui.dialog().props("max-width=640px") as contract_decision_dialog, ui.card().classes("w-full max-w-3xl max-h-[90vh] overflow-y-auto p-6"):
+            ui.label("Contract Decision").classes("text-h5 mb-4 text-blue-600 font-bold")
             
             # Container for dynamic content that gets populated when dialog opens
             dialog_content = ui.column().classes("w-full gap-4")
@@ -362,7 +362,15 @@ def pending_reviews():
             try:
                 db2 = SessionLocal()
                 try:
-                    contract_obj = db2.query(Contract).options(joinedload(Contract.documents)).filter(Contract.id == selected_contract.get("contract_db_id")).first()
+                    contract_obj = (
+                        db2.query(Contract)
+                        .options(
+                            joinedload(Contract.documents),
+                            joinedload(Contract.termination_documents),
+                        )
+                        .filter(Contract.id == selected_contract.get("contract_db_id"))
+                        .first()
+                    )
                     update = (
                         db2.query(ContractUpdate)
                         .filter(ContractUpdate.contract_id == selected_contract.get("contract_db_id"))
@@ -381,35 +389,87 @@ def pending_reviews():
                 print(f"Error loading contract data: {e}")
             
             with dialog_content:
-                # Contract details
+                # Status badge
+                with ui.row().classes("mb-2 items-center gap-2"):
+                    ui.label("Status:").classes("text-sm font-medium text-gray-600")
+                    ui.badge("Pending Review", color="orange").classes("text-sm font-semibold")
+
+                # Contract summary
                 with ui.row().classes("mb-4 p-4 bg-gray-50 rounded-lg w-full"):
                     with ui.column().classes("gap-1"):
                         ui.label(f"Contract ID: {selected_contract.get('contract_id', 'N/A')}").classes("font-bold text-lg")
                         ui.label(f"Vendor: {selected_contract.get('vendor_name', 'N/A')}").classes("text-gray-600")
                         ui.label(f"Expiration Date: {selected_contract.get('expiration_date', 'N/A')}").classes("text-gray-600")
-                        ui.label(f"Action Taken By: {acted_by_name}").classes("text-gray-600")
-                
-                # Decision section
+                        ui.label(f"Action taken by: {acted_by_name}").classes("text-gray-600 text-sm")
+
+                # Decision section with expandable Renew/Terminate sections
                 ui.label("Decision").classes("text-lg font-bold")
-                decision_select = ui.select(options=["Please select", "Renew", "Terminate"], value=(update.decision if update and update.decision else "Please select")).props("outlined dense")
-                
-                # Show manager/backup/owner comments + docs
+                dec_val = (update.decision if update and update.decision else None) or "Please select"
+                if dec_val == "Extend":
+                    dec_val = "Renew"
+                decision_select = ui.select(options=["Please select", "Renew", "Terminate"], value=dec_val if dec_val in ["Please select", "Renew", "Terminate"] else "Please select").classes("w-full").props("outlined dense")
+
+                # Renew: End Date section (expandable)
+                end_date_container = ui.column().classes("w-full")
+                with end_date_container:
+                    initial_exp = (update.initial_expiration_date.strftime("%Y-%m-%d") if update and getattr(update, "initial_expiration_date", None) and hasattr(update.initial_expiration_date, "strftime") else None) or selected_contract.get("expiration_date", "")
+                    end_date_input = ui.input("End Date (required for Renew)", value=initial_exp).props("type=date outlined dense").classes("w-full")
+
+                # Terminate: Termination documents section (expandable, view-only for admin)
+                term_doc_container = ui.column().classes("w-full")
+                with term_doc_container:
+                    ui.label("Termination documents (required for Terminate):").classes("text-sm font-medium")
+                    if contract_obj and contract_obj.termination_documents:
+                        for tdoc in contract_obj.termination_documents:
+                            with ui.row().classes("items-center justify-between w-full gap-2 py-1"):
+                                ui.label(tdoc.document_name).classes("text-sm")
+                                tdate_str = tdoc.document_date.strftime("%Y-%m-%d") if getattr(tdoc.document_date, "strftime", None) else str(tdoc.document_date)
+                                ui.label(f"Document date: {tdate_str}").classes("text-xs text-gray-500")
+                                ui.button("Download", icon="download", on_click=lambda p=tdoc.file_path, n=tdoc.file_name: ui.download(p, filename=n)).props("flat color=primary size=sm")
+                    else:
+                        ui.label("No termination documents yet.").classes("text-gray-500 italic")
+
+                def toggle_decision_requirements():
+                    if decision_select.value == "Renew":
+                        end_date_container.visible = True
+                        term_doc_container.visible = False
+                    elif decision_select.value == "Terminate":
+                        end_date_container.visible = False
+                        term_doc_container.visible = True
+                    else:
+                        end_date_container.visible = False
+                        term_doc_container.visible = False
+
+                decision_select.on_value_change(lambda e: toggle_decision_requirements())
+                toggle_decision_requirements()
+
+                # Documents & Comments
                 ui.label("Documents & Comments").classes("text-lg font-bold mt-2")
                 with ui.card().classes("p-4 bg-white border w-full"):
                     ui.label("Comments from Contract Manager / Backup / Owner:").classes("font-medium")
                     ui.textarea(value=manager_comments or "N/A").classes("w-full").props("outlined readonly")
-                    
                     ui.separator()
-                    ui.label("Contract Documents:").classes("font-medium mt-2")
+                    ui.label("Contract documents:").classes("font-medium mt-2")
                     if contract_obj and contract_obj.documents:
                         for doc in contract_obj.documents:
-                            with ui.row().classes("items-center justify-between w-full"):
+                            with ui.row().classes("items-center justify-between w-full gap-2 py-1"):
                                 ui.label(doc.custom_document_name or doc.file_name).classes("text-sm")
-                                with ui.row().classes("gap-2"):
-                                    ui.button("Download", icon="download", on_click=lambda p=doc.file_path, n=doc.file_name: ui.download(p, filename=n)).props("flat color=primary")
+                                doc_date_str = doc.document_signed_date.strftime("%Y-%m-%d") if getattr(doc.document_signed_date, "strftime", None) else str(doc.document_signed_date)
+                                ui.label(f"Issue date: {doc_date_str}").classes("text-xs text-gray-500")
+                                ui.button("Download", icon="download", on_click=lambda p=doc.file_path, n=doc.file_name: ui.download(p, filename=n)).props("flat color=primary size=sm")
                     else:
                         ui.label("No contract documents uploaded.").classes("text-gray-500 italic")
-                
+                    ui.label("Termination documents:").classes("font-medium mt-2")
+                    if contract_obj and contract_obj.termination_documents:
+                        for tdoc in contract_obj.termination_documents:
+                            with ui.row().classes("items-center justify-between w-full gap-2 py-1"):
+                                ui.label(tdoc.document_name).classes("text-sm")
+                                tdate_str = tdoc.document_date.strftime("%Y-%m-%d") if getattr(tdoc.document_date, "strftime", None) else str(tdoc.document_date)
+                                ui.label(f"Document date: {tdate_str}").classes("text-xs text-gray-500")
+                                ui.button("Download", icon="download", on_click=lambda p=tdoc.file_path, n=tdoc.file_name: ui.download(p, filename=n)).props("flat color=primary size=sm")
+                    else:
+                        ui.label("No termination documents yet.").classes("text-gray-500 italic")
+
                 # Admin remarks (optional)
                 ui.label("Contract Admin Remarks (optional)").classes("font-medium mt-2")
                 admin_remarks = ui.textarea(value=(update.admin_comments if update and update.admin_comments else "")).classes("w-full").props("outlined")
@@ -442,14 +502,23 @@ def pending_reviews():
 
                                 decision_value = decision_select.value
 
-                                if decision_value == "Extend":
-                                    if not upd.initial_expiration_date:
+                                if decision_value == "Renew" or decision_value == "Extend":
+                                    end_val = (end_date_input.value or "").strip() if decision_value == "Renew" else None
+                                    if not end_val and upd.initial_expiration_date:
+                                        end_val = upd.initial_expiration_date.strftime("%Y-%m-%d") if hasattr(upd.initial_expiration_date, "strftime") else str(upd.initial_expiration_date)
+                                    if not end_val:
                                         ui.notify(
-                                            "Cannot complete: missing new expiration date from Contract Manager / Backup / Owner.",
+                                            "Cannot complete: missing new expiration date. Please enter End Date for Renew.",
                                             type="negative",
                                         )
                                         return
-                                    contract_obj_db.end_date = upd.initial_expiration_date
+                                    try:
+                                        from datetime import datetime as dt
+                                        new_end = dt.strptime(end_val.replace("/", "-"), "%Y-%m-%d").date()
+                                    except Exception:
+                                        ui.notify("Invalid end date.", type="negative")
+                                        return
+                                    contract_obj_db.end_date = new_end
                                     contract_obj_db.last_modified_by = app.storage.user.get("username", "SYSTEM")
                                     contract_obj_db.last_modified_date = datetime.utcnow()
                                 elif decision_value == "Terminate":
@@ -458,7 +527,7 @@ def pending_reviews():
                                     contract_obj_db.last_modified_by = app.storage.user.get("username", "SYSTEM")
                                     contract_obj_db.last_modified_date = datetime.utcnow()
                                 upd.status = ContractUpdateStatus.COMPLETED
-                                upd.decision = decision_select.value
+                                upd.decision = "Extend" if decision_value == "Renew" else decision_value
                                 upd.admin_comments = admin_remarks.value
                                 upd.updated_at = datetime.utcnow()
                                 db3.commit()
@@ -489,7 +558,7 @@ def pending_reviews():
                                     upd = ContractUpdate(contract_id=selected_contract.get("contract_db_id"), status=ContractUpdateStatus.RETURNED)
                                     db3.add(upd)
                                 upd.status = ContractUpdateStatus.RETURNED
-                                upd.decision = decision_select.value
+                                upd.decision = "Extend" if decision_select.value == "Renew" else decision_select.value
                                 upd.admin_comments = admin_remarks.value
                                 upd.returned_reason = admin_remarks.value
                                 upd.returned_date = datetime.utcnow()
