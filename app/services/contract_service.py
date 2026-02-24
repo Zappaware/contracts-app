@@ -7,7 +7,8 @@ import os
 import uuid
 from fastapi import UploadFile, HTTPException
 
-from app.models.contract import Contract, User, ContractDocument, TerminationDocument, ContractStatusType
+from app.models.contract import Contract, User, ContractDocument, TerminationDocument, ContractStatusType, ContractUpdateStatus
+from app.models.contract import ContractUpdate as ContractUpdateModel
 import shutil
 from app.models.vendor import Vendor
 from app.schemas.contract import ContractCreate, ContractUpdate, UserCreate, ContractSummary
@@ -616,6 +617,87 @@ class ContractService:
         # Apply pagination - MSSQL requires ORDER BY when using OFFSET
         contracts = query.order_by(Contract.id).offset(skip).limit(limit).all()
 
+        return contracts, total_count
+
+    def get_contracts_pending_admin_review(
+        self,
+        skip: int = 0,
+        limit: int = 1000
+    ) -> tuple[List[Contract], int]:
+        """
+        Get contracts with ContractUpdate status=PENDING_REVIEW that are ready for admin review.
+        Includes: Renew/Extend decisions OR Terminate with has_document=true.
+        Excludes: Terminate with has_document=false (those go to Pending Documents).
+        Returns: (contracts, total_count)
+        """
+        from sqlalchemy import or_
+        from sqlalchemy.orm import joinedload
+
+        # Subquery: get contract_ids from ContractUpdate where status=PENDING_REVIEW
+        # and (decision in Extend/Renew OR has_document=true)
+        updates_query = (
+            self.db.query(ContractUpdateModel.contract_id)
+            .filter(ContractUpdateModel.status == ContractUpdateStatus.PENDING_REVIEW)
+            .filter(
+                or_(
+                    ContractUpdateModel.decision.in_(["Extend", "Renew"]),
+                    ContractUpdateModel.has_document == True,
+                )
+            )
+        )
+        contract_ids = [r[0] for r in updates_query.distinct().all()]
+        if not contract_ids:
+            return [], 0
+
+        query = (
+            self.db.query(Contract)
+            .options(
+                joinedload(Contract.vendor),
+                joinedload(Contract.contract_owner),
+                joinedload(Contract.contract_owner_backup),
+            )
+            .filter(Contract.id.in_(contract_ids))
+            .filter(Contract.status == ContractStatusType.ACTIVE)
+        )
+        total_count = query.count()
+        contracts = query.order_by(Contract.id).offset(skip).limit(limit).all()
+        return contracts, total_count
+
+    def get_contracts_awaiting_termination_document(
+        self,
+        skip: int = 0,
+        limit: int = 1000
+    ) -> tuple[List[Contract], int]:
+        """
+        Get contracts where manager chose Terminate but has_document=false.
+        These appear in Pending Documents until manager uploads termination doc.
+        Returns: (contracts, total_count)
+        """
+        from sqlalchemy.orm import joinedload
+
+        from sqlalchemy import or_
+        updates_query = (
+            self.db.query(ContractUpdateModel.contract_id)
+            .filter(ContractUpdateModel.status == ContractUpdateStatus.PENDING_REVIEW)
+            .filter(ContractUpdateModel.decision.in_(["Terminate"]))
+            .filter(or_(ContractUpdateModel.has_document == False, ContractUpdateModel.has_document.is_(None)))
+        )
+        contract_ids = [r[0] for r in updates_query.distinct().all()]
+        if not contract_ids:
+            return [], 0
+
+        query = (
+            self.db.query(Contract)
+            .options(
+                joinedload(Contract.vendor),
+                joinedload(Contract.contract_owner),
+                joinedload(Contract.contract_owner_backup),
+            )
+            .filter(Contract.id.in_(contract_ids))
+            .filter(Contract.status == ContractStatusType.ACTIVE)
+        )
+        total_count = query.count()
+        contracts = query.order_by(Contract.id).offset(skip).limit(limit).all()
         return contracts, total_count
 
     def create_user(self, user_data: UserCreate) -> User:

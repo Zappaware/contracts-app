@@ -116,7 +116,7 @@ def get_user_notifications():
                         "type": "pending_review",
                         "title": f"Contract Update Pending Review",
                         "message": f"Update for {contract.contract_id} ({vendor_name}) requires your review.",
-                        "link": "/contract-updates",
+                        "link": "/pending-reviews",
                         "priority": "high",
                         "timestamp": update.created_at.date() if update.created_at else today,
                         "contract_id": contract.contract_id,
