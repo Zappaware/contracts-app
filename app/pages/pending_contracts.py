@@ -493,7 +493,7 @@ def pending_contracts():
                         term_doc_upload_ref["content"] = await e.file.read()
                         set_complete_state()
 
-                    ui.upload(on_upload=on_term_file_upload, label="Upload PDF (required for Terminate)").props("accept=.pdf outlined dense").classes("w-full")
+                    ui.upload(on_upload=on_term_file_upload, auto_upload=True, label="Upload PDF (required for Terminate)").props("accept=.pdf outlined dense").classes("w-full")
 
                 def toggle_decision_requirements():
                     if decision_select.value == "Renew":

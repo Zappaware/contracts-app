@@ -68,19 +68,27 @@ def pending_reviews():
     def fetch_contracts_needing_review():
         """
         Fetches contracts for admin review:
-        1. Primary: ContractUpdate status=PENDING_REVIEW (manager sent Renew or Terminate with doc)
-        2. Fallback: Contracts expiring within 90 days (when no ContractUpdate entries exist)
+        ContractUpdate status=PENDING_REVIEW (manager sent Renew or Terminate with doc)
         """
         db = SessionLocal()
         try:
             contract_service = ContractService(db)
             
-            # Only contracts with ContractUpdate PENDING_REVIEW (manager sent Renew or Terminate with doc)
+            # Primary: contracts with ContractUpdate PENDING_REVIEW (manager sent Renew or Terminate with doc)
             contracts, _ = contract_service.get_contracts_pending_admin_review(
                 skip=0,
                 limit=1000
             )
             print(f"Found {len(contracts)} contracts pending admin review from database")
+            
+            # Fallback: if none, show contracts expiring within 90 days (for admin visibility)
+            if not contracts:
+                contracts, _ = contract_service.get_contracts_needing_review(
+                    skip=0,
+                    limit=1000,
+                    days_ahead=90
+                )
+                print(f"Fallback: found {len(contracts)} contracts expiring within 90 days")
             
             if not contracts:
                 print("No contracts needing review found in database")
@@ -228,7 +236,7 @@ def pending_reviews():
     if contract_rows:
         print(f"First row sample: {contract_rows[0]}")
     else:
-        ui.notify("No contracts needing review. No active contracts are expiring within 90 days.", type="info")
+        ui.notify("No contracts pending admin review.", type="info")
     
     # Main container
     with ui.element("div").classes("max-w-6xl mt-8 mx-auto w-full"):
@@ -240,7 +248,7 @@ def pending_reviews():
         
         # Description row
         with ui.row().classes('ml-4 mb-4 w-full'):
-            ui.label("Contracts expiring within 90 days that need review").classes(
+            ui.label("Contracts sent for admin review (Renew or Terminate with document), or expiring within 90 days").classes(
                 "text-sm text-gray-500"
             )
         
@@ -285,8 +293,8 @@ def pending_reviews():
         # Show message if no data
         if not contract_rows:
             with ui.card().classes("w-full p-6"):
-                ui.label("No contracts needing review found").classes("text-lg font-bold text-gray-500")
-                ui.label("No active contracts are expiring within 90 days.").classes("text-sm text-gray-400 mt-2")
+                ui.label("No contracts pending admin review").classes("text-lg font-bold text-gray-500")
+                ui.label("Contracts will appear here after managers complete Renew or Terminate decisions, or when active contracts are expiring within 90 days.").classes("text-sm text-gray-400 mt-2")
         
         # Create table after search bar (showing all contracts)
         initial_rows = contract_rows
