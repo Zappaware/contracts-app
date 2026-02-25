@@ -1,3 +1,4 @@
+from urllib.parse import quote
 from nicegui import ui, app
 from app.models.contract import UserRole
 from app.utils.notifications import get_user_notifications, get_notification_count
@@ -17,14 +18,23 @@ def header():
         )
         .props("flat")
     ):
-        # Left section: logo, navbar, dropdowns
+        # Left section: logo (non-clickable), navbar, dropdowns
         with ui.element("div").classes("flex flex-row items-center gap-3"):
             bank = app.storage.user.get("bank", "Aruba Bank") if app.storage.user else "Aruba Bank"
-            logo_src = "/public/logo_ob.svg" if bank == "Orco Bank" else "/public/AB_Logo.png"
-            logo_alt = "Orco Bank" if bank == "Orco Bank" else "Aruba Bank"
-            with ui.link(target="/").classes("flex items-center h-[39px] w-32 no-underline"):
-                img = ui.image(logo_src).classes("w-auto h-[39px] max-w-[128px] object-contain")
-                img.props(f'alt="{logo_alt}"')
+            # Use same path and HTML <img> approach as login page so logos load correctly
+            if bank == "Orco Bank":
+                logo_src = "/public/logo_ob.svg"
+                logo_alt = "Orco Bank"
+            else:
+                logo_src = "/public/" + quote("AB_Logo.png")
+                logo_alt = "Aruba Bank"
+            ui.html(
+                f'<div class="flex items-center shrink-0" style="height: 39px; width: 128px;">'
+                f'<img src="{logo_src}" alt="{logo_alt}" '
+                f'style="height: 39px; width: auto; max-width: 128px; object-fit: contain; display: block;" />'
+                f'</div>',
+                sanitize=False,
+            ).classes("flex items-center")
 
             # Home link - same styling as "New Contract"/"New Vendor", but role-based target
             user_role = app.storage.user.get('user_role', None)
