@@ -19,9 +19,12 @@ def header():
     ):
         # Left section: logo, navbar, dropdowns
         with ui.element("div").classes("flex flex-row items-center gap-3"):
-            ui.link("Aruba Bank", "/").classes(
-                "font-bold text-xl text-center mt-3 text-black w-32 h-[39px]"
-            )
+            bank = app.storage.user.get("bank", "Aruba Bank") if app.storage.user else "Aruba Bank"
+            logo_src = "/public/logo_ob.svg" if bank == "Orco Bank" else "/public/AB_Logo.png"
+            logo_alt = "Orco Bank" if bank == "Orco Bank" else "Aruba Bank"
+            with ui.link(target="/").classes("flex items-center h-[39px] w-32 no-underline"):
+                img = ui.image(logo_src).classes("w-auto h-[39px] max-w-[128px] object-contain")
+                img.props(f'alt="{logo_alt}"')
 
             # Home link - same styling as "New Contract"/"New Vendor", but role-based target
             user_role = app.storage.user.get('user_role', None)

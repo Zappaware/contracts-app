@@ -41,7 +41,9 @@ from app.pages.due_diligence_report import due_diligence_report
 
 
 # Serve static assets (logos, etc.) from app/public
-nicegui_app.add_static_files('/public', 'app/public')
+# Use absolute path so logos load regardless of working directory
+_public_dir = os.path.join(os.path.dirname(__file__), 'app', 'public')
+nicegui_app.add_static_files('/public', _public_dir)
 
 
 # Define lifespan context manager for startup/shutdown
@@ -120,11 +122,9 @@ async def catch_exceptions_middleware(request: Request, call_next):
 # Include API router
 root_app.include_router(api_router, prefix=settings.api_v1_prefix)
 
-# Mount static files via FastAPI as backup (in addition to NiceGUI's static files)
-# This ensures logos are accessible even if NiceGUI's static file serving has issues
-if os.path.exists('app/public'):
-    root_app.mount("/public", StaticFiles(directory="app/public"), name="public")
-
+# Mount static files via FastAPI - use absolute path so logos load regardless of working directory
+if os.path.exists(_public_dir):
+    root_app.mount("/public", StaticFiles(directory=_public_dir), name="public")
 
 # ============================================================================
 # NiceGUI Web UI Pages

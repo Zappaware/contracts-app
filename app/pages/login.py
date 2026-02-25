@@ -75,6 +75,7 @@ def login_page():
             app.storage.user["user_role"] = (
                 current_user.role.value if current_user.role else None
             )
+            app.storage.user["bank"] = bank_select.value or "Aruba Bank"
 
             # Navigate based on role
             if current_user.role == UserRole.CONTRACT_ADMIN:
