@@ -18,7 +18,7 @@ def seed_users():
             print(f"⚠️  Database already has {existing_count} user(s). Skipping seed.")
             return
         
-        # Create 5 initial users
+        # Create initial users (Aruba Bank + Orco Bank employees)
         users_data = [
             {
                 "user_id": "U1",
@@ -69,6 +69,37 @@ def seed_users():
                 "position": "Contract Manager Owner",
                 "role": UserRole.CONTRACT_MANAGER_OWNER,
                 "password": "password123"
+            },
+            # Orco Bank employees
+            {
+                "user_id": "U6",
+                "first_name": "Carlos",
+                "last_name": "Martinez",
+                "email": "carlos.martinez@orcobank.com",
+                "department": DepartmentType.IT,
+                "position": "IT Manager",
+                "role": UserRole.CONTRACT_ADMIN,
+                "password": "password123"
+            },
+            {
+                "user_id": "U7",
+                "first_name": "Ana",
+                "last_name": "Rodriguez",
+                "email": "ana.rodriguez@orco.com",
+                "department": DepartmentType.FINANCE,
+                "position": "Finance Manager",
+                "role": UserRole.CONTRACT_MANAGER,
+                "password": "password123"
+            },
+            {
+                "user_id": "U8",
+                "first_name": "Miguel",
+                "last_name": "Santos",
+                "email": "miguel.santos@orcobank.com",
+                "department": DepartmentType.OPERATIONS,
+                "position": "Contract Manager Owner",
+                "role": UserRole.CONTRACT_MANAGER_OWNER,
+                "password": "password123"
             }
         ]
         
@@ -87,13 +118,17 @@ def seed_users():
             print(f"  ✓ Created user: {user.first_name} {user.last_name} ({user.email})")
         
         db.commit()
-        print("\n✅ Successfully seeded 5 users!")
-        print("\nYou can now login with:")
+        print("\n✅ Successfully seeded 8 users!")
+        print("\nAruba Bank (select 'Aruba Bank' at login):")
         print("  Admin: william.defoe@arubabank.com")
         print("  Manager: john.doe@arubabank.com or robert.johnson@arubabank.com")
         print("  Owner: maria.lopez@arubabank.com")
         print("  Backup: jane.smith@arubabank.com")
-        print("  Password for all: password123")
+        print("\nOrco Bank (select 'Orco Bank' at login):")
+        print("  Admin: carlos.martinez@orcobank.com")
+        print("  Manager: ana.rodriguez@orcobank.com")
+        print("  Owner: miguel.santos@orcobank.com")
+        print("\nPassword for all: password123")
         
     except Exception as e:
         print(f"❌ Error seeding users: {e}")
