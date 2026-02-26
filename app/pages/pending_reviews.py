@@ -67,29 +67,35 @@ def pending_reviews():
     # Fetch contracts pending admin review from database
     def fetch_contracts_needing_review():
         """
-        Fetches contracts for admin review:
-        ContractUpdate status=PENDING_REVIEW (manager sent Renew or Terminate with doc)
+        Fetches contracts for admin review by merging two sources:
+        1. Contracts with ContractUpdate status=PENDING_REVIEW (sent for review by manager/admin).
+        2. Contracts expiring within 90 days (for visibility), excluding those already in (1).
+        This way moving one contract to Pending Reviews does not hide the expiring-soon list.
         """
         db = SessionLocal()
         try:
             contract_service = ContractService(db)
             
-            # Primary: contracts with ContractUpdate PENDING_REVIEW (manager sent Renew or Terminate with doc)
-            contracts, _ = contract_service.get_contracts_pending_admin_review(
+            # 1. Contracts with PENDING_REVIEW update (sent for review)
+            contracts_pending, _ = contract_service.get_contracts_pending_admin_review(
                 skip=0,
                 limit=1000
             )
-            print(f"Found {len(contracts)} contracts pending admin review from database")
+            ids_pending = {c.id for c in contracts_pending}
+            print(f"Found {len(contracts_pending)} contracts pending admin review from database")
             
-            # Fallback: if none, show contracts expiring within 90 days (for admin visibility)
-            if not contracts:
-                contracts, _ = contract_service.get_contracts_needing_review(
-                    skip=0,
-                    limit=1000,
-                    days_ahead=90
-                )
-                print(f"Fallback: found {len(contracts)} contracts expiring within 90 days")
+            # 2. Contracts expiring within 90 days (for visibility)
+            contracts_expiring, _ = contract_service.get_contracts_needing_review(
+                skip=0,
+                limit=1000,
+                days_ahead=90
+            )
+            # Add only those not already in pending review (no duplicates)
+            contracts_expiring_only = [c for c in contracts_expiring if c.id not in ids_pending]
+            print(f"Found {len(contracts_expiring_only)} additional contracts expiring within 90 days")
             
+            # Merge: pending review first, then expiring soon
+            contracts = list(contracts_pending) + list(contracts_expiring_only)
             if not contracts:
                 print("No contracts needing review found in database")
                 return []
@@ -527,6 +533,7 @@ def pending_reviews():
                                         ui.notify("Invalid end date.", type="negative")
                                         return
                                     contract_obj_db.end_date = new_end
+                                    contract_obj_db.status = ContractStatusType.ACTIVE
                                     contract_obj_db.last_modified_by = app.storage.user.get("username", "SYSTEM")
                                     contract_obj_db.last_modified_date = datetime.utcnow()
                                 elif decision_value == "Terminate":
