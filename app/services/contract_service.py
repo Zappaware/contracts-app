@@ -600,9 +600,12 @@ class ContractService:
         today = date.today()
         cutoff_date = today + timedelta(days=days_ahead)
 
-        # Exclude contracts that already have any ContractUpdate (action already taken)
+        # Exclude contracts that have an update already sent (not draft). Keep contracts with no update or status=DRAFT.
         acted_contract_ids = [
-            r[0] for r in self.db.query(ContractUpdateModel.contract_id).distinct().all()
+            r[0] for r in self.db.query(ContractUpdateModel.contract_id)
+            .filter(ContractUpdateModel.status != ContractUpdateStatus.DRAFT)
+            .distinct()
+            .all()
         ]
 
         query = (

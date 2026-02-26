@@ -97,6 +97,7 @@ class UserRole(str, enum.Enum):
 
 
 class ContractUpdateStatus(str, enum.Enum):
+    DRAFT = "draft"  # Manager saved progress; contract stays in Contracts Requiring Attention
     PENDING_REVIEW = "pending_review"
     RETURNED = "returned"
     UPDATED = "updated"
