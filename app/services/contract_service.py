@@ -590,6 +590,7 @@ class ContractService:
     ) -> tuple[List[Contract], int]:
         """
         Get contracts that are expiring soon or have reached their end date.
+        Excludes contracts that already have a ContractUpdate (manager or admin already took action).
         Based on mock data logic: includes "X days past due" (expired) and
         "X days remaining" (expiring within notification window).
         Returns: (contracts, total_count)
@@ -598,6 +599,11 @@ class ContractService:
 
         today = date.today()
         cutoff_date = today + timedelta(days=days_ahead)
+
+        # Exclude contracts that already have any ContractUpdate (action already taken)
+        acted_contract_ids = [
+            r[0] for r in self.db.query(ContractUpdateModel.contract_id).distinct().all()
+        ]
 
         query = (
             self.db.query(Contract)
@@ -610,6 +616,8 @@ class ContractService:
             .filter(Contract.end_date.isnot(None))
             .filter(Contract.end_date <= cutoff_date)
         )
+        if acted_contract_ids:
+            query = query.filter(Contract.id.notin_(acted_contract_ids))
 
         # Get total count before pagination
         total_count = query.count()
@@ -657,7 +665,12 @@ class ContractService:
                 joinedload(Contract.contract_owner_backup),
             )
             .filter(Contract.id.in_(contract_ids))
-            .filter(Contract.status == ContractStatusType.ACTIVE)
+            .filter(
+                Contract.status.in_([
+                    ContractStatusType.ACTIVE,
+                    ContractStatusType.EXPIRED,
+                ])
+            )
         )
         total_count = query.count()
         contracts = query.order_by(Contract.id).offset(skip).limit(limit).all()
@@ -694,10 +707,39 @@ class ContractService:
                 joinedload(Contract.contract_owner_backup),
             )
             .filter(Contract.id.in_(contract_ids))
-            .filter(Contract.status == ContractStatusType.ACTIVE)
+            .filter(
+                Contract.status.in_([
+                    ContractStatusType.ACTIVE,
+                    ContractStatusType.EXPIRED,
+                ])
+            )
         )
         total_count = query.count()
         contracts = query.order_by(Contract.id).offset(skip).limit(limit).all()
+        return contracts, total_count
+
+    def get_terminated_contracts(
+        self,
+        skip: int = 0,
+        limit: int = 1000
+    ) -> tuple[List[Contract], int]:
+        """
+        Get contracts with status TERMINATED (from backend).
+        Returns: (contracts, total_count)
+        """
+        from sqlalchemy.orm import joinedload
+
+        query = (
+            self.db.query(Contract)
+            .options(
+                joinedload(Contract.vendor),
+                joinedload(Contract.contract_owner),
+                joinedload(Contract.contract_owner_backup),
+            )
+            .filter(Contract.status == ContractStatusType.TERMINATED)
+        )
+        total_count = query.count()
+        contracts = query.order_by(Contract.id.desc()).offset(skip).limit(limit).all()
         return contracts, total_count
 
     def create_user(self, user_data: UserCreate) -> User:
