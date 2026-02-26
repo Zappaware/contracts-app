@@ -3,7 +3,13 @@ import asyncio
 import requests
 from nicegui import ui, app, run
 from app.utils.vendor_lookup import get_vendor_id_by_name
+from app.core.config import settings
 import re
+
+
+def _get_api_base_url() -> str:
+    """Base URL for server-to-server API calls (from API_BASE_URL env or config)."""
+    return settings.api_base_url.rstrip("/")
 
 
 def _manager_complete_blocking(
@@ -19,12 +25,14 @@ def _manager_complete_blocking(
 ) -> tuple[bool, str]:
     """Run in thread: upload termination doc (if Terminate + upload), then POST contract-updates. Returns (success, error_message)."""
     import httpx
+    base = _get_api_base_url()
+    api_prefix = settings.api_v1_prefix
     try:
         has_upload = bool(term_content)
         if decision_value == "Terminate" and has_upload:
             with httpx.Client(timeout=90.0) as client:
                 r = client.post(
-                    f"http://localhost:8000/api/v1/contracts/{contract_db_id}/termination-documents",
+                    f"{base}{api_prefix}/contracts/{contract_db_id}/termination-documents",
                     data={"document_name": tname, "document_date": tdate},
                     files={"file": (term_fname or "document.pdf", term_content, "application/pdf")},
                 )
@@ -53,7 +61,7 @@ def _manager_complete_blocking(
                     "decision": "Terminate",
                     "decision_comments": comments or "",
                 }
-            resp = client.post("http://localhost:8000/api/v1/contract-updates", json=payload)
+            resp = client.post(f"{base}{api_prefix}/contract-updates/", json=payload)
             if resp.status_code not in (200, 201):
                 try:
                     return (False, resp.json().get("detail", "Failed to send for review"))
@@ -704,10 +712,11 @@ def manager():
                         ui.label("No termination documents yet. Upload above when Decision is Terminate.").classes("text-gray-500 italic")
 
                 # Complete, Save, Cancel (manager sends for admin review)
+                # Use type=button to prevent accidental form submission (which can cause 404 navigation)
                 with ui.row().classes("gap-3 justify-end mt-4 w-full"):
-                    complete_btn = ui.button("Complete", icon="check_circle").props("color=positive")
-                    save_btn = ui.button("Save", icon="save").props("color=primary")
-                    ui.button("Cancel", icon="cancel", on_click=contract_decision_dialog.close).props("flat color=grey")
+                    complete_btn = ui.button("Complete", icon="check_circle").props("color=positive type=button")
+                    save_btn = ui.button("Save", icon="save").props("color=primary type=button")
+                    ui.button("Cancel", icon="cancel", on_click=contract_decision_dialog.close).props("flat color=grey type=button")
                 with ui.row().classes("gap-2 items-center mt-2") as loading_row:
                     ui.spinner(size="sm", color="primary")
                     ui.label("Sending…")

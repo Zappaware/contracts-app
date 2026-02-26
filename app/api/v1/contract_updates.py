@@ -69,14 +69,12 @@ class ContractUpdatePatch(BaseModel):
     decision_comments: Optional[str] = None
 
 
-@router.get("/", response_model=List[ContractUpdateResponse])
-def get_contract_updates(
-    status: Optional[str] = Query(None, description="Filter by status (returned, updated, pending_review, completed)"),
-    owner_id: Optional[int] = Query(None, description="Filter by contract owner ID"),
-    db: Session = Depends(get_db)
-):
-    """Get all contract updates, optionally filtered by status and owner"""
-    # Use eager loading to prevent N+1 queries
+def _fetch_contract_updates(
+    db: Session,
+    status: Optional[str] = None,
+    owner_id: Optional[int] = None,
+) -> List[ContractUpdateResponse]:
+    """Internal helper: fetch contract updates with plain defaults (callable from other endpoints)."""
     query = db.query(ContractUpdate).options(
         joinedload(ContractUpdate.contract).joinedload(Contract.vendor),
         joinedload(ContractUpdate.contract).joinedload(Contract.contract_owner),
@@ -134,11 +132,21 @@ def get_contract_updates(
             initial_description=update.initial_description,
             initial_expiration_date=update.initial_expiration_date,
             previous_update_id=update.previous_update_id,
-            decision=update.decision,
-            decision_comments=update.decision_comments,
-        ))
+        decision=update.decision,
+        decision_comments=update.decision_comments,
+    ))
     
     return result
+
+
+@router.get("/", response_model=List[ContractUpdateResponse])
+def get_contract_updates(
+    status: Optional[str] = Query(None, description="Filter by status (returned, updated, pending_review, completed)"),
+    owner_id: Optional[int] = Query(None, description="Filter by contract owner ID"),
+    db: Session = Depends(get_db)
+):
+    """Get all contract updates, optionally filtered by status and owner"""
+    return _fetch_contract_updates(db=db, status=status, owner_id=owner_id)
 
 
 @router.get("/returned", response_model=List[ContractUpdateResponse])
@@ -183,8 +191,9 @@ def create_contract_update(
     db.commit()
     db.refresh(contract_update)
     
-    # Return response
-    return get_contract_updates(status=update_data.status, db=db)[0] if get_contract_updates(status=update_data.status, db=db) else None
+    # Return response - use _fetch_contract_updates (not get_contract_updates) to avoid Query() default in internal calls
+    updates = _fetch_contract_updates(db=db, status=update_data.status)
+    return updates[0] if updates else None
 
 
 @router.patch("/{update_id}", response_model=ContractUpdateResponse)
@@ -235,8 +244,8 @@ def update_contract_update(
     db.commit()
     db.refresh(contract_update)
     
-    # Return updated response
-    updates = get_contract_updates(db=db)
+    # Return updated response - use _fetch_contract_updates to avoid Query() default in internal calls
+    updates = _fetch_contract_updates(db=db)
     for update in updates:
         if update.id == update_id:
             return update

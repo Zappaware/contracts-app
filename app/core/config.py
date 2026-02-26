@@ -1,4 +1,5 @@
 from pydantic_settings import BaseSettings
+from pydantic import Field
 from typing import Optional
 
 
@@ -25,6 +26,10 @@ class Settings(BaseSettings):
     
     # API settings
     api_v1_prefix: str = "/api/v1"
+    api_base_url: str = Field(
+        default="http://127.0.0.1:8000",
+        description="Base URL for server-to-server API calls (set API_BASE_URL in Docker)",
+    )
     
     # CORS settings
     allowed_origins: list[str] = ["*"]
