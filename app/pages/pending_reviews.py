@@ -2,6 +2,7 @@ from datetime import datetime, timedelta, date
 from nicegui import ui, app
 import io
 import base64
+import re
 from app.db.database import SessionLocal
 from app.services.contract_service import ContractService
 from app.models.contract import ContractStatusType, ContractTerminationType, User, Contract, ContractUpdate, ContractUpdateStatus
@@ -397,6 +398,9 @@ def pending_reviews():
                             acted_by_name = f"{acted_user.first_name} {acted_user.last_name}"
                     if update and update.decision_comments:
                         manager_comments = update.decision_comments
+                    # Strip "[Planned termination doc: ...]" so admin sees the actual manager message
+                    if manager_comments:
+                        manager_comments = re.sub(r'\s*\[Planned termination doc:[^]]*\]\s*', '', manager_comments).strip() or manager_comments
                 finally:
                     db2.close()
             except Exception as e:
@@ -428,6 +432,24 @@ def pending_reviews():
                 with end_date_container:
                     initial_exp = (update.initial_expiration_date.strftime("%Y-%m-%d") if update and getattr(update, "initial_expiration_date", None) and hasattr(update.initial_expiration_date, "strftime") else None) or selected_contract.get("expiration_date", "")
                     end_date_input = ui.input("End Date (required for Renew)", value=initial_exp).props("type=date outlined dense").classes("w-full")
+                    def _base_date():
+                        raw = (end_date_input.value or "").strip() or initial_exp or ""
+                        if not raw:
+                            return date.today()
+                        try:
+                            return datetime.strptime(raw.replace("/", "-")[:10], "%Y-%m-%d").date()
+                        except Exception:
+                            return date.today()
+                    def _set_end_date_years(years: int):
+                        d = _base_date()
+                        try:
+                            new_d = d.replace(year=d.year + years)
+                        except ValueError:
+                            new_d = d.replace(day=28, year=d.year + years)
+                        end_date_input.value = new_d.strftime("%Y-%m-%d")
+                    with ui.row().classes("gap-2 items-center mt-1"):
+                        ui.button("+1 year", on_click=lambda: _set_end_date_years(1)).props("flat dense color=primary")
+                        ui.button("+2 years", on_click=lambda: _set_end_date_years(2)).props("flat dense color=primary")
 
                 # Terminate: Termination documents section (expandable, view-only for admin)
                 term_doc_container = ui.column().classes("w-full")
@@ -461,7 +483,7 @@ def pending_reviews():
                 ui.label("Documents & Comments").classes("text-lg font-bold mt-2")
                 with ui.card().classes("p-4 bg-white border w-full"):
                     ui.label("Comments from Contract Manager / Backup / Owner:").classes("font-medium")
-                    ui.textarea(value=manager_comments or "N/A").classes("w-full").props("outlined readonly")
+                    ui.textarea(value=manager_comments or "No comments from Contract Manager / Backup / Owner.").classes("w-full").props("outlined readonly")
                     ui.separator()
                     ui.label("Contract documents:").classes("font-medium mt-2")
                     if contract_obj and contract_obj.documents:
