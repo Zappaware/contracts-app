@@ -4,6 +4,21 @@ from app.db.database import SessionLocal
 from app.models.contract import User, UserRole
 
 
+# Email domain patterns (case-insensitive) that must match the selected bank
+BANK_EMAIL_DOMAINS = {
+    "Aruba Bank": "@arubabank",
+    "Orco Bank": "@orcobank",
+}
+
+
+def email_matches_bank(email: str, bank: str) -> bool:
+    """Return True if the email belongs to the given bank's domain."""
+    if not email or not bank or bank not in BANK_EMAIL_DOMAINS:
+        return False
+    domain_part = BANK_EMAIL_DOMAINS[bank]
+    return domain_part.lower() in (email.strip().lower())
+
+
 def login_page():
     username_input = None
     password_input = None
@@ -23,6 +38,15 @@ def login_page():
 
         # Get username value after validation
         username = username_input.value
+        selected_bank = bank_select.value or "Aruba Bank"
+
+        # Validate that the email matches the selected bank (e.g. name@arubabank.com for Aruba, name@orcobank.com for Orco)
+        if "@" in username and not email_matches_bank(username, selected_bank):
+            if selected_bank == "Aruba Bank":
+                ui.notify("For Aruba Bank, please use an email from the Aruba Bank domain (e.g. name@arubabank.com).", type="negative")
+            else:
+                ui.notify("For Orco Bank, please use an email from the Orco Bank domain (e.g. name@orcobank.com).", type="negative")
+            return
 
         # Look up user in database
         db = SessionLocal()
@@ -62,6 +86,14 @@ def login_page():
             if not current_user:
                 # Generic error text per AC
                 ui.notify("Wrong username or password.", type="negative")
+                return
+
+            # Ensure the user's email matches the selected bank (user must be from the chosen bank)
+            if not email_matches_bank(current_user.email or "", selected_bank):
+                if selected_bank == "Aruba Bank":
+                    ui.notify("This user is not from Aruba Bank. Please select Aruba Bank only when using an Aruba Bank email.", type="negative")
+                else:
+                    ui.notify("This user is not from Orco Bank. Please select Orco Bank only when using an Orco Bank email.", type="negative")
                 return
 
             # NOTE: Password is currently not validated against the database.
