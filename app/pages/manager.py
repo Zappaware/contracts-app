@@ -121,11 +121,13 @@ def manager():
             
             db = SessionLocal()
             try:
-                # Exclude contracts where manager already acted (sent to Pending Documents or Pending Reviews)
+                # Exclude contracts where manager already acted (sent for review or completed).
+                # Use ANY ContractUpdate for this contract, not just PENDING_REVIEW, so that
+                # after admin completes the review (status -> COMPLETED) the contract stays out.
                 acted_contract_ids = [
                     r[0] for r in db.query(ContractUpdate.contract_id)
-                    .filter(ContractUpdate.status == ContractUpdateStatus.PENDING_REVIEW)
-                    .distinct().all()
+                    .distinct()
+                    .all()
                 ]
                 # Get all active contracts where user is owner or backup
                 contracts = db.query(Contract).options(
