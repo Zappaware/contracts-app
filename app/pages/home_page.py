@@ -1,12 +1,79 @@
 
 from datetime import datetime, timedelta, date
+import asyncio
+import httpx
 
 import requests
-from nicegui import ui, app
+from nicegui import ui, app, run
 from app.utils.vendor_lookup import get_vendor_id_by_name
 from app.db.database import SessionLocal
 from app.models.contract import Contract, ContractUpdate, ContractUpdateStatus, User, ContractStatusType, ContractTerminationType
 from sqlalchemy.orm import joinedload
+
+
+def _complete_requiring_attention_blocking(
+    contract_db_id: int,
+    current_user_id,
+    decision_value: str,
+    end_val: str | None,
+    term_doc_name: str,
+    term_doc_date: str,
+    term_doc_file_content: bytes | None,
+    term_doc_file_name: str,
+    comments: str,
+    admin_comments: str,
+) -> tuple[bool, str | None]:
+    """Run in background: upload termination doc (if any) and update ContractUpdate to PENDING_REVIEW. Returns (success, error_message)."""
+    try:
+        db = SessionLocal()
+        try:
+            upd = (
+                db.query(ContractUpdate)
+                .filter(ContractUpdate.contract_id == contract_db_id)
+                .order_by(ContractUpdate.created_at.desc())
+                .first()
+            )
+            if not upd:
+                upd = ContractUpdate(contract_id=contract_db_id, status=ContractUpdateStatus.PENDING_REVIEW)
+                db.add(upd)
+            upd.status = ContractUpdateStatus.PENDING_REVIEW
+            upd.response_provided_by_user_id = current_user_id
+            upd.response_date = datetime.utcnow()
+            upd.decision = "Extend" if decision_value == "Renew" else "Terminate"
+            upd.decision_comments = comments or ""
+            upd.admin_comments = admin_comments or ""
+            upd.updated_at = datetime.utcnow()
+            if decision_value == "Renew":
+                if end_val:
+                    end_val = end_val.replace("/", "-").strip()[:10]
+                    upd.initial_expiration_date = datetime.strptime(end_val, "%Y-%m-%d").date()
+                upd.has_document = False
+            else:
+                if term_doc_file_content:
+                    if not (term_doc_name and term_doc_date):
+                        return (False, "Document name and Issue Date are required for the termination document.")
+                    with httpx.Client(timeout=90.0) as client:
+                        r = client.post(
+                            f"http://localhost:8000/api/v1/contracts/{contract_db_id}/termination-documents",
+                            data={"document_name": term_doc_name.strip(), "document_date": term_doc_date.strip()},
+                            files={"file": (term_doc_file_name or "document.pdf", term_doc_file_content, "application/pdf")},
+                        )
+                    if r.status_code not in (200, 201):
+                        try:
+                            body = r.json()
+                            detail = body.get("detail", "Failed to store termination document")
+                            if isinstance(detail, list):
+                                detail = "; ".join(str(x.get("msg", x)) for x in detail) if detail else "Request failed"
+                            return (False, str(detail))
+                        except Exception:
+                            return (False, r.text or f"Request failed (HTTP {r.status_code})")
+                upd.has_document = bool(term_doc_file_content)
+            db.commit()
+            return (True, None)
+        finally:
+            db.close()
+    except Exception as e:
+        return (False, str(e))
 
 
 def home_page():
@@ -578,6 +645,25 @@ def home_page():
                 end_date_container = ui.column().classes("w-full")
                 with end_date_container:
                     end_date_input = ui.input("End Date (required for Renew)", value=end_date_default).props("type=date outlined dense").classes("w-full")
+                    def _base_date():
+                        raw = (end_date_input.value or "").strip() or end_date_default or ""
+                        if not raw:
+                            return date.today()
+                        try:
+                            return datetime.strptime(raw.replace("/", "-")[:10], "%Y-%m-%d").date()
+                        except Exception:
+                            return date.today()
+                    def _set_end_date_years(years: int):
+                        d = _base_date()
+                        try:
+                            new_d = d.replace(year=d.year + years)
+                        except ValueError:
+                            new_d = d.replace(day=28, year=d.year + years)
+                        end_date_input.value = new_d.strftime("%Y-%m-%d")
+                        set_complete_state()
+                    with ui.row().classes("gap-2 items-center mt-1"):
+                        ui.button("+1 year", on_click=lambda: _set_end_date_years(1)).props("flat dense color=primary")
+                        ui.button("+2 years", on_click=lambda: _set_end_date_years(2)).props("flat dense color=primary")
 
                 term_doc_container = ui.column().classes("w-full")
                 with term_doc_container:
@@ -640,6 +726,10 @@ def home_page():
                     complete_btn = ui.button("Complete", icon="check_circle").props("color=positive")
                     save_btn = ui.button("Save", icon="save").props("color=primary")
                     ui.button("Cancel", icon="cancel", on_click=contract_decision_dialog.close).props("flat color=grey")
+                with ui.row().classes("gap-2 items-center mt-2") as loading_row:
+                    ui.spinner(size="sm", color="primary")
+                    ui.label("Completing…")
+                loading_row.set_visibility(False)
 
                 def can_complete():
                     if decision_select.value == "Renew":
@@ -664,62 +754,57 @@ def home_page():
                     if decision_select.value == "Terminate" and not can_complete():
                         ui.notify("Please upload the Termination Document", type="negative")
                         return
-                    try:
+
+                    async def run_complete():
+                        loading_row.set_visibility(True)
+                        complete_btn.disable()
+                        save_btn.disable()
+                        decision_value = decision_select.value
+                        end_val = (end_date_input.value or "").strip() if decision_value == "Renew" else None
+                        term_doc_name = (term_doc_name_input.value or "").strip()
+                        term_doc_date = (term_doc_date_input.value or "").strip()
+                        comments = (comments_input.value or "").strip() if getattr(comments_input, "value", None) is not None else ""
+                        admin_comments_val = (admin_remarks.value or "").strip() if getattr(admin_remarks, "value", None) is not None else ""
+                        term_doc_content = term_doc_upload_ref.get("content")
+                        term_doc_file_name = term_doc_upload_ref.get("name") or "document.pdf"
                         current_user_id = app.storage.user.get("user_id") if app.storage.user else None
-                        db3 = SessionLocal()
                         try:
-                            upd = (
-                                db3.query(ContractUpdate)
-                                .filter(ContractUpdate.contract_id == contract_db_id)
-                                .order_by(ContractUpdate.created_at.desc())
-                                .first()
+                            result = await run.io_bound(
+                                _complete_requiring_attention_blocking,
+                                contract_db_id,
+                                current_user_id,
+                                decision_value,
+                                end_val,
+                                term_doc_name,
+                                term_doc_date,
+                                term_doc_content,
+                                term_doc_file_name,
+                                comments,
+                                admin_comments_val,
                             )
-                            if not upd:
-                                upd = ContractUpdate(contract_id=contract_db_id, status=ContractUpdateStatus.PENDING_REVIEW)
-                                db3.add(upd)
-                            decision_value = decision_select.value
-                            # Send to Pending Reviews: do NOT update contract end_date or status here.
-                            # Admin will complete the review from Pending Reviews and then the contract is updated.
-                            upd.status = ContractUpdateStatus.PENDING_REVIEW
-                            upd.response_provided_by_user_id = current_user_id
-                            upd.response_date = datetime.utcnow()
-                            upd.decision = "Extend" if decision_value == "Renew" else "Terminate"
-                            upd.decision_comments = (comments_input.value or "").strip() if getattr(comments_input, "value", None) is not None else ""
-                            upd.admin_comments = admin_remarks.value
-                            if decision_value == "Renew":
-                                end_val = (end_date_input.value or "").strip()
-                                if end_val:
-                                    end_val = end_val.replace("/", "-")
-                                    upd.initial_expiration_date = datetime.strptime(end_val, "%Y-%m-%d").date()
-                                upd.has_document = False
+                        except Exception as e:
+                            result = (False, str(e))
+                        with contract_decision_dialog:
+                            loading_row.set_visibility(False)
+                            complete_btn.enable()
+                            save_btn.enable()
+                            if result[0]:
+                                ui.notify("Contract sent to Pending Reviews. Complete the review there to apply the decision.", type="positive")
+                                contract_decision_dialog.close()
+                                contract_rows = get_contracts_requiring_attention()
+                                contracts_table.rows = contract_rows
+                                contracts_table.update()
                             else:
-                                has_upload = term_doc_upload_ref.get("content")
-                                if has_upload:
-                                    import httpx
-                                    tname = (term_doc_name_input.value or "").strip()
-                                    tdate = (term_doc_date_input.value or "").strip()
-                                    if tname and tdate:
-                                        with httpx.Client(timeout=30.0) as client:
-                                            client.post(
-                                                f"http://localhost:8000/api/v1/contracts/{contract_db_id}/termination-documents",
-                                                data={"document_name": tname, "document_date": tdate},
-                                                files={"file": (term_doc_upload_ref["name"] or "document.pdf", term_doc_upload_ref["content"], "application/pdf")},
-                                            )
-                                upd.has_document = bool(has_upload)
-                            upd.updated_at = datetime.utcnow()
-                            db3.commit()
-                            ui.notify("Contract sent to Pending Reviews. Complete the review there to apply the decision.", type="positive")
-                            contract_rows = get_contracts_requiring_attention()
-                            contracts_table.rows = contract_rows
-                            contracts_table.update()
-                        finally:
-                            db3.close()
-                    except Exception as e:
-                        ui.notify(f"Error sending to Pending Reviews: {e}", type="negative")
-                    contract_decision_dialog.close()
+                                ui.notify(result[1] or "Request failed", type="negative")
+
+                    if not hasattr(contract_decision_dialog, "_complete_tasks"):
+                        contract_decision_dialog._complete_tasks = set()
+                    complete_task = asyncio.create_task(run_complete())
+                    contract_decision_dialog._complete_tasks.add(complete_task)
+                    complete_task.add_done_callback(lambda t: contract_decision_dialog._complete_tasks.discard(t))
 
                 def do_save():
-                    """Save progress without completing or returning."""
+                    """Save progress: Renew stays in Contracts Requiring Attention (DRAFT); Terminate (no doc) moves to Pending Documents."""
                     nonlocal contract_rows
                     try:
                         db3 = SessionLocal()
@@ -730,22 +815,33 @@ def home_page():
                                 .order_by(ContractUpdate.created_at.desc())
                                 .first()
                             )
+                            decision_value = decision_select.value
                             if not upd:
-                                upd = ContractUpdate(contract_id=contract_db_id, status=ContractUpdateStatus.PENDING_REVIEW)
+                                # Renew: DRAFT so contract stays in requiring attention. Terminate: PENDING_REVIEW so it moves to Pending Documents.
+                                status = ContractUpdateStatus.DRAFT if decision_value == "Renew" else ContractUpdateStatus.PENDING_REVIEW
+                                upd = ContractUpdate(contract_id=contract_db_id, status=status)
                                 db3.add(upd)
-                            upd.decision = "Extend" if decision_select.value == "Renew" else "Terminate"
+                            upd.decision = "Extend" if decision_value == "Renew" else "Terminate"
+                            # Renew + Save: keep as DRAFT so contract stays in requiring attention
+                            if decision_value == "Renew":
+                                upd.status = ContractUpdateStatus.DRAFT
+                            else:
+                                # Terminate + Save: move to Pending Documents (no document yet)
+                                upd.status = ContractUpdateStatus.PENDING_REVIEW
+                                upd.has_document = False
                             comments = (admin_remarks.value or "").strip()
-                            if decision_select.value == "Terminate":
+                            if decision_value == "Terminate":
                                 tname = (term_doc_name_input.value or "").strip()
                                 tdate = (term_doc_date_input.value or "").strip()
                                 if tname or tdate:
                                     comments = (comments + "\n" if comments else "") + f"[Planned termination doc: {tname or '(not set)'}, date: {tdate or '(not set)'}]"
                             upd.decision_comments = comments
                             upd.admin_comments = admin_remarks.value
-                            if decision_select.value == "Renew":
+                            if decision_value == "Renew":
                                 end_val = (end_date_input.value or "").strip()
                                 if end_val:
                                     upd.initial_expiration_date = datetime.strptime(end_val.replace("/", "-"), "%Y-%m-%d").date()
+                            upd.response_provided_by_user_id = app.storage.user.get("user_id") if app.storage.user else None
                             upd.updated_at = datetime.utcnow()
                             db3.commit()
                             ui.notify("Progress saved", type="positive")

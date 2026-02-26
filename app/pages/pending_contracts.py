@@ -78,7 +78,14 @@ def _complete_pending_contract_blocking(
                         files={"file": (term_doc_file_name or "document.pdf", term_doc_file_content, "application/pdf")},
                     )
                 if r.status_code not in (200, 201):
-                    return (False, r.json().get("detail", "Failed to store termination document"))
+                    try:
+                        body = r.json()
+                        detail = body.get("detail", "Failed to store termination document")
+                        if isinstance(detail, list):
+                            detail = "; ".join(str(x.get("msg", x)) for x in detail) if detail else "Request failed"
+                        return (False, str(detail))
+                    except Exception:
+                        return (False, r.text or f"Request failed (HTTP {r.status_code})")
             db3 = SessionLocal()
             try:
                 upd = (
@@ -536,6 +543,8 @@ def pending_contracts():
                                     planned_doc_date = parsed.strftime("%Y-%m-%d")
                                 except Exception:
                                     pass
+                            # Show comments without the planned-doc line in the textarea
+                            existing_comments = re.sub(r'\s*\[Planned termination doc: [^]]*, date: [^]]*\]\s*', '\n', existing_comments).strip()
                     prev_decision = (update.decision if update and update.decision else None) or selected_contract.get("decision") or "Terminate"
                     if prev_decision == "Extend":
                         prev_decision = "Renew"
@@ -570,6 +579,25 @@ def pending_contracts():
                 end_date_container = ui.column().classes("w-full")
                 with end_date_container:
                     end_date_input = ui.input("End Date (required for Renew)", value=selected_contract.get("expiration_date") or "").props("type=date outlined dense").classes("w-full")
+                    def _base_date():
+                        raw = (end_date_input.value or "").strip() or (selected_contract.get("expiration_date") or "")
+                        if not raw:
+                            return date.today()
+                        try:
+                            return datetime.strptime(raw.replace("/", "-")[:10], "%Y-%m-%d").date()
+                        except Exception:
+                            return date.today()
+                    def _set_end_date_years(years: int):
+                        d = _base_date()
+                        try:
+                            new_d = d.replace(year=d.year + years)
+                        except ValueError:
+                            new_d = d.replace(day=28, year=d.year + years)
+                        end_date_input.value = new_d.strftime("%Y-%m-%d")
+                        set_complete_state()
+                    with ui.row().classes("gap-2 items-center mt-1"):
+                        ui.button("+1 year", on_click=lambda: _set_end_date_years(1)).props("flat dense color=primary")
+                        ui.button("+2 years", on_click=lambda: _set_end_date_years(2)).props("flat dense color=primary")
 
                 term_doc_container = ui.column().classes("w-full")
                 with term_doc_container:
@@ -705,21 +733,23 @@ def pending_contracts():
                             )
                         except Exception as e:
                             result = (False, str(e))
-                        loading_row.set_visibility(False)
-                        complete_btn.enable()
-                        save_btn.enable()
-                        if result[0]:
-                            ui.notify(
-                                "Contract sent for admin review (renew)." if decision_value == "Renew" else "Contract sent for admin review (terminate).",
-                                type="positive",
-                            )
-                            contract_decision_dialog.close()
-                            contract_rows[:] = fetch_pending_documents_contracts()
-                            contracts_table.rows = contract_rows
-                            contracts_table.update()
-                            count_label.text = f"Total: {len(contract_rows)} contracts"
-                        else:
-                            ui.notify(result[1] or "Request failed", type="negative")
+                        # Run UI updates in the dialog context so slot stack is available (background task loses it)
+                        with contract_decision_dialog:
+                            loading_row.set_visibility(False)
+                            complete_btn.enable()
+                            save_btn.enable()
+                            if result[0]:
+                                ui.notify(
+                                    "Contract sent for admin review (renew)." if decision_value == "Renew" else "Contract sent for admin review (terminate).",
+                                    type="positive",
+                                )
+                                contract_decision_dialog.close()
+                                contract_rows[:] = fetch_pending_documents_contracts()
+                                contracts_table.rows = contract_rows
+                                contracts_table.update()
+                                count_label.text = f"Total: {len(contract_rows)} contracts"
+                            else:
+                                ui.notify(result[1] or "Request failed", type="negative")
 
                     if not hasattr(contract_decision_dialog, "_complete_tasks"):
                         contract_decision_dialog._complete_tasks = set()
@@ -728,7 +758,7 @@ def pending_contracts():
                     complete_task.add_done_callback(lambda t: contract_decision_dialog._complete_tasks.discard(t))
 
                 def do_save():
-                    """Save progress without completing."""
+                    """Save progress without completing. Do not set has_document from upload; stay in Pending Documents until Complete."""
                     try:
                         db_save = SessionLocal()
                         try:
@@ -742,12 +772,19 @@ def pending_contracts():
                                 upd = ContractUpdate(contract_id=contract_db_id, status=ContractUpdateStatus.PENDING_REVIEW)
                                 db_save.add(upd)
                             upd.decision = "Extend" if decision_select.value == "Renew" else "Terminate"
-                            upd.decision_comments = comments_input.value or ""
+                            comments = (comments_input.value or "").strip()
+                            if decision_select.value == "Terminate":
+                                tname = (term_doc_name_input.value or "").strip()
+                                tdate = (term_doc_date_input.value or "").strip()
+                                if tname or tdate:
+                                    comments = (comments + "\n" if comments else "") + f"[Planned termination doc: {tname or '(not set)'}, date: {tdate or '(not set)'}]"
+                            upd.decision_comments = comments
                             if decision_select.value == "Renew":
                                 end_val = (end_date_input.value or "").strip()
                                 if end_val:
                                     upd.initial_expiration_date = datetime.strptime(end_val.replace("/", "-"), "%Y-%m-%d").date()
-                            upd.has_document = bool(term_doc_upload_ref.get("content") or (contract_obj and contract_obj.termination_documents))
+                            # Do not set has_document from current upload; only Complete sets it. Stay in Pending Documents.
+                            upd.has_document = bool(contract_obj and contract_obj.termination_documents)
                             upd.updated_at = datetime.utcnow()
                             db_save.commit()
                             ui.notify("Progress saved", type="positive")
