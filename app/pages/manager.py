@@ -1,8 +1,67 @@
 from datetime import datetime, timedelta, date
+import asyncio
 import requests
-from nicegui import ui, app
+from nicegui import ui, app, run
 from app.utils.vendor_lookup import get_vendor_id_by_name
 import re
+
+
+def _manager_complete_blocking(
+    contract_db_id: int,
+    current_user_id: int,
+    decision_value: str,
+    end_val: str | None,
+    tname: str,
+    tdate: str,
+    term_content: bytes | None,
+    term_fname: str,
+    comments: str,
+) -> tuple[bool, str]:
+    """Run in thread: upload termination doc (if Terminate + upload), then POST contract-updates. Returns (success, error_message)."""
+    import httpx
+    try:
+        has_upload = bool(term_content)
+        if decision_value == "Terminate" and has_upload:
+            with httpx.Client(timeout=90.0) as client:
+                r = client.post(
+                    f"http://localhost:8000/api/v1/contracts/{contract_db_id}/termination-documents",
+                    data={"document_name": tname, "document_date": tdate},
+                    files={"file": (term_fname or "document.pdf", term_content, "application/pdf")},
+                )
+            if r.status_code not in (200, 201):
+                try:
+                    detail = r.json().get("detail", "Failed to store termination document")
+                    return (False, str(detail))
+                except Exception:
+                    return (False, r.text or f"HTTP {r.status_code}")
+        with httpx.Client(timeout=30.0) as client:
+            if decision_value == "Renew":
+                payload = {
+                    "contract_id": contract_db_id,
+                    "status": "pending_review",
+                    "response_provided_by_user_id": current_user_id,
+                    "initial_expiration_date": end_val.replace("/", "-")[:10] if end_val else None,
+                    "decision": "Extend",
+                    "decision_comments": comments or "",
+                }
+            else:
+                payload = {
+                    "contract_id": contract_db_id,
+                    "status": "pending_review",
+                    "response_provided_by_user_id": current_user_id,
+                    "has_document": has_upload,
+                    "decision": "Terminate",
+                    "decision_comments": comments or "",
+                }
+            resp = client.post("http://localhost:8000/api/v1/contract-updates", json=payload)
+            if resp.status_code not in (200, 201):
+                try:
+                    return (False, resp.json().get("detail", "Failed to send for review"))
+                except Exception:
+                    return (False, resp.text or f"HTTP {resp.status_code}")
+        return (True, "")
+    except Exception as e:
+        return (False, str(e))
 
 
 def manager():
@@ -121,11 +180,10 @@ def manager():
             
             db = SessionLocal()
             try:
-                # Exclude contracts where manager already acted (sent for review or completed).
-                # Use ANY ContractUpdate for this contract, not just PENDING_REVIEW, so that
-                # after admin completes the review (status -> COMPLETED) the contract stays out.
+                # Exclude contracts that have an update already sent (not draft). Keep contracts with no update or status=DRAFT.
                 acted_contract_ids = [
                     r[0] for r in db.query(ContractUpdate.contract_id)
+                    .filter(ContractUpdate.status != ContractUpdateStatus.DRAFT)
                     .distinct()
                     .all()
                 ]
@@ -573,6 +631,25 @@ def manager():
                 end_date_container = ui.column().classes("w-full")
                 with end_date_container:
                     end_date_input = ui.input("End Date (required for Renew)", value=selected_contract.get("expiration_date") or "").props("type=date outlined dense").classes("w-full")
+                    def _base_date():
+                        raw = (end_date_input.value or "").strip() or (selected_contract.get("expiration_date") or "")
+                        if not raw:
+                            return date.today()
+                        try:
+                            return datetime.strptime(raw.replace("/", "-")[:10], "%Y-%m-%d").date()
+                        except Exception:
+                            return date.today()
+                    def _set_end_date_years(years: int):
+                        d = _base_date()
+                        try:
+                            new_d = d.replace(year=d.year + years)
+                        except ValueError:
+                            new_d = d.replace(day=28, year=d.year + years)
+                        end_date_input.value = new_d.strftime("%Y-%m-%d")
+                        set_complete_state()
+                    with ui.row().classes("gap-2 items-center mt-1"):
+                        ui.button("+1 year", on_click=lambda: _set_end_date_years(1)).props("flat dense color=primary")
+                        ui.button("+2 years", on_click=lambda: _set_end_date_years(2)).props("flat dense color=primary")
 
                 term_doc_container = ui.column().classes("w-full")
                 with term_doc_container:
@@ -631,6 +708,10 @@ def manager():
                     complete_btn = ui.button("Complete", icon="check_circle").props("color=positive")
                     save_btn = ui.button("Save", icon="save").props("color=primary")
                     ui.button("Cancel", icon="cancel", on_click=contract_decision_dialog.close).props("flat color=grey")
+                with ui.row().classes("gap-2 items-center mt-2") as loading_row:
+                    ui.spinner(size="sm", color="primary")
+                    ui.label("Sending…")
+                loading_row.set_visibility(False)
 
                 def can_complete():
                     if decision_select.value == "Renew":
@@ -657,27 +738,6 @@ def manager():
                         if not end_val:
                             ui.notify("End date is required for Renew.", type="negative")
                             return
-                        try:
-                            with httpx.Client(timeout=30.0) as client:
-                                payload = {
-                                    "contract_id": contract_db_id,
-                                    "status": "pending_review",
-                                    "response_provided_by_user_id": current_user_id,
-                                    "initial_expiration_date": end_val.replace('/', '-') if '/' in end_val else end_val,
-                                    "decision": "Extend",
-                                    "decision_comments": comments_input.value or "",
-                                }
-                                resp = client.post("http://localhost:8000/api/v1/contract-updates", json=payload)
-                                if resp.status_code not in (200, 201):
-                                    ui.notify(resp.json().get("detail", "Failed to send for review"), type="negative")
-                                    return
-                            ui.notify("Contract sent for admin review (extend).", type="positive")
-                            contract_rows[:] = get_contracts_requiring_attention()
-                            contracts_table.rows = contract_rows
-                            contracts_table.update()
-                        except Exception as e:
-                            ui.notify(f"Error sending for review: {e}", type="negative")
-                            return
                     else:
                         has_upload = term_doc_upload_ref.get("content")
                         if has_upload:
@@ -686,41 +746,61 @@ def manager():
                             if not tname or not tdate:
                                 ui.notify("Document name and Issue Date are required for the uploaded termination document.", type="negative")
                                 return
-                            try:
-                                with httpx.Client(timeout=30.0) as client:
-                                    r = client.post(
-                                        f"http://localhost:8000/api/v1/contracts/{contract_db_id}/termination-documents",
-                                        data={"document_name": tname, "document_date": tdate},
-                                        files={"file": (term_doc_upload_ref["name"] or "document.pdf", term_doc_upload_ref["content"], "application/pdf")},
-                                    )
-                                if r.status_code not in (200, 201):
-                                    ui.notify(r.json().get("detail", "Failed to store termination document"), type="negative")
-                                    return
-                            except Exception as e:
-                                ui.notify(f"Error storing termination document: {e}", type="negative")
-                                return
+                    loading_row.set_visibility(True)
+                    complete_btn.disable()
+                    save_btn.disable()
+                    end_val = (end_date_input.value or "").strip() if decision_value == "Renew" else None
+                    tname = (term_doc_name_input.value or "").strip()
+                    tdate = (term_doc_date_input.value or "").strip()
+                    term_content = term_doc_upload_ref.get("content")
+                    term_fname = term_doc_upload_ref.get("name") or "document.pdf"
+                    comments = comments_input.value or ""
+
+                    async def run_complete():
+                        result = (False, "")
                         try:
-                            with httpx.Client(timeout=30.0) as client:
-                                payload = {
-                                    "contract_id": contract_db_id,
-                                    "status": "pending_review",
-                                    "response_provided_by_user_id": current_user_id,
-                                    "has_document": bool(has_upload),
-                                    "decision": "Terminate",
-                                    "decision_comments": comments_input.value or "",
-                                }
-                                resp = client.post("http://localhost:8000/api/v1/contract-updates", json=payload)
-                                if resp.status_code not in (200, 201):
-                                    ui.notify(resp.json().get("detail", "Failed to send for review"), type="negative")
-                                    return
-                            ui.notify("Contract sent for admin review (terminate).", type="positive")
-                            contract_rows[:] = get_contracts_requiring_attention()
-                            contracts_table.rows = contract_rows
-                            contracts_table.update()
+                            result = await run.io_bound(
+                                _manager_complete_blocking,
+                                contract_db_id,
+                                current_user_id,
+                                decision_value,
+                                end_val,
+                                tname,
+                                tdate,
+                                term_content,
+                                term_fname,
+                                comments,
+                            )
                         except Exception as e:
-                            ui.notify(f"Error sending for review: {e}", type="negative")
-                            return
-                    contract_decision_dialog.close()
+                            result = (False, str(e))
+                        try:
+                            with contract_decision_dialog:
+                                loading_row.set_visibility(False)
+                                complete_btn.enable()
+                                save_btn.enable()
+                                if result[0]:
+                                    ui.notify(
+                                        "Contract sent for admin review (extend)." if decision_value == "Renew" else "Contract sent for admin review (terminate).",
+                                        type="positive",
+                                    )
+                                    nonlocal contract_rows
+                                    contract_rows[:] = get_contracts_requiring_attention()
+                                    contracts_table.rows = contract_rows
+                                    contracts_table.update()
+                                    contract_decision_dialog.close()
+                                else:
+                                    ui.notify(result[1] or "Failed to send for review", type="negative")
+                        except Exception as e:
+                            loading_row.set_visibility(False)
+                            complete_btn.enable()
+                            save_btn.enable()
+                            ui.notify(f"Error: {e}", type="negative")
+
+                    if not hasattr(contract_decision_dialog, "_complete_tasks"):
+                        contract_decision_dialog._complete_tasks = set()
+                    task = asyncio.create_task(run_complete())
+                    contract_decision_dialog._complete_tasks.add(task)
+                    task.add_done_callback(lambda t: contract_decision_dialog._complete_tasks.discard(t))
 
                 def do_save():
                     """Save progress without submitting for review."""
