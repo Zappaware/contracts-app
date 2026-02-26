@@ -2,9 +2,9 @@ from datetime import datetime, timedelta
 from nicegui import ui, app
 import io
 import base64
-from app.utils.vendor_lookup import get_vendor_id_by_name
 from app.db.database import SessionLocal
 from app.models.contract import User
+from app.services.contract_service import ContractService
 try:
     import pandas as pd
     PANDAS_AVAILABLE = True
@@ -61,199 +61,67 @@ def terminated_contracts():
     # Global variables for table and data
     contracts_table = None
     contract_rows = []
-    
-    
-    # Mock data for terminated contracts
-    def get_mock_terminated_contracts():
-        """
-        Simulates terminated contracts.
-        This will be replaced with actual API call when available.
-        """
-        today = datetime.now()
-        
-        mock_contracts = [
-            {
-                "contract_id": "CTR-2023-001",
-                "vendor_name": "Acme Corp",
-                "contract_type": "Service Agreement",
-                "description": "IT Support Services",
-                "start_date": today - timedelta(days=730),  # 2 years ago
-                "end_date": today - timedelta(days=120),
-                "expiration_date": today - timedelta(days=120),
-                "date_terminated": today - timedelta(days=120),
-                "manager": "William Defoe",
-                "backup": "John Doe",
-                "department": "IT",
-                "role": "owned"
-            },
-            {
-                "contract_id": "CTR-2023-012",
-                "vendor_name": "Beta Technologies",
-                "contract_type": "Software License",
-                "description": "Enterprise Software Licensing",
-                "start_date": today - timedelta(days=365),  # 1 year ago
-                "end_date": today - timedelta(days=90),
-                "expiration_date": today - timedelta(days=90),
-                "date_terminated": today - timedelta(days=90),
-                "manager": "John Doe",
-                "backup": "William Defoe",
-                "department": "Operations",
-                "role": "backup"
-            },
-            {
-                "contract_id": "CTR-2023-023",
-                "vendor_name": "Gamma Consulting",
-                "contract_type": "Consulting",
-                "description": "Business Process Optimization",
-                "start_date": today - timedelta(days=600),  # ~1.6 years ago
-                "end_date": today - timedelta(days=200),
-                "expiration_date": today - timedelta(days=200),
-                "date_terminated": today - timedelta(days=200),
-                "manager": "William Defoe",
-                "backup": "John Doe",
-                "department": "Strategy",
-                "role": "owned"
-            },
-            {
-                "contract_id": "CTR-2023-034",
-                "vendor_name": "Delta Logistics",
-                "contract_type": "Transportation",
-                "description": "Freight and Delivery Services",
-                "start_date": today - timedelta(days=180),  # 6 months ago
-                "end_date": today - timedelta(days=45),
-                "expiration_date": today - timedelta(days=45),
-                "date_terminated": today - timedelta(days=45),
-                "manager": "John Doe",
-                "backup": "William Defoe",
-                "department": "Logistics",
-                "role": "backup"
-            },
-            {
-                "contract_id": "CTR-2022-089",
-                "vendor_name": "Epsilon Security",
-                "contract_type": "Security Services",
-                "description": "Building Security and Monitoring",
-                "start_date": today - timedelta(days=1095),  # 3 years ago
-                "end_date": today - timedelta(days=300),
-                "expiration_date": today - timedelta(days=300),
-                "date_terminated": today - timedelta(days=300),
-                "manager": "William Defoe",
-                "backup": "John Doe",
-                "department": "Security",
-                "role": "owned"
-            },
-            {
-                "contract_id": "CTR-2023-045",
-                "vendor_name": "Zeta Solutions",
-                "contract_type": "Maintenance",
-                "description": "Equipment Maintenance Contract",
-                "start_date": today - timedelta(days=450),  # ~1.2 years ago
-                "end_date": today - timedelta(days=150),
-                "expiration_date": today - timedelta(days=150),
-                "date_terminated": today - timedelta(days=150),
-                "manager": "John Doe",
-                "backup": "William Defoe",
-                "department": "Facilities",
-                "role": "backup"
-            },
-            {
-                "contract_id": "CTR-2023-056",
-                "vendor_name": "Eta Services",
-                "contract_type": "Cleaning Services",
-                "description": "Office Cleaning and Janitorial",
-                "start_date": today - timedelta(days=240),  # 8 months ago
-                "end_date": today - timedelta(days=60),
-                "expiration_date": today - timedelta(days=60),
-                "date_terminated": today - timedelta(days=60),
-                "manager": "William Defoe",
-                "backup": "John Doe",
-                "department": "Facilities",
-                "role": "owned"
-            },
-            {
-                "contract_id": "CTR-2023-067",
-                "vendor_name": "Theta Communications",
-                "contract_type": "Telecommunications",
-                "description": "Internet and Phone Services",
-                "start_date": today - timedelta(days=540),  # ~1.5 years ago
-                "end_date": today - timedelta(days=180),
-                "expiration_date": today - timedelta(days=180),
-                "date_terminated": today - timedelta(days=180),
-                "manager": "John Doe",
-                "backup": "William Defoe",
-                "department": "IT",
-                "role": "backup"
-            },
-        ]
-        
-        rows = []
-        for contract in mock_contracts:
-            exp_date = contract["expiration_date"]
-            start_date = contract["start_date"]
-            end_date = contract["end_date"]
-            date_terminated = contract["date_terminated"]
-            
-            # Look up vendor_id from vendor_name
-            vendor_id = get_vendor_id_by_name(contract["vendor_name"])
-            
-            # Determine user's role for this contract (mock data - simulate based on role field)
-            my_role = "N/A"
-            if current_user_id:
-                # Since this is mock data, we'll simulate based on the role field
-                # "owned" means Contract Manager, "backup" means Backup
-                # Try to match current user with manager or backup name
-                db_temp = SessionLocal()
-                try:
-                    if contract["role"] == "owned" and contract["manager"]:
-                        # Check if current user matches the manager name
-                        manager_parts = contract["manager"].split()
-                        if len(manager_parts) >= 2:
-                            manager_user = db_temp.query(User).filter(
-                                User.first_name.ilike(f"%{manager_parts[0]}%"),
-                                User.last_name.ilike(f"%{manager_parts[-1]}%")
-                            ).first()
-                            if manager_user and manager_user.id == current_user_id:
-                                my_role = "Contract Manager"
-                    elif contract["role"] == "backup" and contract["backup"]:
-                        # Check if current user matches the backup name
-                        backup_parts = contract["backup"].split()
-                        if len(backup_parts) >= 2:
-                            backup_user = db_temp.query(User).filter(
-                                User.first_name.ilike(f"%{backup_parts[0]}%"),
-                                User.last_name.ilike(f"%{backup_parts[-1]}%")
-                            ).first()
-                            if backup_user and backup_user.id == current_user_id:
-                                my_role = "Backup"
-                except:
-                    pass
-                finally:
-                    db_temp.close()
-            else:
-                # Simulation mode: show role based on contract role field
-                if contract["role"] == "owned":
-                    my_role = "Contract Manager"
-                elif contract["role"] == "backup":
-                    my_role = "Backup"
-            
-            rows.append({
-                "contract_id": contract["contract_id"],
-                "vendor_name": contract["vendor_name"],
-                "vendor_id": vendor_id,  # Add vendor_id for routing
-                "contract_type": contract["contract_type"],
-                "description": contract["description"],
-                "start_date": start_date.strftime("%Y-%m-%d"),
-                "end_date": end_date.strftime("%Y-%m-%d"),
-                "expiration_date": exp_date.strftime("%Y-%m-%d"),
-                "expiration_timestamp": exp_date.timestamp(),  # For sorting
-                "date_terminated": date_terminated.strftime("%Y-%m-%d"),
-                "date_terminated_timestamp": date_terminated.timestamp(),  # For sorting
-                "status": "Terminated",
-                "my_role": str(my_role),
-                "backup": contract["backup"],
-                "department": contract["department"],
-            })
-        
-        return rows
+
+    # Fetch terminated contracts from backend
+    def fetch_terminated_contracts():
+        """Load contracts with status Terminated from the database."""
+        db = SessionLocal()
+        try:
+            contract_service = ContractService(db)
+            contracts, _ = contract_service.get_terminated_contracts(skip=0, limit=1000)
+            rows = []
+            for contract in contracts:
+                vendor_name = contract.vendor.vendor_name if contract.vendor else "Unknown"
+                vendor_id = contract.vendor.id if contract.vendor else None
+                contract_type = contract.contract_type.value if hasattr(contract.contract_type, "value") else str(contract.contract_type)
+                department = contract.department.value if hasattr(contract.department, "value") else str(contract.department or "")
+                exp_date = contract.end_date
+                start_date = contract.start_date
+                end_date = contract.end_date
+                # Use last_modified_date as date_terminated when available, else end_date
+                date_terminated = contract.last_modified_date.date() if getattr(contract, "last_modified_date", None) and hasattr(contract.last_modified_date, "date") else end_date
+                if date_terminated is None:
+                    date_terminated = end_date
+
+                my_role = "N/A"
+                if current_user_id:
+                    if contract.contract_owner_id == current_user_id:
+                        my_role = "Contract Manager"
+                    elif contract.contract_owner_backup_id == current_user_id:
+                        my_role = "Backup"
+                    elif getattr(contract, "contract_owner_manager_id", None) and contract.contract_owner_manager_id == current_user_id:
+                        my_role = "Owner"
+
+                backup_name = ""
+                if contract.contract_owner_backup:
+                    backup_name = f"{contract.contract_owner_backup.first_name} {contract.contract_owner_backup.last_name}"
+
+                rows.append({
+                    "id": int(contract.id),
+                    "contract_id": str(contract.contract_id or ""),
+                    "vendor_id": int(vendor_id) if vendor_id else None,
+                    "vendor_name": str(vendor_name or ""),
+                    "contract_type": str(contract_type or ""),
+                    "description": str(contract.contract_description or ""),
+                    "start_date": start_date.strftime("%Y-%m-%d") if start_date else "",
+                    "end_date": end_date.strftime("%Y-%m-%d") if end_date else "",
+                    "expiration_date": exp_date.strftime("%Y-%m-%d") if exp_date else "",
+                    "expiration_timestamp": datetime.combine(exp_date, datetime.min.time()).timestamp() if exp_date else 0,
+                    "date_terminated": date_terminated.strftime("%Y-%m-%d") if date_terminated else "",
+                    "date_terminated_timestamp": datetime.combine(date_terminated, datetime.min.time()).timestamp() if date_terminated else 0,
+                    "status": "Terminated",
+                    "my_role": str(my_role),
+                    "backup": backup_name,
+                    "department": str(department or ""),
+                })
+            return rows
+        except Exception as e:
+            print(f"Error fetching terminated contracts: {e}")
+            import traceback
+            traceback.print_exc()
+            return []
+        finally:
+            db.close()
 
     contract_columns = [
         {
@@ -311,7 +179,7 @@ def terminated_contracts():
         "headerClasses": "bg-[#144c8e] text-white",
     }
 
-    contract_rows = get_mock_terminated_contracts()
+    contract_rows = fetch_terminated_contracts()
     
     # Main container
     with ui.element("div").classes("max-w-6xl mt-8 mx-auto w-full"):
@@ -368,7 +236,7 @@ def terminated_contracts():
             column_defaults=contract_columns_defaults,
             rows=initial_rows,
             pagination=10,
-            row_key="contract_id"
+            row_key="id"
         ).classes("w-full").props("flat bordered").classes(
             "contracts-table shadow-lg rounded-lg overflow-hidden"
         )
