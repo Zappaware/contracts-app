@@ -637,6 +637,8 @@ class ContractService:
     ) -> tuple[List[Contract], int]:
         """
         Get contracts with ContractUpdate status=PENDING_REVIEW that are ready for admin review.
+        Only includes FIRST-TIME submissions (never sent back): returned_date must be NULL.
+        Contracts that were sent back and resubmitted stay in Contract Updates; admin completes there.
         Includes: Renew/Extend decisions OR Terminate with has_document=true.
         Excludes: Terminate with has_document=false (those go to Pending Documents).
         Returns: (contracts, total_count)
@@ -644,11 +646,12 @@ class ContractService:
         from sqlalchemy import or_
         from sqlalchemy.orm import joinedload
 
-        # Subquery: get contract_ids from ContractUpdate where status=PENDING_REVIEW
-        # and (decision in Extend/Renew OR has_document=true)
+        # Subquery: get contract_ids from ContractUpdate where status=PENDING_REVIEW,
+        # never sent back (returned_date is NULL), and (decision Extend/Renew OR has_document=true)
         updates_query = (
             self.db.query(ContractUpdateModel.contract_id)
             .filter(ContractUpdateModel.status == ContractUpdateStatus.PENDING_REVIEW)
+            .filter(ContractUpdateModel.returned_date.is_(None))  # Only first-time submissions
             .filter(
                 or_(
                     ContractUpdateModel.decision.in_(["Extend", "Renew"]),

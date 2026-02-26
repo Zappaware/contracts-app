@@ -7,6 +7,7 @@ from app.db.database import SessionLocal
 from app.services.contract_service import ContractService
 from app.models.contract import ContractStatusType, ContractTerminationType, User, Contract, ContractUpdate, ContractUpdateStatus
 from sqlalchemy.orm import joinedload
+from sqlalchemy import or_
 try:
     import pandas as pd
     PANDAS_AVAILABLE = True
@@ -91,9 +92,30 @@ def pending_reviews():
                 limit=1000,
                 days_ahead=90
             )
-            # Add only those not already in pending review (no duplicates)
-            contracts_expiring_only = [c for c in contracts_expiring if c.id not in ids_pending]
-            print(f"Found {len(contracts_expiring_only)} additional contracts expiring within 90 days")
+            # Exclude contracts that must stay in Contract Updates only (never in Pending Reviews):
+            # - RETURNED/UPDATED/DRAFT: in progress in Contract Updates or Requiring Attention
+            # - PENDING_REVIEW with returned_date set: manager resubmitted after send-back; admin completes from Contract Updates
+            ids_in_other_workflows = {
+                r[0] for r in db.query(ContractUpdate.contract_id)
+                .filter(
+                    or_(
+                        ContractUpdate.status.in_([
+                            ContractUpdateStatus.RETURNED,
+                            ContractUpdateStatus.UPDATED,
+                            ContractUpdateStatus.DRAFT,
+                        ]),
+                        (ContractUpdate.status == ContractUpdateStatus.PENDING_REVIEW) & (ContractUpdate.returned_date.isnot(None)),
+                    )
+                )
+                .distinct()
+                .all()
+            }
+            # Add only those not in pending review and not in other workflows (no duplicates)
+            contracts_expiring_only = [
+                c for c in contracts_expiring
+                if c.id not in ids_pending and c.id not in ids_in_other_workflows
+            ]
+            print(f"Found {len(contracts_expiring_only)} additional contracts expiring within 90 days (excluded {len(ids_in_other_workflows)} in Contract Updates / Requiring Attention)")
             
             # Merge: pending review first, then expiring soon
             contracts = list(contracts_pending) + list(contracts_expiring_only)
