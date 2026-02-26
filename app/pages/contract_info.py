@@ -54,21 +54,29 @@ def contract_info(contract_id: int):
         if not contract:
             ui.label("No contract selected. Please select a contract from the contracts list.").classes("text-red-600")
         else:
-            # Contract ID and Vendor
-            with ui.row().classes("mb-2 gap-4"):
-                ui.label(f"Contract ID: {contract.contract_id}").classes("font-bold")
-                ui.label(f"Vendor: {contract.vendor.vendor_name}").classes("font-bold")
-            
-            # Description and Type
-            with ui.row().classes("mb-2 gap-4"):
-                ui.label(f"Description: {contract.contract_description}")
-                ui.label(f"Type: {contract.contract_type.value}")
-            
-            # Status and Dates
-            with ui.row().classes("mb-2 items-center gap-4"):
-                with ui.row().classes("items-center gap-2"):
-                    ui.label("Status:").classes("text-lg font-bold")
-                    # Status coloring: Active=green, Expired=red, Terminated=black, Pending Termination=orange
+            def _field(label: str, value: str):
+                with ui.column().classes("gap-0"):
+                    ui.label(label).classes("text-xs text-gray-500 font-medium")
+                    ui.label(value or "N/A").classes("text-sm font-semibold")
+
+            # Overview section
+            ui.label("Overview").classes("text-sm font-bold text-gray-600 uppercase tracking-wide mb-2")
+            with ui.row().classes("grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 w-full"):
+                _field("Contract ID", contract.contract_id)
+                _field("Vendor", contract.vendor.vendor_name if contract.vendor else None)
+                _field("Type", contract.contract_type.value)
+                _field("Department", contract.department.value)
+
+            with ui.row().classes("grid grid-cols-1 md:grid-cols-2 gap-4 w-full mt-2"):
+                with ui.column().classes("gap-0"):
+                    ui.label("Description").classes("text-xs text-gray-500 font-medium")
+                    ui.label(contract.contract_description or "N/A").classes("text-sm font-semibold")
+
+            # Status & dates
+            ui.label("Status & Dates").classes("text-sm font-bold text-gray-600 uppercase tracking-wide mb-2 mt-6")
+            with ui.row().classes("flex flex-wrap items-center gap-4 w-full"):
+                with ui.column().classes("gap-0"):
+                    ui.label("Status").classes("text-xs text-gray-500 font-medium")
                     if contract.status.value == "Active":
                         status_color = "green"
                     elif contract.status.value == "Expired":
@@ -80,34 +88,32 @@ def contract_info(contract_id: int):
                     else:
                         status_color = "gray"
                     ui.badge(contract.status.value, color=status_color).classes("text-sm font-semibold")
-                ui.label(f"Start Date: {contract.start_date.strftime('%Y-%m-%d')}")
-                ui.label(f"End Date: {contract.end_date.strftime('%Y-%m-%d')}")
-            
-            # Department and Financial
-            with ui.row().classes("mb-2 gap-4"):
-                ui.label(f"Department: {contract.department.value}")
-                ui.label(f"Amount: {contract.contract_currency.value} {contract.contract_amount}")
-                ui.label(f"Payment Method: {contract.payment_method.value}")
-            
-            # Contract Ownership
-            with ui.row().classes("mb-2 gap-4"):
-                owner_name = f"{contract.contract_owner.first_name} {contract.contract_owner.last_name}" if contract.contract_owner else "N/A"
-                backup_name = f"{contract.contract_owner_backup.first_name} {contract.contract_owner_backup.last_name}" if contract.contract_owner_backup else "N/A"
-                manager_name = f"{contract.contract_owner_manager.first_name} {contract.contract_owner_manager.last_name}" if contract.contract_owner_manager else "N/A"
-                ui.label(f"Owner: {owner_name}")
-                ui.label(f"Backup: {backup_name}")
-                ui.label(f"Manager: {manager_name}")
-            
-            # Renewal Information
-            with ui.row().classes("mb-2 gap-4"):
-                ui.label(f"Automatic Renewal: {contract.automatic_renewal.value}")
-                if contract.renewal_period:
-                    ui.label(f"Renewal Period: {contract.renewal_period.value}")
-            
-            # Notice Periods
-            with ui.row().classes("mb-2 gap-4"):
-                ui.label(f"Termination Notice Period: {contract.termination_notice_period.value}")
-                ui.label(f"Expiration Notice Frequency: {contract.expiration_notice_frequency.value}")
+                _field("Start Date", contract.start_date.strftime("%Y-%m-%d") if contract.start_date else None)
+                _field("End Date", contract.end_date.strftime("%Y-%m-%d") if contract.end_date else None)
+
+            # Financial
+            ui.label("Financial").classes("text-sm font-bold text-gray-600 uppercase tracking-wide mb-2 mt-6")
+            with ui.row().classes("grid grid-cols-1 md:grid-cols-3 gap-4 w-full"):
+                _field("Amount", f"{contract.contract_currency.value} {contract.contract_amount}" if contract.contract_amount else "N/A")
+                _field("Payment Method", contract.payment_method.value)
+
+            # Ownership
+            ui.label("Ownership").classes("text-sm font-bold text-gray-600 uppercase tracking-wide mb-2 mt-6")
+            owner_name = f"{contract.contract_owner.first_name} {contract.contract_owner.last_name}" if contract.contract_owner else "N/A"
+            backup_name = f"{contract.contract_owner_backup.first_name} {contract.contract_owner_backup.last_name}" if contract.contract_owner_backup else "N/A"
+            manager_name = f"{contract.contract_owner_manager.first_name} {contract.contract_owner_manager.last_name}" if contract.contract_owner_manager else "N/A"
+            with ui.row().classes("grid grid-cols-1 md:grid-cols-3 gap-4 w-full"):
+                _field("Owner", owner_name)
+                _field("Backup", backup_name)
+                _field("Manager", manager_name)
+
+            # Renewal & notices
+            ui.label("Renewal & Notices").classes("text-sm font-bold text-gray-600 uppercase tracking-wide mb-2 mt-6")
+            with ui.row().classes("grid grid-cols-1 md:grid-cols-3 gap-4 w-full"):
+                _field("Automatic Renewal", contract.automatic_renewal.value)
+                _field("Renewal Period", contract.renewal_period.value if contract.renewal_period else "N/A")
+                _field("Termination Notice", contract.termination_notice_period.value)
+                _field("Expiration Notice", contract.expiration_notice_frequency.value)
     
     # Edit Contract Dialog
     if contract:
