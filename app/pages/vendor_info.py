@@ -158,12 +158,6 @@ def vendor_info(vendor_id: int):
                 with ui.column().classes("mt-4"):
                     ui.label("Due Diligence Info:").classes("font-bold")
                     ui.label(f"Required: {vendor.due_diligence_required.value}")
-                    if vendor.documents:
-                        ui.label(f"Documents uploaded: {len(vendor.documents)}")
-                        for doc in vendor.documents[:3]:  # Show first 3
-                            ui.label(f"  • {doc.document_type.value}: {doc.custom_document_name}").classes("text-sm")
-                    else:
-                        ui.label("No documents uploaded").classes("text-gray-500")
     
     # Edit Vendor Dialog
     if vendor:
