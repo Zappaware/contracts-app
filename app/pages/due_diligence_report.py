@@ -1,6 +1,8 @@
 from datetime import datetime, timedelta, date
 from nicegui import ui
 from app.db.database import SessionLocal
+from app.utils.navigation import get_dashboard_url
+from app.components.breadcrumb import breadcrumb
 from app.models.vendor import VendorStatusType
 import io
 import base64
@@ -12,10 +14,9 @@ except ImportError:
 
 
 def due_diligence_report():
-    # Navigation
+    # Breadcrumb navigation
     with ui.row().classes("max-w-6xl mx-auto mt-4"):
-        with ui.link(target='/').classes('no-underline'):
-            ui.button("Back to Dashboard", icon="arrow_back").props('flat color=primary')
+        breadcrumb([("Home", get_dashboard_url()), ("Due Diligence Report", None)])
     
     # Global variables for table and data
     vendors_table = None

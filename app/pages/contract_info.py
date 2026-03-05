@@ -1,5 +1,7 @@
 from nicegui import ui
 from datetime import datetime, date
+from app.utils.navigation import get_dashboard_url
+from app.components.breadcrumb import breadcrumb
 from app.models.contract import (
     ContractType, AutomaticRenewalType, RenewalPeriodType, DepartmentType,
     NoticePeriodType, ExpirationNoticePeriodType, CurrencyType, PaymentMethodType,
@@ -35,11 +37,18 @@ def contract_info(contract_id: int):
     finally:
         db.close()
     
-    # Navigation
+    # Breadcrumb navigation
     with ui.row().classes("max-w-5xl mx-auto mt-4"):
         if contract and contract.vendor:
-            with ui.link(target=f'/vendor-contracts/{contract.vendor_id}').classes('no-underline'):
-                ui.button("Back to Vendor Contracts", icon="arrow_back").props('flat color=primary')
+            breadcrumb([
+                ("Home", get_dashboard_url()),
+                ("Vendors", "/vendors"),
+                (contract.vendor.vendor_name, f"/vendor-info/{contract.vendor_id}"),
+                ("Contracts", f"/vendor-contracts/{contract.vendor_id}"),
+                (contract.contract_id or "Contract", None),
+            ])
+        else:
+            breadcrumb([("Home", get_dashboard_url()), ("Contract Info", None)])
     
     # Basic info
     with ui.card().classes("w-full max-w-5xl mx-auto mt-4 p-6"):

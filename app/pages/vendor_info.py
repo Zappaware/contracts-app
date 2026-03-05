@@ -1,5 +1,7 @@
 from nicegui import ui
 from datetime import datetime, date
+from app.utils.navigation import get_dashboard_url
+from app.components.breadcrumb import breadcrumb
 from app.models.vendor import DocumentType
 
 def vendor_info(vendor_id: int):
@@ -43,10 +45,14 @@ def vendor_info(vendor_id: int):
     finally:
         db.close()
     
-    # Navigation
+    # Breadcrumb navigation
     with ui.row().classes("max-w-3xl mx-auto mt-4"):
-        with ui.link(target='/vendors').classes('no-underline'):
-            ui.button("Back to Vendors List", icon="arrow_back").props('flat color=primary')
+        vendor_name = vendor.vendor_name if vendor else "Vendor"
+        breadcrumb([
+            ("Home", get_dashboard_url()),
+            ("Vendors", "/vendors"),
+            (vendor_name, None),
+        ])
     
     # Basic info
     with ui.card().classes("w-full max-w-3xl mx-auto mt-4 p-6"):

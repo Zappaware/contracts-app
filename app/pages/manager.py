@@ -3,6 +3,7 @@ import asyncio
 import requests
 from nicegui import ui, app, run
 from app.utils.vendor_lookup import get_vendor_id_by_name
+from app.components.breadcrumb import breadcrumb
 from app.core.config import settings
 import re
 
@@ -128,6 +129,10 @@ def manager():
         active_contracts_count = 0
     
     
+    # Breadcrumb navigation
+    with ui.row().classes("max-w-7xl mx-auto mt-4"):
+        breadcrumb([("Home", None)])
+
     # Single container: cards + Contracts Requiring Attention table (same as admin view, table visible on load)
     # Use max-w-7xl (1280px) for wider table - was max-w-6xl (1152px)
     with ui.column().classes("max-w-7xl mx-auto w-full gap-0 min-w-0"):
@@ -137,7 +142,7 @@ def manager():
         ):
             # Card 1: Active Contracts
             with ui.link(target='/active-contracts').classes('no-underline w-full').style('text-decoration: none !important;'):
-                with ui.card().classes("w-full cursor-pointer hover:bg-gray-50 transition-colors shadow-lg").props('flat'):
+                with ui.card().classes("w-full cursor-pointer hover:bg-gray-50 transition-colors shadow-lg rounded-xl border border-gray-200").props('flat'):
                     with ui.row().classes('items-center gap-2'):
                         ui.icon('article', color='primary').style('font-size: 28px')
                         ui.label("Active Contracts").classes("text-lg font-bold")
@@ -146,7 +151,7 @@ def manager():
             
             # Card 2: Pending Documents
             with ui.link(target='/pending-contracts').classes('no-underline w-full').style('text-decoration: none !important;'):
-                with ui.card().classes("w-full cursor-pointer hover:bg-gray-50 transition-colors shadow-lg").props('flat'):
+                with ui.card().classes("w-full cursor-pointer hover:bg-gray-50 transition-colors shadow-lg rounded-xl border border-gray-200").props('flat'):
                     with ui.row().classes('items-center gap-2'):
                         ui.icon('edit', color='primary').style('font-size: 28px')
                         ui.label("Pending Documents").classes("text-lg font-bold")
@@ -155,7 +160,7 @@ def manager():
             
             # Card 3: Contract Updates
             with ui.link(target='/contract-updates').classes('no-underline w-full').style('text-decoration: none !important;'):
-                with ui.card().classes("w-full cursor-pointer hover:bg-gray-50 transition-colors shadow-lg").props('flat'):
+                with ui.card().classes("w-full cursor-pointer hover:bg-gray-50 transition-colors shadow-lg rounded-xl border border-gray-200").props('flat'):
                     with ui.row().classes('items-center gap-2'):
                         ui.icon('update', color='primary').style('font-size: 28px')
                         ui.label("Contract Updates").classes("text-lg font-bold")
@@ -366,7 +371,7 @@ def manager():
     contract_rows = get_contracts_requiring_attention()
     
     # Table section: inside card container to match top cards, visible when manager page loads
-    with ui.card().classes("mt-8 w-full min-w-0 shadow-lg max-w-7xl mx-auto").props('flat'):
+    with ui.card().classes("mt-8 w-full min-w-0 shadow-lg rounded-xl border border-gray-200 max-w-7xl mx-auto").props('flat'):
         # Section header - left-aligned with table
         with ui.row().classes('items-center justify-start mb-4 w-full'):
             with ui.row().classes('items-center gap-2'):

@@ -1,6 +1,8 @@
 from datetime import datetime, date
 from nicegui import ui
 from app.db.database import SessionLocal
+from app.utils.navigation import get_dashboard_url
+from app.components.breadcrumb import breadcrumb
 from app.services.contract_service import ContractService
 from app.models.contract import ContractStatusType, ContractType, DepartmentType
 from sqlalchemy.orm import joinedload
@@ -39,16 +41,20 @@ def vendor_contracts(vendor_id: int):
         db.close()
     
     if not vendor:
+        with ui.row().classes("max-w-6xl mx-auto mt-4"):
+            breadcrumb([("Home", get_dashboard_url()), ("Vendors", "/vendors"), ("Vendor not found", None)])
         with ui.card().classes("w-full max-w-3xl mx-auto mt-4 p-6"):
             ui.label("Vendor not found").classes("text-red-600")
-            with ui.link(target='/vendors').classes('no-underline'):
-                ui.button("Back to Vendors List", icon="arrow_back").props('flat color=primary')
         return
     
-    # Navigation
+    # Breadcrumb navigation
     with ui.row().classes("max-w-6xl mx-auto mt-4"):
-        with ui.link(target=f'/vendor-info/{vendor_id}').classes('no-underline'):
-            ui.button("Back to Vendor Profile", icon="arrow_back").props('flat color=primary')
+        breadcrumb([
+            ("Home", get_dashboard_url()),
+            ("Vendors", "/vendors"),
+            (vendor.vendor_name, f"/vendor-info/{vendor_id}"),
+            ("Contracts", None),
+        ])
     
     # Main container
     with ui.element("div").classes("max-w-6xl mt-8 mx-auto w-full"):

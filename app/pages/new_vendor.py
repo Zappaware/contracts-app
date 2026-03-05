@@ -1,4 +1,4 @@
-from nicegui import ui
+from nicegui import ui, app
 import httpx
 import json
 import os
@@ -8,6 +8,8 @@ from dateutil.relativedelta import relativedelta
 
 from app.core.config import settings
 from app.core.constants import DueDiligenceConstants
+from app.utils.navigation import get_dashboard_url
+from app.components.breadcrumb import breadcrumb
 from app.utils.geo_data import get_country_list, get_us_states, get_country_list_async, get_calling_codes_list
 
 # Import US states from geo_data utility
@@ -18,37 +20,36 @@ EMAIL_REGEX = re.compile(r'^[^@\s]+@[^@\s]+\.[^@\s]+$')
 
 
 def new_vendor():
-            
-    with ui.element("div").classes(
-        "flex flex-col items-center justify-center mt-8 w-full "
-    ):
-        # Removed "New Vendor" button per request
-        # Add vendor details section as a div-based table with 4 columns
-        with ui.element("div").classes("w-full border rounded border-gray-300 max-w-7xl mt-8 p-6 mx-auto flex flex-col min-h-[600px] h-auto bg-white overflow-auto"):
-            # Define style classes as constants to avoid duplication
-            label_classes = "text-white font-[segoe ui] py-2 px-4 h-full flex items-center"
-            input_classes = "w-full font-[segoe ui]"
-            row_classes = "flex w-full"
-            std_row_height = "h-auto"
+    ui.add_css("""
+        .attention-field-col .q-field { flex: 1; min-height: 0; display: flex !important; flex-direction: column; }
+        .attention-field-col .q-field__inner { flex: 1; min-height: 0; display: flex !important; flex-direction: column; }
+        .attention-field-col .q-field__control { flex: 1; min-height: 0; align-items: stretch !important; }
+        .attention-field-col .q-field__control textarea { flex: 1 !important; min-height: 200px !important; height: 100% !important; resize: none; }
+    """)
+    # Form persistence: survives page refresh; cleared only on Cancel
+    fd = app.storage.user.setdefault('new_vendor_form', {})
+    # Breadcrumb navigation
+    with ui.row().classes("max-w-7xl mx-auto mt-4"):
+        breadcrumb([("Home", get_dashboard_url()), ("New Vendor", None)])
 
-            # Cell classes for consistent styling
-            label_cell_classes = "bg-[#144c8e] w-[16.6%] flex items-center"
-            input_cell_classes = "bg-white p-2 w-[33.3%]"
-            
-            # Create a custom table-like layout using divs
-            with ui.element("div").classes("w-full border-collapse flex flex-col"):
+    with ui.element("div").classes("max-w-7xl mx-auto mt-8 w-full px-4"):
+        with ui.card().classes("w-full shadow-lg border border-gray-200 rounded-xl overflow-hidden justify-start items-center bg-[#144c8e]"):
+            with ui.card_section().classes("p-8 bg-white grid gap-x-0 gap-y-5 rounded-xl"):
+                # Form layout: responsive grid, labels above inputs
+                input_classes = "w-full font-[segoe ui]"
+                form_row = "grid grid-cols-1 md:grid-cols-2 gap-6"
+                form_field = "flex flex-col gap-1"
                 
+                ui.label("Vendor Information").classes("text-lg font-semibold text-gray-800 mb-4 mt-2")
                 # Row 1 - AB Customer? & Material Outsourcing Arrangement?
-                with ui.element('div').classes(f"{row_classes} {std_row_height}"):
-                    with ui.element('div').classes(label_cell_classes):
-                        ui.label("AB Customer?").classes(label_classes)
-                    with ui.element('div').classes(input_cell_classes + " flex flex-col min-h-[70px]"):
+                with ui.element('div').classes(form_row):
+                    with ui.column().classes(form_field):
                         ab_options = ["Please select", "Yes", "No"]
                         ab_select = ui.select(
                             options=ab_options,
-                            value="Please select",
+                            value=fd.get('ab_select', "Please select"),
                             label="AB Customer?*"
-                        ).classes("w-full font-[segoe ui]").props("outlined use-input")
+                        ).classes("w-full font-[segoe ui]").props("outlined use-input").bind_value(fd, 'ab_select')
                         ab_error = ui.label('').classes('text-red-600 text-xs mt-1 min-h-[18px]').style('display:none')
 
                         def validate_ab_customer(e=None):
@@ -66,15 +67,13 @@ def new_vendor():
 
                         ab_select.on('blur', validate_ab_customer)
                     
-                    with ui.element('div').classes(label_cell_classes):
-                        ui.label("Material Outsourcing Arrangement?").classes(label_classes)
-                    with ui.element('div').classes(input_cell_classes + " flex flex-col min-h-[70px]"):
+                    with ui.column().classes(form_field):
                         moa_options = ["Please select", "Yes", "No"]
                         moa_select = ui.select(
                             options=moa_options,
-                            value="Please select",
+                            value=fd.get('moa_select', "Please select"),
                             label="Material Outsourcing Arrangement?*"
-                        ).classes("w-full font-[segoe ui]").props("outlined use-input")
+                        ).classes("w-full font-[segoe ui]").props("outlined use-input").bind_value(fd, 'moa_select')
                         moa_error = ui.label('').classes('text-red-600 text-xs mt-1 min-h-[18px]').style('display:none')
 
                         def validate_moa(e=None):
@@ -93,19 +92,17 @@ def new_vendor():
                         moa_select.on('blur', validate_moa)
                 
                 # Row 2 - Bank Customer & CIF
-                with ui.element('div').classes(f"{row_classes} {std_row_height}"):
-                    with ui.element('div').classes(label_cell_classes):
-                        ui.label("Bank Customer").classes(label_classes)
-                    with ui.element('div').classes(input_cell_classes + " flex flex-col min-h-[70px]"):
+                with ui.element('div').classes(form_row):
+                    with ui.column().classes(form_field):
                         bank_options = ["Please select", "Aruba Bank", "Orco Bank", "None"]
                         bank_select = ui.select(
                             options=bank_options,
-                            value="Please select",
+                            value=fd.get('bank_select', "Please select"),
                             label="Bank Customer*"
-                        ).classes("w-full font-[segoe ui]").props("outlined use-input")
+                        ).classes("w-full font-[segoe ui]").props("outlined use-input").bind_value(fd, 'bank_select')
                         bank_error = ui.label('').classes('text-red-600 text-xs mt-1 min-h-[18px]').style('display:none')
 
-                        cif_input = ui.input(label="CIF*", placeholder="Enter CIF...").classes("w-full font-[segoe ui] mt-2").props("outlined maxlength=6")
+                        cif_input = ui.input(label="CIF*", placeholder="Enter CIF...", value=fd.get('cif_input', '')).classes("w-full font-[segoe ui] mt-2").props("outlined maxlength=6").bind_value(fd, 'cif_input')
                         cif_error = ui.label('').classes('text-red-600 text-xs mt-1 min-h-[18px]').style('display:none')
                         cif_input.set_visibility(False)
 
@@ -143,17 +140,18 @@ def new_vendor():
 
                         bank_select.on('blur', validate_bank)
                         cif_input.on('blur', validate_bank)
+                        # Restore CIF visibility from persisted bank selection
+                        if bank_select.value in ["Aruba Bank", "Orco Bank"]:
+                            cif_input.set_visibility(True)
                     
                     # Due Diligence Required field
-                    with ui.element('div').classes(label_cell_classes):
-                        ui.label("Due Diligence Required").classes(label_classes)
-                    with ui.element('div').classes(input_cell_classes + " flex flex-col min-h-[70px]"):
+                    with ui.column().classes(form_field):
                         dd_required_options = ["Please select", "Yes", "No"]
                         dd_required_select = ui.select(
                             options=dd_required_options,
-                            value="Please select",
+                            value=fd.get('dd_required_select', "Please select"),
                             label="Due Diligence Required*"
-                        ).classes("w-full font-[segoe ui]").props("outlined use-input")
+                        ).classes("w-full font-[segoe ui]").props("outlined use-input").bind_value(fd, 'dd_required_select')
                         dd_required_error = ui.label('').classes('text-red-600 text-xs mt-1 min-h-[18px]').style('display:none')
 
                         def validate_dd_required(e=None):
@@ -172,12 +170,9 @@ def new_vendor():
                         dd_required_select.on('blur', validate_dd_required)
 
                 # Row 3 - Name & Contact Person
-                with ui.element('div').classes(f"{row_classes} {std_row_height}"):
-                    with ui.element('div').classes(label_cell_classes):
-                        ui.label("Name").classes(label_classes)
-                    # Vendor Name field with validation (already implemented)
-                    with ui.element('div').classes(input_cell_classes + " flex flex-col justify-center min-h-[70px]"):
-                        vendor_name_input = ui.input(label="Vendor Name*", placeholder="Enter vendor name...").classes("w-full font-[segoe ui]").props("outlined maxlength=60")
+                with ui.element('div').classes(form_row):
+                    with ui.column().classes(form_field):
+                        vendor_name_input = ui.input(label="Vendor Name*", placeholder="Enter vendor name...", value=fd.get('vendor_name_input', '')).classes("w-full font-[segoe ui]").props("outlined maxlength=60").bind_value(fd, 'vendor_name_input')
                         vendor_name_error = ui.label('').classes('text-red-600 text-xs mt-1 min-h-[18px]').style('display:none')
 
                         def validate_vendor_name(e=None):
@@ -194,11 +189,8 @@ def new_vendor():
                                 return True
                         vendor_name_input.on('blur', validate_vendor_name)
 
-                    with ui.element('div').classes(label_cell_classes):
-                        ui.label("Contact Person").classes(label_classes)
-                    # Vendor Contact Person field with validation
-                    with ui.element('div').classes(input_cell_classes + " flex flex-col justify-center min-h-[70px]"):
-                        contact_person_input = ui.input(label="Vendor Contact Person*", placeholder="Enter contact person...").classes("w-full font-[segoe ui]").props("outlined maxlength=60")
+                    with ui.column().classes(form_field):
+                        contact_person_input = ui.input(label="Vendor Contact Person*", placeholder="Enter contact person...", value=fd.get('contact_person_input', '')).classes("w-full font-[segoe ui]").props("outlined maxlength=60").bind_value(fd, 'contact_person_input')
                         contact_person_error = ui.label('').classes('text-red-600 text-xs mt-1 min-h-[18px]').style('display:none')
 
                         def validate_contact_person(e=None):
@@ -276,11 +268,9 @@ def new_vendor():
                     if add_address_button:
                         add_address_button.set_visibility((country_select.value or "") != "Aruba")
 
-                with ui.element('div').classes(f"{row_classes} {std_row_height}"):
-                    with ui.element('div').classes(label_cell_classes):
-                        ui.label("Address 1").classes(label_classes)
-                    with ui.element('div').classes(input_cell_classes + " flex flex-col"):
-                        address1_input = ui.input(label="Address 1*", placeholder="Enter address...").classes(input_classes).props("outlined maxlength=60")
+                with ui.element('div').classes(form_row):
+                    with ui.column().classes(form_field):
+                        address1_input = ui.input(label="Address 1*", placeholder="Enter address...", value=fd.get('address1_input', '')).classes(input_classes).props("outlined maxlength=60").bind_value(fd, 'address1_input')
                         address1_error = ui.label('').classes('text-red-600 text-xs mt-1 min-h-[18px]').style('display:none')
                         def validate_address1(e=None):
                             value = address1_input.value or ''
@@ -295,9 +285,7 @@ def new_vendor():
                                 address1_input.classes(remove='border border-red-600')
                                 return True
                         address1_input.on('blur', validate_address1)
-                    with ui.element('div').classes(label_cell_classes):
-                        ui.label("Additional Address").classes(label_classes)
-                    with ui.element('div').classes(input_cell_classes + " flex flex-col"):
+                    with ui.column().classes(form_field):
                         # Shown only when Country != Aruba and no 2nd block yet
                         add_address_button = ui.button(
                             "Add Address",
@@ -306,11 +294,9 @@ def new_vendor():
                         ).props("outline color=primary").classes("font-[segoe ui] w-full")
 
                 # Row 5 - City & State (with validation)
-                with ui.element('div').classes(f"{row_classes} {std_row_height}") as city_state_row:
-                    with ui.element('div').classes(label_cell_classes):
-                        ui.label("City").classes(label_classes)
-                    with ui.element('div').classes(input_cell_classes + " flex flex-col"):
-                        city_input = ui.input(label="City", placeholder="Enter city...").classes(input_classes).props("outlined maxlength=20")
+                with ui.element('div').classes(form_row) as city_state_row:
+                    with ui.column().classes(form_field):
+                        city_input = ui.input(label="City", placeholder="Enter city...", value=fd.get('city_input', '')).classes(input_classes).props("outlined maxlength=20").bind_value(fd, 'city_input')
                         city_error = ui.label('').classes('text-red-600 text-xs mt-1 min-h-[18px]').style('display:none')
                         def validate_city(e=None):
                             value = city_input.value or ''
@@ -330,13 +316,11 @@ def new_vendor():
                             city_input.classes(remove='border border-red-600')
                             return True
                         city_input.on('blur', validate_city)
-                    with ui.element('div').classes(label_cell_classes):
-                        ui.label("State").classes(label_classes)
-                    with ui.element('div').classes(input_cell_classes + " flex flex-col") as state_container:
+                    with ui.column().classes(form_field) as state_container:
                         # Free-text state input (for non-US countries)
-                        state_input = ui.input(label="State", placeholder="Enter state...").classes(input_classes).props("outlined maxlength=30")
+                        state_input = ui.input(label="State", placeholder="Enter state...", value=fd.get('state_input', '')).classes(input_classes).props("outlined maxlength=30").bind_value(fd, 'state_input')
                         # US states dropdown (shown only when country == United States)
-                        state_select = ui.select(options=US_STATES, label="State").classes(input_classes).props("outlined use-input")
+                        state_select = ui.select(options=US_STATES, label="State", value=fd.get('state_select')).classes(input_classes).props("outlined use-input").bind_value(fd, 'state_select')
                         state_select.set_visibility(False)
                         state_error = ui.label('').classes('text-red-600 text-xs mt-1 min-h-[18px]').style('display:none')
 
@@ -359,11 +343,10 @@ def new_vendor():
                         state_select.on('blur', validate_state)
 
                 # Row 6 - Zip Code & Country (with validation)
-                with ui.element('div').classes(f"{row_classes} {std_row_height}") as zip_country_row:
-                    with ui.element('div').classes(label_cell_classes) as zip_label_cell:
-                        zip_label_text = ui.label("Zip Code").classes(label_classes)
-                    with ui.element('div').classes(input_cell_classes) as zip_input_cell:
-                        zip_input = ui.input(label="Zip Code", placeholder="Enter zip code...").classes(input_classes).props("outlined maxlength=10")
+                with ui.element('div').classes(form_row) as zip_country_row:
+                    with ui.column().classes(form_field) as zip_input_cell:
+                        zip_label_text = ui.label("Zip Code").classes("text-sm font-medium text-gray-700")
+                        zip_input = ui.input(label="Zip Code", placeholder="Enter zip code...", value=fd.get('zip_input', '')).classes(input_classes).props("outlined maxlength=10").bind_value(fd, 'zip_input')
                         zip_error = ui.label('').classes('text-red-600 text-xs mt-1 min-h-[18px]').style('display:none')
                         def validate_zip(e=None):
                             value = zip_input.value or ''
@@ -383,23 +366,21 @@ def new_vendor():
                             zip_input.classes(remove='border border-red-600')
                             return True
                         zip_input.on('blur', validate_zip)
-                    with ui.element('div').classes(label_cell_classes) as country_label_cell:
-                        ui.label("Country").classes(label_classes)
-                    with ui.element('div').classes(input_cell_classes) as country_input_cell:
+                    with ui.column().classes(form_field) as country_input_cell:
                         country_options = get_country_list()
                         country_error = ui.label('').classes('text-red-600 text-sm mb-2').style('display:none')
                         # Use placeholder instead of a real "Please select" value,
                         # so the text disappears as soon as the user starts typing.
                         country_select = ui.select(
                             options=country_options,
-                            value=None,
+                            value=fd.get('country_select'),
                             label="Vendor Country*"
                         ).classes("w-full font-[segoe ui]").props(
                             # use-input: allows typing to filter
                             # clearable: shows an 'x' to clear selection
                             # placeholder: shows 'Please select' when empty
                             'outlined use-input clearable input-debounce=0 placeholder="Please select"'
-                        )
+                        ).bind_value(fd, 'country_select')
 
                         def validate_country(e=None):
                             value = country_select.value
@@ -498,30 +479,25 @@ def new_vendor():
                         country_select.on('update:model-value', on_country_change)
 
                 # === Additional Address Block (Address 2) - hidden by default; max 2 addresses ===
-                with ui.element('div').classes(f"{row_classes} {std_row_height}") as address2_row:
-                    with ui.element('div').classes(label_cell_classes):
-                        ui.label("Address 2").classes(label_classes)
-                    with ui.element('div').classes(input_cell_classes + " flex flex-col"):
+                with ui.element('div').classes(form_row) as address2_row:
+                    with ui.column().classes(form_field):
                         with ui.row().classes("items-center gap-2 w-full"):
                             address2_input = ui.input(
                                 label="Address 2",
                                 placeholder="Enter address...",
-                            ).classes("flex-1 font-[segoe ui]").props("outlined maxlength=60")
+                                value=fd.get('address2_input', ''),
+                            ).classes("flex-1 font-[segoe ui]").props("outlined maxlength=60").bind_value(fd, 'address2_input')
                             ui.button(
                                 icon="delete",
                                 on_click=remove_second_address,
                             ).props("flat round color=negative").classes("mt-2")
                         address2_error = ui.label('').classes('text-red-600 text-xs mt-1 min-h-[18px]').style('display:none')
-                    with ui.element('div').classes(label_cell_classes):
-                        ui.label("").classes(label_classes)
-                    with ui.element('div').classes(input_cell_classes):
+                    with ui.column().classes(form_field):
                         ui.label("")
 
-                with ui.element('div').classes(f"{row_classes} {std_row_height}") as city_state2_row:
-                    with ui.element('div').classes(label_cell_classes):
-                        ui.label("City").classes(label_classes)
-                    with ui.element('div').classes(input_cell_classes + " flex flex-col"):
-                        city2_input = ui.input(label="City", placeholder="Enter city...").classes(input_classes).props("outlined maxlength=20")
+                with ui.element('div').classes(form_row) as city_state2_row:
+                    with ui.column().classes(form_field):
+                        city2_input = ui.input(label="City", placeholder="Enter city...", value=fd.get('city2_input', '')).classes(input_classes).props("outlined maxlength=20").bind_value(fd, 'city2_input')
                         city2_error = ui.label('').classes('text-red-600 text-xs mt-1 min-h-[18px]').style('display:none')
 
                         def validate_city2(e=None):
@@ -543,11 +519,9 @@ def new_vendor():
 
                         city2_input.on('blur', validate_city2)
 
-                    with ui.element('div').classes(label_cell_classes):
-                        ui.label("State").classes(label_classes)
-                    with ui.element('div').classes(input_cell_classes + " flex flex-col"):
-                        state2_input = ui.input(label="State", placeholder="Enter state...").classes(input_classes).props("outlined maxlength=30")
-                        state2_select = ui.select(options=US_STATES, label="State").classes(input_classes).props("outlined use-input")
+                    with ui.column().classes(form_field):
+                        state2_input = ui.input(label="State", placeholder="Enter state...", value=fd.get('state2_input', '')).classes(input_classes).props("outlined maxlength=30").bind_value(fd, 'state2_input')
+                        state2_select = ui.select(options=US_STATES, label="State", value=fd.get('state2_select')).classes(input_classes).props("outlined use-input").bind_value(fd, 'state2_select')
                         state2_select.set_visibility(False)
                         state2_error = ui.label('').classes('text-red-600 text-xs mt-1 min-h-[18px]').style('display:none')
 
@@ -562,11 +536,9 @@ def new_vendor():
                         state2_input.on('blur', validate_state2)
                         state2_select.on('blur', validate_state2)
 
-                with ui.element('div').classes(f"{row_classes} {std_row_height}") as zip2_row:
-                    with ui.element('div').classes(label_cell_classes):
-                        ui.label("Zip Code").classes(label_classes)
-                    with ui.element('div').classes(input_cell_classes + " flex flex-col"):
-                        zip2_input = ui.input(label="Zip Code", placeholder="Enter zip code...").classes(input_classes).props("outlined maxlength=10")
+                with ui.element('div').classes(form_row) as zip2_row:
+                    with ui.column().classes(form_field):
+                        zip2_input = ui.input(label="Zip Code", placeholder="Enter zip code...", value=fd.get('zip2_input', '')).classes(input_classes).props("outlined maxlength=10").bind_value(fd, 'zip2_input')
                         zip2_error = ui.label('').classes('text-red-600 text-xs mt-1 min-h-[18px]').style('display:none')
 
                         def validate_zip2(e=None):
@@ -588,9 +560,7 @@ def new_vendor():
 
                         zip2_input.on('blur', validate_zip2)
 
-                    with ui.element('div').classes(label_cell_classes):
-                        ui.label("").classes(label_classes)
-                    with ui.element('div').classes(input_cell_classes):
+                    with ui.column().classes(form_field):
                         ui.label("")
 
                 def validate_address2(e=None):
@@ -632,18 +602,25 @@ def new_vendor():
                     address2_input.classes(remove='border border-red-600')
                     return validate_city2() and validate_state2() and validate_zip2()
 
-                # Start hidden until user clicks Add Address
-                address2_row.set_visibility(False)
-                city_state2_row.set_visibility(False)
-                zip2_row.set_visibility(False)
+                # Start hidden until user clicks Add Address (or restore from persistence)
+                address2_has_data = any(fd.get(k) for k in ('address2_input', 'city2_input', 'state2_input', 'state2_select', 'zip2_input'))
+                if address2_has_data and (country_select.value or "") != "Aruba":
+                    address2_row.set_visibility(True)
+                    city_state2_row.set_visibility(True)
+                    zip2_row.set_visibility(True)
+                    if add_address_button:
+                        add_address_button.set_visibility(False)
+                else:
+                    address2_row.set_visibility(False)
+                    city_state2_row.set_visibility(False)
+                    zip2_row.set_visibility(False)
+                # Restore country-dependent UI (city/state/zip, state dropdown) from persisted country
+                on_country_change()
                 
                 # Row 7 - Vendor Phone Numbers & Email
-                with ui.element('div').classes(f"{row_classes} {std_row_height}"):
-                    with ui.element('div').classes(label_cell_classes):
-                        ui.label("Vendor Phone Number").classes(label_classes)
-                    
+                with ui.element('div').classes(form_row):
                     # Vendor phone numbers (primary mandatory + optional secondary)
-                    with ui.element('div').classes(input_cell_classes + " flex flex-col"):
+                    with ui.column().classes(form_field):
                         phone_number_inputs = []
                         phone_area_selects = []
                         phone_area_code_errors = []  # Error labels for area codes
@@ -659,9 +636,9 @@ def new_vendor():
                             # Area code dropdown
                             phone_area_code_select = ui.select(
                                 options=calling_codes_options,
-                                value=None,
+                                value=fd.get('phone_area_code_select'),
                                 label="Vendor Phone Area Code*"
-                            ).classes("flex-1 " + input_classes).props("outlined use-input")
+                            ).classes("flex-1 " + input_classes).props("outlined use-input").bind_value(fd, 'phone_area_code_select')
                             phone_area_code_error = ui.label('').classes(
                                 'text-red-600 text-xs mt-1 min-h-[18px]'
                             ).style('display:none')
@@ -670,7 +647,8 @@ def new_vendor():
                             primary_phone_input = ui.input(
                                 label="Vendor Phone Number*",
                                 placeholder="Enter phone number...",
-                            ).props("type=tel outlined maxlength=20").classes("flex-1 " + input_classes)
+                                value=fd.get('primary_phone_input', ''),
+                            ).props("type=tel outlined maxlength=20").classes("flex-1 " + input_classes).bind_value(fd, 'primary_phone_input')
                             primary_phone_error = ui.label('').classes(
                                 'text-red-600 text-xs mt-1 min-h-[18px]'
                             ).style('display:none')
@@ -826,11 +804,8 @@ def new_vendor():
                                     all_valid = False
                             return all_valid
 
-                    with ui.element('div').classes(label_cell_classes):
-                        ui.label("Vendor Email Address").classes(label_classes)
-
                     # Vendor email addresses (primary + optional secondary)
-                    with ui.element('div').classes(input_cell_classes + " flex flex-col") as email_container:
+                    with ui.column().classes(form_field) as email_container:
                         email_inputs = []
                         email_error_labels = []
 
@@ -838,7 +813,8 @@ def new_vendor():
                         primary_email_input = ui.input(
                             label="Vendor Email Address*",
                             placeholder="Enter email...",
-                        ).props("type=email outlined maxlength=60").classes(input_classes)
+                            value=fd.get('primary_email_input', ''),
+                        ).props("type=email outlined maxlength=60").classes(input_classes).bind_value(fd, 'primary_email_input')
                         primary_email_error = ui.label('').classes(
                             'text-red-600 text-xs mt-1 min-h-[18px]'
                         ).style('display:none')
@@ -1016,11 +992,9 @@ def new_vendor():
 
                 with last_dd_section:
                     # Row 8 - Last Due Diligence Date (MM/DD/YY) & Next Required Due Diligence Date (AC: date, calculated, editable)
-                    with ui.element('div').classes(f"{row_classes} {std_row_height}"):
-                        with ui.element('div').classes(label_cell_classes):
-                            ui.label("Last Due Diligence Date").classes(label_classes)
-                        with ui.element('div').classes(input_cell_classes):
-                            with ui.input('MM/DD/YY', value='').classes(input_classes).props("outlined") as due_diligence_date:
+                    with ui.element('div').classes(form_row):
+                        with ui.column().classes(form_field):
+                            with ui.input('MM/DD/YY', value=fd.get('due_diligence_date', '')).classes(input_classes).props("outlined").bind_value(fd, 'due_diligence_date') as due_diligence_date:
                                 due_diligence_error = ui.label('').classes('text-red-600 text-xs mt-1 min-h-[18px]').style('display:none')
                                 with ui.menu().props('no-parent-event') as due_diligence_menu:
                                     with ui.date(value=None).props('mask=MM/DD/YY').bind_value(due_diligence_date,
@@ -1042,10 +1016,8 @@ def new_vendor():
                                 due_diligence_date.classes(remove='border border-red-600')
                                 return True
                             due_diligence_date.on('blur', validate_due_diligence)
-                        with ui.element('div').classes(label_cell_classes):
-                            ui.label("Next Required Due Diligence Date").classes(label_classes)
-                        with ui.element('div').classes(input_cell_classes + " flex flex-col"):
-                            with ui.input('MM/DD/YY', value='').classes(input_classes).props("outlined") as next_required_dd_date:
+                        with ui.column().classes(form_field):
+                            with ui.input('MM/DD/YY', value=fd.get('next_required_dd_date', '')).classes(input_classes).props("outlined").bind_value(fd, 'next_required_dd_date') as next_required_dd_date:
                                 next_required_dd_date_error = ui.label('').classes('text-red-600 text-xs mt-1 min-h-[18px]').style('display:none')
                                 with ui.menu().props('no-parent-event') as next_required_dd_menu:
                                     with ui.date(value=None).props('mask=MM/DD/YY').bind_value(next_required_dd_date,
@@ -1074,11 +1046,9 @@ def new_vendor():
                             next_required_dd_date.value = calculated
 
                     # Row 9 - Next Due Diligence Alert & Frequency (in days)
-                    with ui.element('div').classes(f"{row_classes} {std_row_height}"):
-                        with ui.element('div').classes(label_cell_classes):
-                            ui.label("Next Required Due Diligence Alert").classes(label_classes)
-                        with ui.element('div').classes(input_cell_classes):
-                            next_alert_input = ui.input(label="Days*", value="15").props("type=number outlined maxlength=4").classes(input_classes)
+                    with ui.element('div').classes(form_row):
+                        with ui.column().classes(form_field):
+                            next_alert_input = ui.input(label="Days*", value=fd.get('next_alert_input', '15')).props("type=number outlined maxlength=4").classes(input_classes).bind_value(fd, 'next_alert_input')
                             next_alert_error = ui.label('').classes('text-red-600 text-xs mt-1 min-h-[18px]').style('display:none')
                             def validate_next_alert(e=None):
                                 value = next_alert_input.value or ''
@@ -1093,11 +1063,9 @@ def new_vendor():
                                     next_alert_input.classes(remove='border border-red-600')
                                     return True
                             next_alert_input.on('blur', validate_next_alert)
-                        with ui.element('div').classes(label_cell_classes):
-                            ui.label("Next Required Due Diligence Alert Frequency").classes(label_classes)
-                        with ui.element('div').classes(input_cell_classes + " flex flex-col"):
+                        with ui.column().classes(form_field):
                             freq_options = ["15 days", "30 days", "60 days", "90 days", "120 days"]
-                            freq_input = ui.select(options=freq_options, value="90 days", label="Next Required Due Diligence Alert Frequency*").classes(input_classes).props("outlined")
+                            freq_input = ui.select(options=freq_options, value=fd.get('freq_input', "90 days"), label="Next Required Due Diligence Alert Frequency*").classes(input_classes).props("outlined").bind_value(fd, 'freq_input')
                             freq_error = ui.label('').classes('text-red-600 text-xs mt-1 min-h-[18px]').style('display:none')
                             def validate_freq(e=None):
                                 value = freq_input.value or ''
@@ -1120,14 +1088,12 @@ def new_vendor():
                 toggle_last_dd_section()  # set initial visibility from current value
 
                 # Row 10 - Due Diligence Upload & Non-Disclosure Agreement Upload
-                with ui.element('div').classes(f"{row_classes} min-h-[200px]"):
+                with ui.element('div').classes(form_row):
                     # Due Diligence
-                    with ui.element('div').classes(label_cell_classes):
-                        ui.label("Due Diligence").classes(label_classes)
-                    with ui.element('div').classes(input_cell_classes + " flex flex-col"):
+                    with ui.column().classes(form_field):
                         due_diligence_file = {'file': None}
-                        due_diligence_name = ui.input(label="Due Diligence Name*", placeholder="Document name...").classes("w-full font-[segoe ui] mt-2").props("outlined maxlength=100")
-                        due_diligence_signed_date = ui.input('Signed Date*', value='').classes("w-full font-[segoe ui] mt-2").props("outlined")
+                        due_diligence_name = ui.input(label="Due Diligence Name*", placeholder="Document name...", value=fd.get('due_diligence_name', '')).classes("w-full font-[segoe ui] mt-2").props("outlined maxlength=100").bind_value(fd, 'due_diligence_name')
+                        due_diligence_signed_date = ui.input('Signed Date*', value=fd.get('due_diligence_signed_date', '')).classes("w-full font-[segoe ui] mt-2").props("outlined").bind_value(fd, 'due_diligence_signed_date')
                         with ui.menu().props('no-parent-event') as dd_signed_menu:
                             with ui.date().props('mask=YYYY-MM-DD').bind_value(due_diligence_signed_date, forward=lambda d: d, backward=lambda d: d):
                                 with ui.row().classes('justify-end'):
@@ -1145,12 +1111,10 @@ def new_vendor():
                         due_diligence_upload = ui.upload(on_upload=handle_due_diligence_upload, auto_upload=True, multiple=False, label="Upload due diligence (PDF)").props('accept=.pdf color=primary outlined').classes("w-full mt-2")
 
                     # NDA
-                    with ui.element('div').classes(label_cell_classes):
-                        ui.label("Non-Disclosure Agreement").classes(label_classes)
-                    with ui.element('div').classes(input_cell_classes + " flex flex-col"):
+                    with ui.column().classes(form_field):
                         nda_file = {'file': None}
-                        nda_name = ui.input(label="NDA Name*", placeholder="Document name...").classes("w-full font-[segoe ui] mt-2").props("outlined maxlength=100")
-                        nda_signed_date = ui.input('Signed Date*', value='').classes("w-full font-[segoe ui] mt-2").props("outlined")
+                        nda_name = ui.input(label="NDA Name*", placeholder="Document name...", value=fd.get('nda_name', '')).classes("w-full font-[segoe ui] mt-2").props("outlined maxlength=100").bind_value(fd, 'nda_name')
+                        nda_signed_date = ui.input('Signed Date*', value=fd.get('nda_signed_date', '')).classes("w-full font-[segoe ui] mt-2").props("outlined").bind_value(fd, 'nda_signed_date')
                         with ui.menu().props('no-parent-event') as nda_signed_menu:
                             with ui.date().props('mask=YYYY-MM-DD').bind_value(nda_signed_date, forward=lambda d: d, backward=lambda d: d):
                                 with ui.row().classes('justify-end'):
@@ -1168,14 +1132,12 @@ def new_vendor():
                         nda_upload = ui.upload(on_upload=handle_nda_upload, auto_upload=True, multiple=False, label="Upload NDA (PDF)").props('accept=.pdf color=primary outlined').classes("w-full mt-2")
 
                 # Row 11 - Integrity Policy Upload & Risk Assessment Form Upload
-                with ui.element('div').classes(f"{row_classes} min-h-[200px]"):
+                with ui.element('div').classes(form_row):
                     # Integrity Policy
-                    with ui.element('div').classes(label_cell_classes):
-                        ui.label("Integrity Policy").classes(label_classes)
-                    with ui.element('div').classes(input_cell_classes + " flex flex-col"):
+                    with ui.column().classes(form_field):
                         integrity_policy_file = {'file': None}
-                        integrity_policy_name = ui.input(label="Integrity Policy Name*", placeholder="Document name...").classes("w-full font-[segoe ui] mt-2").props("outlined maxlength=100")
-                        integrity_policy_signed_date = ui.input('Signed Date*', value='').classes("w-full font-[segoe ui] mt-2").props("outlined")
+                        integrity_policy_name = ui.input(label="Integrity Policy Name*", placeholder="Document name...", value=fd.get('integrity_policy_name', '')).classes("w-full font-[segoe ui] mt-2").props("outlined maxlength=100").bind_value(fd, 'integrity_policy_name')
+                        integrity_policy_signed_date = ui.input('Signed Date*', value=fd.get('integrity_policy_signed_date', '')).classes("w-full font-[segoe ui] mt-2").props("outlined").bind_value(fd, 'integrity_policy_signed_date')
                         with ui.menu().props('no-parent-event') as ip_signed_menu:
                             with ui.date().props('mask=YYYY-MM-DD').bind_value(integrity_policy_signed_date, forward=lambda d: d, backward=lambda d: d):
                                 with ui.row().classes('justify-end'):
@@ -1190,12 +1152,10 @@ def new_vendor():
                         integrity_policy_upload = ui.upload(on_upload=handle_integrity_policy_upload, auto_upload=True, multiple=False, label="Upload policy (PDF)").props('accept=.pdf color=primary outlined').classes("w-full mt-2")
 
                     # Risk Assessment
-                    with ui.element('div').classes(label_cell_classes):
-                        ui.label("Risk Assessment Form").classes(label_classes)
-                    with ui.element('div').classes(input_cell_classes + " flex flex-col"):
+                    with ui.column().classes(form_field):
                         risk_assessment_file = {'file': None}
-                        risk_assessment_name = ui.input(label="Risk Assessment Name*", placeholder="Document name...").classes("w-full font-[segoe ui] mt-2").props("outlined maxlength=100")
-                        risk_assessment_signed_date = ui.input('Signed Date*', value='').classes("w-full font-[segoe ui] mt-2").props("outlined")
+                        risk_assessment_name = ui.input(label="Risk Assessment Name*", placeholder="Document name...", value=fd.get('risk_assessment_name', '')).classes("w-full font-[segoe ui] mt-2").props("outlined maxlength=100").bind_value(fd, 'risk_assessment_name')
+                        risk_assessment_signed_date = ui.input('Signed Date*', value=fd.get('risk_assessment_signed_date', '')).classes("w-full font-[segoe ui] mt-2").props("outlined").bind_value(fd, 'risk_assessment_signed_date')
                         with ui.menu().props('no-parent-event') as ra_signed_menu:
                             with ui.date().props('mask=YYYY-MM-DD').bind_value(risk_assessment_signed_date, forward=lambda d: d, backward=lambda d: d):
                                 with ui.row().classes('justify-end'):
@@ -1213,13 +1173,11 @@ def new_vendor():
                         risk_assessment_upload = ui.upload(on_upload=handle_risk_assessment_upload, auto_upload=True, multiple=False, label="Upload form (PDF)").props('accept=.pdf color=primary outlined').classes("w-full mt-2")
 
                 # Row 11b - Business Continuity Plan & Disaster Recovery Plan (Risk Assessment section, optional)
-                with ui.element('div').classes(f"{row_classes} min-h-[200px]"):
-                    with ui.element('div').classes(label_cell_classes):
-                        ui.label("Business Continuity Plan").classes(label_classes)
-                    with ui.element('div').classes(input_cell_classes + " flex flex-col"):
+                with ui.element('div').classes(form_row):
+                    with ui.column().classes(form_field):
                         business_continuity_file = {'file': None}
-                        business_continuity_name = ui.input(label="Business Continuity Name", placeholder="Document name...").classes("w-full font-[segoe ui] mt-2").props("outlined maxlength=100")
-                        business_continuity_signed_date = ui.input('Signed Date', value='').classes("w-full font-[segoe ui] mt-2").props("outlined")
+                        business_continuity_name = ui.input(label="Business Continuity Name", placeholder="Document name...", value=fd.get('business_continuity_name', '')).classes("w-full font-[segoe ui] mt-2").props("outlined maxlength=100").bind_value(fd, 'business_continuity_name')
+                        business_continuity_signed_date = ui.input('Signed Date', value=fd.get('business_continuity_signed_date', '')).classes("w-full font-[segoe ui] mt-2").props("outlined").bind_value(fd, 'business_continuity_signed_date')
                         with ui.menu().props('no-parent-event') as bc_signed_menu:
                             with ui.date().props('mask=YYYY-MM-DD').bind_value(business_continuity_signed_date, forward=lambda d: d, backward=lambda d: d):
                                 with ui.row().classes('justify-end'):
@@ -1233,12 +1191,10 @@ def new_vendor():
                                 ui.notify(f'Business Continuity Plan document uploaded: {e.file.name}', type='positive')
                         business_continuity_upload = ui.upload(on_upload=handle_business_continuity_upload, auto_upload=True, multiple=False, label="Upload (PDF, optional)").props('accept=.pdf color=primary outlined').classes("w-full mt-2")
 
-                    with ui.element('div').classes(label_cell_classes):
-                        ui.label("Disaster Recovery Plan").classes(label_classes)
-                    with ui.element('div').classes(input_cell_classes + " flex flex-col"):
+                    with ui.column().classes(form_field):
                         disaster_recovery_file = {'file': None}
-                        disaster_recovery_name = ui.input(label="Disaster Recovery Name", placeholder="Document name...").classes("w-full font-[segoe ui] mt-2").props("outlined maxlength=100")
-                        disaster_recovery_signed_date = ui.input('Signed Date', value='').classes("w-full font-[segoe ui] mt-2").props("outlined")
+                        disaster_recovery_name = ui.input(label="Disaster Recovery Name", placeholder="Document name...", value=fd.get('disaster_recovery_name', '')).classes("w-full font-[segoe ui] mt-2").props("outlined maxlength=100").bind_value(fd, 'disaster_recovery_name')
+                        disaster_recovery_signed_date = ui.input('Signed Date', value=fd.get('disaster_recovery_signed_date', '')).classes("w-full font-[segoe ui] mt-2").props("outlined").bind_value(fd, 'disaster_recovery_signed_date')
                         with ui.menu().props('no-parent-event') as dr_signed_menu:
                             with ui.date().props('mask=YYYY-MM-DD').bind_value(disaster_recovery_signed_date, forward=lambda d: d, backward=lambda d: d):
                                 with ui.row().classes('justify-end'):
@@ -1253,13 +1209,11 @@ def new_vendor():
                         disaster_recovery_upload = ui.upload(on_upload=handle_disaster_recovery_upload, auto_upload=True, multiple=False, label="Upload (PDF, optional)").props('accept=.pdf color=primary outlined').classes("w-full mt-2")
 
                 # Row 11c - Insurance Policy (Risk Assessment section, optional)
-                with ui.element('div').classes(f"{row_classes} min-h-[200px]"):
-                    with ui.element('div').classes(label_cell_classes):
-                        ui.label("Insurance Policy").classes(label_classes)
-                    with ui.element('div').classes(input_cell_classes + " flex flex-col"):
+                with ui.element('div').classes(form_row + " min-h-[256px]"):
+                    with ui.column().classes(form_field):
                         insurance_policy_file = {'file': None}
-                        insurance_policy_name = ui.input(label="Insurance Policy Name", placeholder="Document name...").classes("w-full font-[segoe ui] mt-2").props("outlined maxlength=100")
-                        insurance_policy_signed_date = ui.input('Signed Date', value='').classes("w-full font-[segoe ui] mt-2").props("outlined")
+                        insurance_policy_name = ui.input(label="Insurance Policy Name", placeholder="Document name...", value=fd.get('insurance_policy_name', '')).classes("w-full font-[segoe ui] mt-2").props("outlined maxlength=100").bind_value(fd, 'insurance_policy_name')
+                        insurance_policy_signed_date = ui.input('Signed Date', value=fd.get('insurance_policy_signed_date', '')).classes("w-full font-[segoe ui] mt-2").props("outlined").bind_value(fd, 'insurance_policy_signed_date')
                         with ui.menu().props('no-parent-event') as ins_signed_menu:
                             with ui.date().props('mask=YYYY-MM-DD').bind_value(insurance_policy_signed_date, forward=lambda d: d, backward=lambda d: d):
                                 with ui.row().classes('justify-end'):
@@ -1272,17 +1226,9 @@ def new_vendor():
                                 insurance_policy_file['file'] = file_content
                                 ui.notify(f'Insurance Policy document uploaded: {e.file.name}', type='positive')
                         insurance_policy_upload = ui.upload(on_upload=handle_insurance_policy_upload, auto_upload=True, multiple=False, label="Upload (PDF, optional)").props('accept=.pdf color=primary outlined').classes("w-full mt-2")
-                    with ui.element('div').classes(label_cell_classes):
-                        ui.label("").classes(label_classes)
-                    with ui.element('div').classes(input_cell_classes):
-                        ui.label("").classes(input_classes)
-                
-                # Row 12 - Attention (standard size row for description)
-                with ui.element('div').classes(f"{row_classes} h-24"):
-                    with ui.element('div').classes(label_cell_classes):
-                        ui.label("Attention").classes(label_classes)
-                    with ui.element('div').classes(f"{input_cell_classes} mt-4"):
-                        attention_input = ui.textarea(label="Attention*").classes("w-full font-[segoe ui] h-20").props("outlined maxlength=200")
+                    with ui.column().classes(form_field + " flex-1 min-h-0 attention-field-col"):
+                        with ui.element("div").classes("flex-1 min-h-0 flex flex-col h-full w-full"):
+                            attention_input = ui.textarea(label="Attention*", value=fd.get('attention_input', '')).classes("w-full font-[segoe ui] h-full").props("outlined maxlength=200").bind_value(fd, 'attention_input')
                         attention_error = ui.label('').classes('text-red-600 text-xs mt-1 min-h-[18px]').style('display:none')
                         def validate_attention(e=None):
                             value = attention_input.value or ''
@@ -1297,21 +1243,12 @@ def new_vendor():
                                 attention_input.classes(remove='border border-red-600')
                                 return True
                         attention_input.on('blur', validate_attention)
-                    with ui.element('div').classes(label_cell_classes):
-                        ui.label("").classes(label_classes)
-                    with ui.element('div').classes(input_cell_classes):
-                        ui.label("").classes(input_classes)
                 
                 # Row 13 - Submit and Cancel buttons inside the table
-                with ui.element('div').classes("flex w-full h-16"):
-                    with ui.element('div').classes("bg-[#144c8e] w-[16.6%] flex items-center"):
-                        ui.label("").classes("text-white font-[segoe ui] py-2 px-4 h-full flex items-center")
-                    with ui.element('div').classes("bg-white p-2 w-[33.3%]"):
-                        ui.label("").classes("w-full font-[segoe ui]")
-                    with ui.element('div').classes("bg-[#144c8e] w-[16.6%] flex items-center"):
-                        ui.label("").classes("text-white font-[segoe ui] py-2 px-4 h-full flex items-center")
-                    with ui.element('div').classes("bg-white p-2 w-[33.3%] flex justify-end gap-4"):
+                with ui.element('div').classes("flex w-full h-16 justify-center"):
+                    with ui.element('div').classes("bg-white p-2 w-[33.3%] flex justify-center gap-4"):
                         def clear_form():
+                            fd.clear()  # Clear persisted form data
                             ab_select.value = "Please select"
                             moa_select.value = "Please select"
                             bank_select.value = "Please select"

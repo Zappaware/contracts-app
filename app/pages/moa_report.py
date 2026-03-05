@@ -1,6 +1,8 @@
 from datetime import datetime, timedelta, date
 from nicegui import ui
 from app.db.database import SessionLocal
+from app.utils.navigation import get_dashboard_url
+from app.components.breadcrumb import breadcrumb
 from app.services.contract_service import ContractService
 from app.models.contract import ContractStatusType
 from app.models.vendor import MaterialOutsourcingType, DocumentType
@@ -14,10 +16,9 @@ except ImportError:
 
 
 def moa_report():
-    # Navigation
+    # Breadcrumb navigation
     with ui.row().classes("max-w-6xl mx-auto mt-4"):
-        with ui.link(target='/').classes('no-underline'):
-            ui.button("Back to Dashboard", icon="arrow_back").props('flat color=primary')
+        breadcrumb([("Home", get_dashboard_url()), ("Material Outsourcing Agreement Report", None)])
     
     # Global variables for table and data
     contracts_table = None

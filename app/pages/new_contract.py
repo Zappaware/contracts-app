@@ -1,11 +1,22 @@
-from nicegui import ui
+from nicegui import ui, app
 import httpx
+from app.utils.navigation import get_dashboard_url
+from app.components.breadcrumb import breadcrumb
 import json
 import os
 from app.core.config import settings
 
 
 def new_contract():
+    ui.add_css("""
+        .desc-field-col .q-field__control { height: 200px; }
+    """)
+    # Form persistence: survives page refresh; cleared only on Cancel
+    fd = app.storage.user.setdefault('new_contract_form', {})
+    # Breadcrumb navigation
+    with ui.row().classes("max-w-7xl mx-auto mt-4"):
+        breadcrumb([("Home", get_dashboard_url()), ("New Contract", None)])
+
     # Fetch vendors from database for vendor selection
     from app.db.database import SessionLocal
     from app.services.vendor_service import VendorService
@@ -52,70 +63,64 @@ def new_contract():
     vendor_contract_rename_input = None
     vendor_contract_date_input = None
     
-    with ui.element("div").classes(
-        "flex flex-col items-center justify-center mt-8 w-full"
-    ).props(f'id="c213"'):
-        # Use real vendors from database
-        vendor_select = ui.select(
-            options=vendor_names, 
-            value=vendor_names[0] if vendor_names else None, 
-            label="Select vendor*"
-        ).classes("w-64 mt-8 font-[segoe ui]").props("outlined")
-        vendor_error = ui.label('').classes('text-red-600 text-xs mt-1 min-h-[18px]').style('display:none')
-        def validate_vendor(e=None):
-            value = vendor_select.value or ''
-            if not value.strip():
-                vendor_error.text = "Please select a vendor."
-                vendor_error.style('display:block')
-                vendor_select.classes('border border-red-600')
-                return False
-            else:
-                vendor_error.text = ''
-                vendor_error.style('display:none')
-                vendor_select.classes(remove='border border-red-600')
-                return True
-        vendor_select.on('blur', validate_vendor)
+    with ui.element("div").classes("max-w-7xl mx-auto mt-8 w-full px-4").props(f'id="c213"'):
+        with ui.card().classes("w-full shadow-lg border border-gray-200 rounded-xl overflow-hidden justify-start items-center bg-[#144C8E] flex-row flex-wrap"):
+            with ui.card_section().classes("p-8 bg-white rounded-xl mx-auto grid gap-8"):
+                ui.label("Contract Details").classes("text-lg font-semibold text-gray-800 mb-4")
+                # Use real vendors from database
+                with ui.column().classes("gap-6 w-[600px] mx-auto items-center"):
+                    _vendor_val = fd.get('vendor_select')
+                    if _vendor_val not in vendor_names:
+                        _vendor_val = vendor_names[0] if vendor_names else None
+                    vendor_select = ui.select(
+                        options=vendor_names, 
+                        value=_vendor_val, 
+                        label="Select vendor*"
+                    ).classes("w-full font-[segoe ui]").props("outlined").bind_value(fd, 'vendor_select')
+                    vendor_error = ui.label('').classes('text-red-600 text-xs mt-1 min-h-[18px]').style('display:none')
+                    def validate_vendor(e=None):
+                        value = vendor_select.value or ''
+                        if not value.strip():
+                            vendor_error.text = "Please select a vendor."
+                            vendor_error.style('display:block')
+                            vendor_select.classes('border border-red-600')
+                            return False
+                        else:
+                            vendor_error.text = ''
+                            vendor_error.style('display:none')
+                            vendor_select.classes(remove='border border-red-600')
+                            return True
+                    vendor_select.on('blur', validate_vendor)
 
-        desc_input = ui.input(label="Contract description or purpose*").classes(
-            "w-1/2 mt-4 font-[segoe ui]"
-        ).props("outlined maxlength=100")
-        desc_error = ui.label('').classes('text-red-600 text-xs mt-1 min-h-[18px]').style('display:none')
-        def validate_desc(e=None):
-            value = desc_input.value or ''
-            if not value.strip():
-                desc_error.text = "Please enter a contract description."
-                desc_error.style('display:block')
-                desc_input.classes('border border-red-600')
-                return False
-            else:
-                desc_error.text = ''
-                desc_error.style('display:none')
-                desc_input.classes(remove='border border-red-600')
-                return True
-        desc_input.on('blur', validate_desc)
+                    with ui.element('div').classes('w-full desc-field-col'):
+                        desc_input = ui.input(label="Contract description or purpose*", value=fd.get('desc_input', '')).classes(
+                            "w-full font-[segoe ui]"
+                        ).props("outlined maxlength=100").bind_value(fd, 'desc_input')
+                        desc_error = ui.label('').classes('text-red-600 text-xs mt-1 min-h-[18px]').style('display:none')
+                        def validate_desc(e=None):
+                            value = desc_input.value or ''
+                            if not value.strip():
+                                desc_error.text = "Please enter a contract description."
+                                desc_error.style('display:block')
+                                desc_input.classes('border border-red-600')
+                                return False
+                            else:
+                                desc_error.text = ''
+                                desc_error.style('display:none')
+                                desc_input.classes(remove='border border-red-600')
+                                return True
+                        desc_input.on('blur', validate_desc)
         
-        # Add contract details section as a div-based table with 4 columns
-        with ui.element("div").classes("w-full border rounded border-gray-300 max-w-7xl mt-8 p-6 mx-auto").props(f'id="c203"'):
-            # Define style classes as constants to avoid duplication
-            label_classes = "text-white font-[segoe ui] py-2 px-4 h-full flex items-center"
-            input_classes = "w-full font-[segoe ui]"
-            row_classes = "flex w-full"
-            std_row_height = "h-auto"
-
-            # Cell classes for consistent styling
-            label_cell_classes = "bg-[#144c8e] w-[16.6%] flex items-center"
-            input_cell_classes = "bg-white p-2 w-[33.3%]"
-            
-            # Create a custom table-like layout using divs
-            with ui.element("div").classes("w-full border-collapse flex flex-col").props(f'id="c204"'):
+                input_classes = "w-full font-[segoe ui]"
+                form_row = "grid grid-cols-1 md:grid-cols-2 gap-8 items-stretch"
+                form_field = "flex flex-col gap-1"
                 
+                ui.label("Contract Terms").classes("text-lg font-semibold text-gray-800 mb-4 mt-8")
                 # Row 1 - Termination Notice & Contract Expiration Date
-                with ui.element('div').classes(f"{row_classes} {std_row_height}"):
-                    with ui.element('div').classes(label_cell_classes):
-                        ui.label("Termination Notice").classes(label_classes)
-                    with ui.element('div').classes(input_cell_classes + " flex flex-col"):
+                with ui.element('div').classes(form_row):
+                    with ui.column().classes(form_field):
                         termination_options = ["15", "30", "60", "90", "120"]
-                        termination_input = ui.select(options=termination_options, value="30", label="Days*").classes(input_classes).props("outlined")
+                        termination_input = ui.select(options=termination_options, value=fd.get('termination_input', "30"), label="Days*").classes(input_classes).props("outlined").bind_value(fd, 'termination_input')
                         termination_error = ui.label('').classes('text-red-600 text-xs mt-1 min-h-[18px]').style('display:none')
                         def validate_termination(e=None):
                             value = termination_input.value or ''
@@ -130,10 +135,8 @@ def new_contract():
                                 termination_input.classes(remove='border border-red-600')
                                 return True
                         termination_input.on('blur', validate_termination)
-                    with ui.element('div').classes(label_cell_classes):
-                        ui.label("Contract End Date").classes(label_classes)
-                    with ui.element('div').classes(input_cell_classes):
-                        with ui.input('MM/DD/YYYY', value='08/24/2025').classes(input_classes).props("outlined") as end_date:
+                    with ui.column().classes(form_field):
+                        with ui.input('MM/DD/YYYY', value=fd.get('end_date', '08/24/2025')).classes(input_classes).props("outlined").bind_value(fd, 'end_date') as end_date:
                             with ui.menu().props('no-parent-event') as end_menu:
                                 with ui.date(value='2025-08-24').props('mask=MM/DD/YYYY').bind_value(end_date,
                                     forward=lambda d: d.replace('-', '/') if d else '', 
@@ -144,25 +147,23 @@ def new_contract():
                                 ui.icon('edit_calendar').on('click', end_menu.open).classes('cursor-pointer')
                 
                 # Row 2 - Automatic Renewal & Expiration Reminder Notice
-                with ui.element('div').classes(f"{row_classes} items-stretch"):
-                    with ui.element('div').classes(label_cell_classes + " items-start"):
-                        ui.label("Automatic Renewal").classes(label_classes)
-                    with ui.element('div').classes(input_cell_classes + " flex flex-col py-2"):
+                with ui.element('div').classes(form_row):
+                    with ui.column().classes(form_field):
                         auto_renewal_options = ["Please select", "Yes", "No"]
                         auto_renewal_select = ui.select(
                             options=auto_renewal_options, 
-                            value="Please select",
+                            value=fd.get('auto_renewal_select', "Please select"),
                             label="Automatic Renewal*"
-                        ).classes(input_classes).props("outlined use-input")
+                        ).classes(input_classes).props("outlined use-input").bind_value(fd, 'auto_renewal_select')
                         auto_renewal_error = ui.label('').classes('text-red-600 text-xs mt-1 min-h-[18px]').style('display:none')
                         
                         # Renewal Period field (conditionally shown)
                         renewal_period_options = ["Please select", "1 Year", "2 Years", "3 Years"]
                         renewal_period_select = ui.select(
                             options=renewal_period_options, 
-                            value="Please select",
+                            value=fd.get('renewal_period_select', "Please select"),
                             label="Renewal Period (Optional)"
-                        ).classes(input_classes + " mt-2").props("outlined use-input")
+                        ).classes(input_classes + " mt-2").props("outlined use-input").bind_value(fd, 'renewal_period_select')
                         renewal_period_select.set_visibility(False)
                         
                         def validate_auto_renewal(e=None):
@@ -187,12 +188,13 @@ def new_contract():
                         
                         auto_renewal_select.on('blur', validate_auto_renewal)
                         auto_renewal_select.on('change', validate_auto_renewal)
+                        # Restore renewal period visibility from persisted auto_renewal selection
+                        if auto_renewal_select.value == "Yes":
+                            renewal_period_select.set_visibility(True)
                         
-                    with ui.element('div').classes(label_cell_classes + " items-start"):
-                        ui.label("Expiration Reminder Notice").classes(label_classes)
-                    with ui.element('div').classes(input_cell_classes + " flex flex-col py-2"):
+                    with ui.column().classes(form_field):
                         expiration_options = ["15", "30", "60", "90", "120"]
-                        expiration_input = ui.select(options=expiration_options, value="30", label="Days*").classes(input_classes).props("outlined")
+                        expiration_input = ui.select(options=expiration_options, value=fd.get('expiration_input', "30"), label="Days*").classes(input_classes).props("outlined").bind_value(fd, 'expiration_input')
                         expiration_error = ui.label('').classes('text-red-600 text-xs mt-1 min-h-[18px]').style('display:none')
                         def validate_expiration(e=None):
                             value = expiration_input.value or ''
@@ -209,11 +211,9 @@ def new_contract():
                         expiration_input.on('blur', validate_expiration)
                 
                 # Row 3 - Type of Contract & Currency
-                with ui.element('div').classes(f"{row_classes} {std_row_height}"):
-                    with ui.element('div').classes(label_cell_classes):
-                        ui.label("Type of Contract").classes(label_classes)
-                    with ui.element('div').classes(input_cell_classes + " flex flex-col"):
-                        contract_type_select = ui.select(options=["Service Agreement", "Maintenance Contract", "Software License", "Consulting Agreement", "Support Contract", "Lease Agreement", "Purchase Agreement", "Non-Disclosure Agreement", "Partnership Agreement", "Outsourcing Agreement"], label="Please Select*").classes(input_classes).props("outlined")
+                with ui.element('div').classes(form_row):
+                    with ui.column().classes(form_field):
+                        contract_type_select = ui.select(options=["Service Agreement", "Maintenance Contract", "Software License", "Consulting Agreement", "Support Contract", "Lease Agreement", "Purchase Agreement", "Non-Disclosure Agreement", "Partnership Agreement", "Outsourcing Agreement"], label="Please Select*", value=fd.get('contract_type_select')).classes(input_classes).props("outlined").bind_value(fd, 'contract_type_select')
                         contract_type_error = ui.label('').classes('text-red-600 text-xs mt-1 min-h-[18px]').style('display:none')
                         def validate_contract_type(e=None):
                             value = contract_type_select.value or ''
@@ -228,10 +228,8 @@ def new_contract():
                                 contract_type_select.classes(remove='border border-red-600')
                                 return True
                         contract_type_select.on('blur', validate_contract_type)
-                    with ui.element('div').classes(label_cell_classes):
-                        ui.label("Currency").classes(label_classes)
-                    with ui.element('div').classes(input_cell_classes + " flex flex-col"):
-                        currency_select = ui.select(options=["AWG", "XCG", "USD", "EUR"], label="Please Select*").classes(input_classes).props("outlined")
+                    with ui.column().classes(form_field):
+                        currency_select = ui.select(options=["AWG", "XCG", "USD", "EUR"], label="Please Select*", value=fd.get('currency_select')).classes(input_classes).props("outlined").bind_value(fd, 'currency_select')
                         currency_error = ui.label('').classes('text-red-600 text-xs mt-1 min-h-[18px]').style('display:none')
                         def validate_currency(e=None):
                             value = currency_select.value or ''
@@ -248,11 +246,9 @@ def new_contract():
                         currency_select.on('blur', validate_currency)
                 
                 # Row 4 - Department & Initial Fee
-                with ui.element('div').classes(f"{row_classes} {std_row_height}"):
-                    with ui.element('div').classes(label_cell_classes):
-                        ui.label("Department").classes(label_classes)
-                    with ui.element('div').classes(input_cell_classes + " flex flex-col"):
-                        department_select = ui.select(options=["Human Resources", "Finance", "IT", "Operations", "Legal", "Marketing", "Sales", "Customer Service", "Risk Management", "Compliance", "Audit", "Treasury", "Credit", "Retail Banking", "Corporate Banking"], label="Please Select*").classes(input_classes).props("outlined")
+                with ui.element('div').classes(form_row):
+                    with ui.column().classes(form_field):
+                        department_select = ui.select(options=["Human Resources", "Finance", "IT", "Operations", "Legal", "Marketing", "Sales", "Customer Service", "Risk Management", "Compliance", "Audit", "Treasury", "Credit", "Retail Banking", "Corporate Banking"], label="Please Select*", value=fd.get('department_select')).classes(input_classes).props("outlined").bind_value(fd, 'department_select')
                         department_error = ui.label('').classes('text-red-600 text-xs mt-1 min-h-[18px]').style('display:none')
                         def validate_department(e=None):
                             value = department_select.value or ''
@@ -267,10 +263,8 @@ def new_contract():
                                 department_select.classes(remove='border border-red-600')
                                 return True
                         department_select.on('blur', validate_department)
-                    with ui.element('div').classes(label_cell_classes):
-                        ui.label("Contract Amount").classes(label_classes)
-                    with ui.element('div').classes(input_cell_classes + " flex flex-col"):
-                        contract_amount_input = ui.input(label="Contract Amount*").classes(input_classes).props("outlined maxlength=20")
+                    with ui.column().classes(form_field):
+                        contract_amount_input = ui.input(label="Contract Amount*", value=fd.get('contract_amount_input', '')).classes(input_classes).props("outlined maxlength=20").bind_value(fd, 'contract_amount_input')
                         contract_amount_error = ui.label('').classes('text-red-600 text-xs mt-1 min-h-[18px]').style('display:none')
                         
                         def validate_contract_amount(e=None):
@@ -295,11 +289,9 @@ def new_contract():
                         contract_amount_input.on('blur', validate_contract_amount)
 
                 # Row 5 - Contract Start Date & Sub-contractor's name
-                with ui.element('div').classes(f"{row_classes} {std_row_height}"):
-                    with ui.element('div').classes(label_cell_classes):
-                        ui.label("Contract Start Date").classes(label_classes)
-                    with ui.element('div').classes(input_cell_classes):
-                        with ui.input('MM/DD/YYYY', value='08/24/2025').classes(input_classes).props("outlined") as start_date:
+                with ui.element('div').classes(form_row):
+                    with ui.column().classes(form_field):
+                        with ui.input('MM/DD/YYYY', value=fd.get('start_date', '08/24/2025')).classes(input_classes).props("outlined").bind_value(fd, 'start_date') as start_date:
                             with ui.menu().props('no-parent-event') as start_menu:
                                 with ui.date(value='2025-08-24').props('mask=MM/DD/YYYY').bind_value(start_date, 
                                     forward=lambda d: d.replace('-', '/') if d else '', 
@@ -308,10 +300,8 @@ def new_contract():
                                         ui.button('Close', on_click=start_menu.close).props('flat')
                             with start_date.add_slot('append'):
                                 ui.icon('edit_calendar').on('click', start_menu.open).classes('cursor-pointer')
-                    with ui.element('div').classes(label_cell_classes):
-                        ui.label("Sub-contractor's name").classes(label_classes)
-                    with ui.element('div').classes(input_cell_classes + " flex flex-col"):
-                        subcontractor_input = ui.input(label="Sub-contractor's name*").classes(input_classes).props("outlined maxlength=60")
+                    with ui.column().classes(form_field):
+                        subcontractor_input = ui.input(label="Sub-contractor's name*", value=fd.get('subcontractor_input', '')).classes(input_classes).props("outlined maxlength=60").bind_value(fd, 'subcontractor_input')
                         subcontractor_error = ui.label('').classes('text-red-600 text-xs mt-1 min-h-[18px]').style('display:none')
                         def validate_subcontractor(e=None):
                             value = subcontractor_input.value or ''
@@ -330,12 +320,10 @@ def new_contract():
                 
 
                 # Row 6 - Notify when Expired? (left) & Payment Method (right)
-                with ui.element('div').classes(f"{row_classes} {std_row_height}"):
-                    with ui.element('div').classes(label_cell_classes):
-                        ui.label("Notify when Expired?").classes(label_classes)
-                    with ui.element('div').classes(input_cell_classes + " flex flex-col"):
+                with ui.element('div').classes(form_row):
+                    with ui.column().classes(form_field):
                         notify_options = ["Please Select", "Yes", "No"]
-                        notify_select = ui.select(options=notify_options, label="Please Select*").classes(input_classes).props("outlined")
+                        notify_select = ui.select(options=notify_options, label="Please Select*", value=fd.get('notify_select')).classes(input_classes).props("outlined").bind_value(fd, 'notify_select')
                         notify_error = ui.label('').classes('text-red-600 text-xs mt-1 min-h-[18px]').style('display:none')
                         def validate_notify(e=None):
                             value = notify_select.value or ''
@@ -350,10 +338,8 @@ def new_contract():
                                 notify_select.classes(remove='border border-red-600')
                                 return True
                         notify_select.on('blur', validate_notify)
-                    with ui.element('div').classes(label_cell_classes):
-                        ui.label("Payment Method").classes(label_classes)
-                    with ui.element('div').classes(input_cell_classes + " flex flex-col"):
-                        payment_select = ui.select(options=["Invoice", "Standing Order"], label="Please Select*").classes(input_classes).props("outlined")
+                    with ui.column().classes(form_field):
+                        payment_select = ui.select(options=["Invoice", "Standing Order"], label="Please Select*", value=fd.get('payment_select')).classes(input_classes).props("outlined").bind_value(fd, 'payment_select')
                         payment_error = ui.label('').classes('text-red-600 text-xs mt-1 min-h-[18px]').style('display:none')
                         def validate_payment(e=None):
                             value = payment_select.value or ''
@@ -370,16 +356,14 @@ def new_contract():
                         payment_select.on('blur', validate_payment)
 
                 # Row 7 - Contract Manager (left) & Comments (right)
-                with ui.element('div').classes(f"{row_classes} {std_row_height}"):
-                    with ui.element('div').classes(label_cell_classes):
-                        ui.label("Contract Manager").classes(label_classes)
-                    with ui.element('div').classes(input_cell_classes + " flex flex-col"):
+                with ui.element('div').classes(form_row):
+                    with ui.column().classes(form_field):
                         contract_manager_options = list(contract_managers_data.keys())
                         contract_manager_select = ui.select(
                             options=contract_manager_options, 
-                            value="Please select",
+                            value=fd.get('contract_manager_select', "Please select"),
                             label="Contract Manager*"
-                        ).classes(input_classes).props("outlined use-input")
+                        ).classes(input_classes).props("outlined use-input").bind_value(fd, 'contract_manager_select')
                         contract_manager_error = ui.label('').classes('text-red-600 text-xs mt-1 min-h-[18px]').style('display:none')
                         
                         def validate_contract_manager(e=None):
@@ -396,10 +380,8 @@ def new_contract():
                                 return True
                         
                         contract_manager_select.on('blur', validate_contract_manager)
-                    with ui.element('div').classes(label_cell_classes):
-                        ui.label("Comments").classes(label_classes)
-                    with ui.element('div').classes(input_cell_classes + " flex flex-col"):
-                        comments_input = ui.input(label="Comments*").classes(input_classes).props("outlined maxlength=100")
+                    with ui.column().classes(form_field):
+                        comments_input = ui.input(label="Comments*", value=fd.get('comments_input', '')).classes(input_classes).props("outlined maxlength=100").bind_value(fd, 'comments_input')
                         comments_error = ui.label('').classes('text-red-600 text-xs mt-1 min-h-[18px]').style('display:none')
                         def validate_comments(e=None):
                             value = comments_input.value or ''
@@ -416,16 +398,14 @@ def new_contract():
                         comments_input.on('blur', validate_comments)
 
                 # Row 8 - Contract Owner (left) & Attention (right)
-                with ui.element('div').classes(f"{row_classes} {std_row_height}"):
-                    with ui.element('div').classes(label_cell_classes):
-                        ui.label("Contract Owner").classes(label_classes)
-                    with ui.element('div').classes(input_cell_classes + " flex flex-col"):
+                with ui.element('div').classes(form_row):
+                    with ui.column().classes(form_field):
                         contract_owner_options = list(contract_managers_data.keys())
                         contract_owner_select = ui.select(
                             options=contract_owner_options, 
-                            value="Please select",
+                            value=fd.get('contract_owner_select', "Please select"),
                             label="Contract Owner*"
-                        ).classes(input_classes).props("outlined use-input")
+                        ).classes(input_classes).props("outlined use-input").bind_value(fd, 'contract_owner_select')
                         contract_owner_error = ui.label('').classes('text-red-600 text-xs mt-1 min-h-[18px]').style('display:none')
                         
                         def validate_contract_owner(e=None):
@@ -442,10 +422,8 @@ def new_contract():
                                 return True
                         
                         contract_owner_select.on('blur', validate_contract_owner)
-                    with ui.element('div').classes(label_cell_classes):
-                        ui.label("Attention").classes(label_classes)
-                    with ui.element('div').classes(input_cell_classes + " flex flex-col"):
-                        attention_input = ui.input(label="Attention*").classes(input_classes).props("outlined maxlength=100")
+                    with ui.column().classes(form_field):
+                        attention_input = ui.input(label="Attention*", value=fd.get('attention_input', '')).classes(input_classes).props("outlined maxlength=100").bind_value(fd, 'attention_input')
                         attention_error = ui.label('').classes('text-red-600 text-xs mt-1 min-h-[18px]').style('display:none')
                         def validate_attention(e=None):
                             value = attention_input.value or ''
@@ -462,16 +440,14 @@ def new_contract():
                         attention_input.on('blur', validate_attention)
 
                 # Row 10.2 - Contract Manager (Backup) (left) & Upload Details (right)
-                with ui.element('div').classes(f"{row_classes} {std_row_height}"):
-                    with ui.element('div').classes(label_cell_classes):
-                        ui.label("Contract Manager (Backup)").classes(label_classes)
-                    with ui.element('div').classes(input_cell_classes + " flex flex-col"):
+                with ui.element('div').classes(form_row):
+                    with ui.column().classes(form_field):
                         contract_backup_options = list(contract_managers_data.keys())
                         contract_backup_select = ui.select(
                             options=contract_backup_options, 
-                            value="Please select",
+                            value=fd.get('contract_backup_select', "Please select"),
                             label="Contract Manager (Backup)*"
-                        ).classes(input_classes).props("outlined use-input")
+                        ).classes(input_classes).props("outlined use-input").bind_value(fd, 'contract_backup_select')
                         contract_backup_error = ui.label('').classes('text-red-600 text-xs mt-1 min-h-[18px]').style('display:none')
                         
                         def validate_contract_backup(e=None):
@@ -488,16 +464,12 @@ def new_contract():
                                 return True
                         
                         contract_backup_select.on('blur', validate_contract_backup)
-                    with ui.element('div').classes(label_cell_classes):
-                        ui.label("Upload Details").classes(label_classes)
-                    with ui.element('div').classes(input_cell_classes):
-                        upload_details_input = ui.input(label="Description", placeholder="Enter a description for these files").classes(input_classes).props("outlined")
+                    with ui.column().classes(form_field):
+                        upload_details_input = ui.input(label="Description", placeholder="Enter a description for these files", value=fd.get('upload_details_input', '')).classes(input_classes).props("outlined").bind_value(fd, 'upload_details_input')
                 
                 # Row 10.3 - Vendor Contract (left) & Attachments (right)
-                with ui.element('div').classes(f"{row_classes} {std_row_height}"):
-                    with ui.element('div').classes(label_cell_classes):
-                        ui.label("Vendor Contract").classes(label_classes)
-                    with ui.element('div').classes(input_cell_classes + " flex flex-col py-2 pt-8"):
+                with ui.element('div').classes(form_row):
+                    with ui.column().classes(form_field):
                         # Storage for uploaded file (matching new_vendor.py pattern) - MUST be before handler
                         vendor_contract_file = {'file': None}
                         
@@ -580,7 +552,7 @@ def new_contract():
                             on_upload=handle_vendor_contract_upload,
                             auto_upload=True,
                             label="Drop PDF file here or click to browse*"
-                        ).props('accept=.pdf color=primary outlined').classes("w-full")
+                        ).props('accept=.pdf color=primary outlined').classes("w-full min-h-[140px]")
                         
                         vendor_contract_error = ui.label('').classes('text-red-600 text-xs mt-1 min-h-[18px]').style('display:none')
                         
@@ -624,11 +596,9 @@ def new_contract():
                             vendor_contract_upload.classes(remove='border border-red-600')
                             return True
                     
-                    with ui.element('div').classes(label_cell_classes):
-                        ui.label("Attachments").classes(label_classes)
-                    with ui.element('div').classes(f"{input_cell_classes} pt-4 pb-0"):
+                    with ui.column().classes(form_field + " h-[140px]"):
                         uploaded_files_container = ui.element("div").classes("flex flex-col gap-1 mb-2")
-                        with ui.card().classes("w-full h-auto p-0 mt-4"):
+                        with ui.card().classes("w-full h-auto p-0 min-h-[140px]"):
                             
                             async def handle_upload(e):
                                 # NiceGUI upload event has e.file (async SmallFileUpload object)
@@ -649,13 +619,14 @@ def new_contract():
                                 else:
                                     ui.notify('No file uploaded', type='negative')
                             
-                            ui.upload(on_upload=handle_upload, auto_upload=True, multiple=False, label="Drop files here or click to browse").props('accept=*/* color=primary outlined').classes("w-full")
+                            ui.upload(on_upload=handle_upload, auto_upload=True, multiple=False, label="Drop files here or click to browse").props('accept=*/* color=primary outlined').classes("w-full min-h-[140px]")
 
                 # Add Submit and Cancel buttons at the bottom
-                with ui.element("div").classes("flex justify-end gap-4 mt-8 mr-20 w-full").props(f'id="c225"'):
+                with ui.element("div").classes("flex justify-center gap-4 mt-8 w-full").props(f'id="c225"'):
                     def clear_contract_form():
                         """Reset all contract form fields to their defaults"""
                         nonlocal vendor_contract_uploaded, vendor_contract_file_name
+                        fd.clear()  # Clear persisted form data
                         vendor_select.value = vendor_names[0] if vendor_names else None
                         desc_input.value = ""
                         termination_input.value = "30"

@@ -1,6 +1,8 @@
 from datetime import datetime, timedelta
 from nicegui import ui, app
 import io
+from app.utils.navigation import get_dashboard_url
+from app.components.breadcrumb import breadcrumb
 import base64
 from app.db.database import SessionLocal
 from app.models.contract import User
@@ -53,10 +55,9 @@ def terminated_contracts():
         print(f"Error fetching current user: {e}")
         import traceback
         traceback.print_exc()
-    # Navigation
+    # Breadcrumb navigation
     with ui.row().classes("max-w-6xl mx-auto mt-4"):
-        with ui.link(target='/').classes('no-underline'):
-            ui.button("Back to Dashboard", icon="arrow_back").props('flat color=primary')
+        breadcrumb([("Home", get_dashboard_url()), ("Terminated Contracts", None)])
     
     # Global variables for table and data
     contracts_table = None

@@ -1,6 +1,8 @@
 from datetime import datetime, timedelta, date
 from nicegui import ui, app
 from app.db.database import SessionLocal
+from app.utils.navigation import get_dashboard_url
+from app.components.breadcrumb import breadcrumb
 from app.services.contract_service import ContractService
 from app.models.contract import ContractStatusType, User
 import io
@@ -53,10 +55,9 @@ def expired_contracts():
     
     if current_user_id:
         print(f"Using stored user_id: {current_user_id}")
-    # Navigation
+    # Breadcrumb navigation
     with ui.row().classes("max-w-6xl mx-auto mt-4"):
-        with ui.link(target='/').classes('no-underline'):
-            ui.button("Back to Dashboard", icon="arrow_back").props('flat color=primary')
+        breadcrumb([("Home", get_dashboard_url()), ("Expired Contracts", None)])
     
     # Global variables for table and data
     contracts_table = None

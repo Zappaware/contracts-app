@@ -17,6 +17,7 @@ from app.models.contract import (
 )
 from sqlalchemy.orm import joinedload
 from app.utils.navigation import get_dashboard_url
+from app.components.breadcrumb import breadcrumb
 try:
     import pandas as pd
     PANDAS_AVAILABLE = True
@@ -151,10 +152,9 @@ def pending_contracts():
     
     if current_user_id:
         print(f"Using stored user_id: {current_user_id}")
-    # Navigation
+    # Breadcrumb navigation
     with ui.row().classes("max-w-6xl mx-auto mt-4"):
-        with ui.link(target=get_dashboard_url()).classes('no-underline'):
-            ui.button("Back to Dashboard", icon="arrow_back").props('flat color=primary')
+        breadcrumb([("Home", get_dashboard_url()), ("Pending Documents", None)])
     
     # Global variables for table and data
     contracts_table = None

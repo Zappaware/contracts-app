@@ -1,6 +1,7 @@
-
 from nicegui import ui
 import io
+from app.utils.navigation import get_dashboard_url
+from app.components.breadcrumb import breadcrumb
 import base64
 from datetime import date, datetime
 from app.db.database import SessionLocal
@@ -16,10 +17,9 @@ except ImportError:
 
 
 def vendors_list():
-    # Navigation
-    with ui.row().classes("max-w-6xl mx-auto mt-4 items-center gap-4"):
-        with ui.link(target='/').classes('no-underline'):
-            ui.button("Back to Dashboard", icon="arrow_back").props('flat color=primary')
+    # Breadcrumb navigation
+    with ui.row().classes("max-w-6xl mx-auto mt-4"):
+        breadcrumb([("Home", get_dashboard_url()), ("Vendors", None)])
     
     # Global variables
     vendors_table = None
