@@ -38,6 +38,7 @@ from app.pages.contract_updates import contract_updates
 from app.pages.moa_report import moa_report
 from app.pages.monetary_value_report import monetary_value_report
 from app.pages.due_diligence_report import due_diligence_report
+from app.pages.all_contracts import all_contracts
 
 
 # Serve static assets (logos, etc.) from app/public
@@ -204,6 +205,16 @@ def terminated_contracts_page():
         return
     header()
     terminated_contracts()
+
+
+@ui.page("/all-contracts")
+def all_contracts_page():
+    """All contracts page - lists contracts of any status"""
+    if not nicegui_app.storage.user.get('logged_in'):
+        ui.navigate.to('/login')
+        return
+    header()
+    all_contracts()
 
 
 @ui.page("/vendors")
