@@ -137,7 +137,7 @@ def main_page():
     if not nicegui_app.storage.user.get('logged_in'):
         ui.navigate.to('/login')
         return
-    header()
+    header('/')
     home_page()
 
 
@@ -153,7 +153,7 @@ def new_contract_page():
     if not nicegui_app.storage.user.get('logged_in'):
         ui.navigate.to('/login')
         return
-    header()
+    header('/new-contract')
     new_contract()
 
 
@@ -163,7 +163,7 @@ def new_vendor_page():
     if not nicegui_app.storage.user.get('logged_in'):
         ui.navigate.to('/login')
         return
-    header()
+    header('/new-vendor')
     new_vendor()
 
 
@@ -273,7 +273,7 @@ def manager_page():
     if not nicegui_app.storage.user.get('logged_in'):
         ui.navigate.to('/login')
         return
-    header()
+    header('/manager')
     manager()
 
 
