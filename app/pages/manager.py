@@ -127,8 +127,71 @@ def manager():
     except Exception as e:
         print(f"Error fetching active contracts count: {e}")
         active_contracts_count = 0
-    
-    
+
+    # Fetch pending documents count (no docs + awaiting termination doc, merged and deduped)
+    pending_documents_count = 0
+    try:
+        from app.db.database import SessionLocal
+        from app.services.contract_service import ContractService
+        db = SessionLocal()
+        try:
+            contract_service = ContractService(db)
+            contracts_no_docs, _ = contract_service.get_contracts_with_no_documents(skip=0, limit=1000)
+            contracts_awaiting_term, _ = contract_service.get_contracts_awaiting_termination_document(skip=0, limit=1000)
+            seen_ids = set()
+            for c in contracts_no_docs:
+                seen_ids.add(c.id)
+            for c in contracts_awaiting_term:
+                if c.id not in seen_ids:
+                    seen_ids.add(c.id)
+            pending_documents_count = len(seen_ids)
+        finally:
+            db.close()
+    except Exception as e:
+        print(f"Error fetching pending documents count: {e}")
+        pending_documents_count = 0
+
+    # Fetch contract updates count (ContractUpdate records not completed)
+    contract_updates_count = 0
+    try:
+        from app.db.database import SessionLocal
+        from app.models.contract import ContractUpdate, ContractUpdateStatus
+        db = SessionLocal()
+        try:
+            contract_updates_count = db.query(ContractUpdate).filter(
+                ContractUpdate.status != ContractUpdateStatus.COMPLETED
+            ).count()
+        finally:
+            db.close()
+    except Exception as e:
+        print(f"Error fetching contract updates count: {e}")
+        contract_updates_count = 0
+
+    # Fetch all contracts count (any status)
+    all_contracts_count = 0
+    try:
+        from app.db.database import SessionLocal
+        from app.services.contract_service import ContractService
+        db = SessionLocal()
+        try:
+            contract_service = ContractService(db)
+            _, all_contracts_count = contract_service.search_and_filter_contracts(
+                skip=0,
+                limit=1,
+                search=None,
+                status=None,
+                contract_type=None,
+                department=None,
+                owner_id=None,
+                vendor_id=None,
+                expiring_soon=None
+            )
+        finally:
+            db.close()
+    except Exception as e:
+        print(f"Error fetching all contracts count: {e}")
+        all_contracts_count = 0
+
     # Breadcrumb navigation
     with ui.row().classes("max-w-7xl mx-auto mt-4"):
         breadcrumb([("Home", None)])
@@ -136,38 +199,63 @@ def manager():
     # Single container: cards + Contracts Requiring Attention table (same as admin view, table visible on load)
     # Use max-w-7xl (1280px) for wider table - was max-w-6xl (1152px)
     with ui.column().classes("max-w-7xl mx-auto w-full gap-0 min-w-0"):
-        # Quick Stats Cards - Only 3 cards as requested
+        # Quick Stats Cards - Same style as home page
+        LIGHT_BLUE = '#0ea5e9'
+        YELLOW_ACCENT = 'rgba(255, 234, 0, 1)'
+        GREEN = '#059669'
+        BLUE = '#64748b'
+        CARD_HEADER_BG = 'rgba(20, 76, 142, 1)'
+
         with ui.row().classes(
-            "grid grid-cols-1 md:grid-cols-3 mt-8 gap-6 w-full"
+            "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 mt-8 gap-6 w-full items-start"
         ):
             # Card 1: Active Contracts
             with ui.link(target='/active-contracts').classes('no-underline w-full').style('text-decoration: none !important;'):
-                with ui.card().classes("w-full cursor-pointer hover:bg-gray-50 transition-colors shadow-lg rounded-xl border border-gray-200").props('flat'):
-                    with ui.row().classes('items-center gap-2'):
-                        ui.icon('article', color='primary').style('font-size: 28px')
-                        ui.label("Active Contracts").classes("text-lg font-bold")
-                    ui.label("Currently active contracts").classes("text-sm text-gray-500 mt-2")
-                    ui.label(str(active_contracts_count)).classes("text-2xl font-medium text-primary mt-2")
-            
+                with ui.card().classes("w-full cursor-pointer hover:bg-gray-50 transition-colors shadow-lg rounded-xl overflow-hidden border border-gray-200 p-0").props('flat'):
+                    with ui.element('div').classes('w-full px-4 py-3').style(f'background-color: {CARD_HEADER_BG};'):
+                        ui.label("Active Contracts").classes("text-white font-bold text-base")
+                    with ui.row().classes('p-4 bg-white items-center justify-between gap-4'):
+                        with ui.element('div').classes('w-14 h-14 rounded-full flex items-center justify-center shrink-0').style(f'background-color: {GREEN};'):
+                            ui.icon('article', color='white').style('font-size: 28px')
+                        with ui.column().classes('flex-1 min-w-0'):
+                            ui.label(str(active_contracts_count)).classes("text-2xl font-bold text-black")
+                            ui.label("Currently active contracts").classes("text-sm text-gray-600")
+
             # Card 2: Pending Documents
             with ui.link(target='/pending-contracts').classes('no-underline w-full').style('text-decoration: none !important;'):
-                with ui.card().classes("w-full cursor-pointer hover:bg-gray-50 transition-colors shadow-lg rounded-xl border border-gray-200").props('flat'):
-                    with ui.row().classes('items-center gap-2'):
-                        ui.icon('edit', color='primary').style('font-size: 28px')
-                        ui.label("Pending Documents").classes("text-lg font-bold")
-                    ui.label("Contracts missing documents").classes("text-sm text-gray-500 mt-2")
-                    ui.label("12").classes("text-2xl font-medium text-primary mt-2")
-            
+                with ui.card().classes("w-full cursor-pointer hover:bg-gray-50 transition-colors shadow-lg rounded-xl overflow-hidden border border-gray-200 p-0").props('flat'):
+                    with ui.element('div').classes('w-full px-4 py-3').style(f'background-color: {CARD_HEADER_BG};'):
+                        ui.label("Pending Documents").classes("text-white font-bold text-base")
+                    with ui.row().classes('p-4 bg-white items-center justify-between gap-4'):
+                        with ui.element('div').classes('w-14 h-14 rounded-full flex items-center justify-center shrink-0').style(f'background-color: {YELLOW_ACCENT};'):
+                            ui.icon('edit', color='white').style('font-size: 28px')
+                        with ui.column().classes('flex-1 min-w-0'):
+                            ui.label(str(pending_documents_count)).classes("text-2xl font-bold text-black")
+                            ui.label("Contracts missing documents").classes("text-sm text-gray-600")
+
             # Card 3: Contract Updates
             with ui.link(target='/contract-updates').classes('no-underline w-full').style('text-decoration: none !important;'):
-                with ui.card().classes("w-full cursor-pointer hover:bg-gray-50 transition-colors shadow-lg rounded-xl border border-gray-200").props('flat'):
-                    with ui.row().classes('items-center gap-2'):
-                        ui.icon('update', color='primary').style('font-size: 28px')
-                        ui.label("Contract Updates").classes("text-lg font-bold")
-                    ui.label("Review manager responses and updates").classes("text-sm text-gray-500 mt-2")
-                    ui.label("15").classes("text-2xl font-medium text-primary mt-2")
+                with ui.card().classes("w-full cursor-pointer hover:bg-gray-50 transition-colors shadow-lg rounded-xl overflow-hidden border border-gray-200 p-0").props('flat'):
+                    with ui.element('div').classes('w-full px-4 py-3').style(f'background-color: {CARD_HEADER_BG};'):
+                        ui.label("Contract Updates").classes("text-white font-bold text-base")
+                    with ui.row().classes('p-4 bg-white items-center justify-between gap-4'):
+                        with ui.element('div').classes('w-14 h-14 rounded-full flex items-center justify-center shrink-0').style(f'background-color: {LIGHT_BLUE};'):
+                            ui.icon('update', color='white').style('font-size: 28px')
+                        with ui.column().classes('flex-1 min-w-0'):
+                            ui.label(str(contract_updates_count)).classes("text-2xl font-bold text-black")
+                            ui.label("Review manager responses and updates").classes("text-sm text-gray-600")
 
-        
+            # Card 4: All Contracts
+            with ui.link(target='/all-contracts').classes('no-underline w-full').style('text-decoration: none !important;'):
+                with ui.card().classes("w-full cursor-pointer hover:bg-gray-50 transition-colors shadow-lg rounded-xl overflow-hidden border border-gray-200 p-0").props('flat'):
+                    with ui.element('div').classes('w-full px-4 py-3').style(f'background-color: {CARD_HEADER_BG};'):
+                        ui.label("All Contracts").classes("text-white font-bold text-base")
+                    with ui.row().classes('p-4 bg-white items-center justify-between gap-4'):
+                        with ui.element('div').classes('w-14 h-14 rounded-full flex items-center justify-center shrink-0').style(f'background-color: {BLUE};'):
+                            ui.icon('list', color='white').style('font-size: 28px')
+                        with ui.column().classes('flex-1 min-w-0'):
+                            ui.label(str(all_contracts_count)).classes("text-2xl font-bold text-black")
+                            ui.label("View all contracts").classes("text-sm text-gray-600")
 
     
     # ===== NEW SECTION: Contracts Requiring Attention =====
