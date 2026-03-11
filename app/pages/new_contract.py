@@ -64,8 +64,7 @@ def new_contract():
     vendor_contract_date_input = None
     
     with ui.element("div").classes("max-w-7xl mx-auto mt-8 w-full px-4").props(f'id="c213"'):
-        with ui.card().classes("w-full shadow-lg border border-gray-200 rounded-xl overflow-hidden justify-start items-center bg-[#144C8E] flex-row flex-wrap"):
-            with ui.card_section().classes("p-8 bg-white rounded-xl mx-auto grid gap-8"):
+        with ui.element("div").classes("p-8 bg-white rounded-xl mx-auto grid gap-8 shadow-xl border border-gray-200"):
                 ui.label("Contract Details").classes("text-lg font-semibold text-gray-800 mb-4")
                 # Use real vendors from database
                 with ui.column().classes("gap-6 w-[600px] mx-auto items-center"):

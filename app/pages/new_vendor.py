@@ -33,8 +33,7 @@ def new_vendor():
         breadcrumb([("Home", get_dashboard_url()), ("New Vendor", None)])
 
     with ui.element("div").classes("max-w-7xl mx-auto mt-8 w-full px-4"):
-        with ui.card().classes("w-full shadow-lg border border-gray-200 rounded-xl overflow-hidden justify-start items-center bg-[#144c8e]"):
-            with ui.card_section().classes("p-8 bg-white grid gap-x-0 gap-y-5 rounded-xl"):
+        with ui.element("div").classes("p-8 bg-white grid gap-x-0 gap-y-5 rounded-xl shadow-xl border border-gray-200"):
                 # Form layout: responsive grid, labels above inputs
                 input_classes = "w-full font-[segoe ui]"
                 form_row = "grid grid-cols-1 md:grid-cols-2 gap-6"
