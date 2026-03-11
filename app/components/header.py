@@ -4,7 +4,13 @@ from app.models.contract import UserRole
 from app.utils.notifications import get_user_notifications, get_notification_count
 
 
-def header():
+def header(current_path: str = None):
+    """Render the app header. Pass current_path to highlight the active nav item."""
+    ui.add_css("""
+        .nav-active {
+            color: #144c8e !important;
+        }
+    """)
     ui.link.default_classes(
         "no-underline text-base text-gray-500 items-center text-normal hover:underline font-[segoe ui] hover:text-black"
     )
@@ -39,9 +45,15 @@ def header():
             # Home link - same styling as "New Contract"/"New Vendor", but role-based target
             user_role = app.storage.user.get('user_role', None)
             home_target = '/' if user_role == UserRole.CONTRACT_ADMIN.value else '/manager'
-            ui.link("Home", home_target)
-            ui.link("New Contract", "/new-contract")
-            ui.link("New Vendor", "/new-vendor")
+            home_link = ui.link("Home", home_target)
+            if current_path and current_path in ('/', '/manager'):
+                home_link.classes("nav-active")
+            new_contract_link = ui.link("New Contract", "/new-contract")
+            if current_path == '/new-contract':
+                new_contract_link.classes("nav-active")
+            new_vendor_link = ui.link("New Vendor", "/new-vendor")
+            if current_path == '/new-vendor':
+                new_vendor_link.classes("nav-active")
             with (
                 ui.dropdown_button("Reports", auto_close=True, color=None)
                 .classes(
