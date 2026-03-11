@@ -300,10 +300,10 @@ def home_page():
     BLUE = '#64748b'
     LIGHT_BLUE = '#0ea5e9'
     YELLOW = '#b45309'
-    YELLOW_ACCENT = 'rgba(255, 234, 0, 1)'  # #FFEA00
+    YELLOW_ACCENT = 'rgba(215, 153, 37, 1)'  # gold/amber
     GREEN = '#059669'
     ORANGE = '#ea580c'
-    RED = '#dc2626'
+    RED = 'rgba(164, 30, 78, 1)'
     CARD_HEADER_BG = 'rgba(20, 76, 142, 1)'  # Unified card header background
 
     with ui.element("div").classes("max-w-7xl mx-auto w-full"):

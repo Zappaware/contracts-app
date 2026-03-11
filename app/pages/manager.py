@@ -201,7 +201,7 @@ def manager():
     with ui.column().classes("max-w-7xl mx-auto w-full gap-0 min-w-0"):
         # Quick Stats Cards - Same style as home page
         LIGHT_BLUE = '#0ea5e9'
-        YELLOW_ACCENT = 'rgba(255, 234, 0, 1)'
+        YELLOW_ACCENT = 'rgba(215, 153, 37, 1)'
         GREEN = '#059669'
         BLUE = '#64748b'
         CARD_HEADER_BG = 'rgba(20, 76, 142, 1)'
