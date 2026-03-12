@@ -243,7 +243,7 @@ def manager():
                             ui.icon('update', color='white').style('font-size: 28px')
                         with ui.column().classes('flex-1 min-w-0'):
                             ui.label(str(contract_updates_count)).classes("text-2xl font-bold text-black")
-                            ui.label("Review manager responses and updates").classes("text-sm text-gray-600")
+                            ui.label("Pending manager updates").classes("text-sm text-gray-600")
 
             # Card 4: All Contracts
             with ui.link(target='/all-contracts').classes('no-underline w-full').style('text-decoration: none !important;'):
