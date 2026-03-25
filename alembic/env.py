@@ -54,6 +54,7 @@ def run_migrations_offline() -> None:
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
+        transactional_ddl=False,
     )
 
     with context.begin_transaction():
@@ -77,12 +78,26 @@ def run_migrations_online() -> None:
     )
 
     with connectable.connect() as connection:
-        context.configure(
-            connection=connection, target_metadata=target_metadata
-        )
+        dialect_name = connection.dialect.name
 
-        with context.begin_transaction():
+        # PostgreSQL enum changes require the enum labels to be committed
+        # before they can be used. If Alembic wraps everything in a single
+        # transaction, new enum values (and even the enum type creation)
+        # may not be visible to the AUTOCOMMIT statements inside migrations.
+        if dialect_name == "postgresql":
+            context.configure(
+                connection=connection,
+                target_metadata=target_metadata,
+                transactional_ddl=False,
+            )
             context.run_migrations()
+        else:
+            context.configure(
+                connection=connection,
+                target_metadata=target_metadata,
+            )
+            with context.begin_transaction():
+                context.run_migrations()
 
 
 if context.is_offline_mode():

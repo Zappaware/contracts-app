@@ -92,6 +92,67 @@ def _migrate_department_strings(bind):
             )
 
 
+def _postgresql_add_department_enum_values_autocommit(bind):
+    """
+    Postgres does not allow using newly-added enum labels in the same transaction.
+
+    Alembic wraps migrations in a transaction (via env.py). When we run:
+      ALTER TYPE departmenttype ADD VALUE 'IT - Operations'
+    inside that transaction and then immediately UPDATE rows using 'IT - Operations',
+    Postgres raises `UnsafeNewEnumValueUsage`.
+
+    Fix: execute ALTER TYPE statements in AUTOCOMMIT so they become visible to the
+    subsequent UPDATE in this migration.
+    """
+    # Read existing values (and schema) in the current transaction.
+    existing = {
+        row[0]
+        for row in bind.execute(
+            sa.text(
+                """
+                SELECT e.enumlabel
+                FROM pg_enum AS e
+                JOIN pg_type AS t ON t.oid = e.enumtypid
+                JOIN pg_namespace AS n ON n.oid = t.typnamespace
+                WHERE t.typname = 'departmenttype'
+                """
+            )
+        ).fetchall()
+    }
+
+    type_row = bind.execute(
+        sa.text(
+            """
+            SELECT n.nspname
+            FROM pg_type AS t
+            JOIN pg_namespace AS n ON n.oid = t.typnamespace
+            WHERE t.typname = 'departmenttype'
+            """
+        )
+    ).fetchone()
+
+    if not type_row:
+        # This should not happen if the 001_initial_schema migration ran.
+        raise RuntimeError("departmenttype enum type not found in database")
+
+    enum_schema = type_row[0]
+
+    # Execute ALTER TYPE in autocommit so Postgres commits the enum change.
+    engine = bind.engine
+    with engine.connect().execution_options(isolation_level="AUTOCOMMIT") as conn:
+        escaped_schema = str(enum_schema).replace('"', '""')
+        type_ident = f'"{escaped_schema}".departmenttype'
+
+        for label in _DEPARTMENT_TYPE_NEW_LABELS:
+            if label in existing:
+                continue
+
+            escaped = label.replace("'", "''")
+            conn.execute(
+                sa.text(f"ALTER TYPE {type_ident} ADD VALUE '{escaped}'")
+            )
+
+
 def _drop_enum_style_check_on_department():
     """Reflect and drop sa.Enum-style CHECKs on department (SQLite, MSSQL fallback, etc.)."""
     bind = op.get_bind()
@@ -183,9 +244,7 @@ def upgrade() -> None:
     dialect_name = bind.dialect.name
 
     if dialect_name == "postgresql":
-        for label in _DEPARTMENT_TYPE_NEW_LABELS:
-            escaped = label.replace("'", "''")
-            op.execute(f"ALTER TYPE departmenttype ADD VALUE '{escaped}'")
+        _postgresql_add_department_enum_values_autocommit(bind)
     elif dialect_name == "mssql":
         _mssql_relax_department_columns(bind)
     else:
