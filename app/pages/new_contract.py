@@ -486,13 +486,29 @@ def new_contract():
                 with ui.element("div").classes(f"{form_row} mt-8"):
                     with ui.column().classes(form_field):
                         contract_manager_options = list(contract_managers_data.keys())
-                        contract_manager_select = ui.select(
-                            options=contract_manager_options,
-                            value=fd.get('contract_manager_select', "Please select"),
-                            label="Contract manager*",
-                        ).classes(input_classes).props("outlined use-input").bind_value(
-                            fd, "contract_manager_select"
-                        )
+                        with ui.row().classes(
+                            "w-full gap-4 items-end flex-wrap"
+                        ):
+                            with ui.column().classes("flex-1 min-w-[200px] grow"):
+                                contract_manager_select = ui.select(
+                                    options=contract_manager_options,
+                                    value=fd.get(
+                                        'contract_manager_select', "Please select"
+                                    ),
+                                    label="Contract Manager*",
+                                ).classes(input_classes + " w-full").props(
+                                    "outlined use-input"
+                                ).bind_value(fd, "contract_manager_select")
+                            contract_manager_email_wrap = ui.column().classes(
+                                "flex-1 min-w-[240px] shrink-0"
+                            )
+                            with contract_manager_email_wrap:
+                                contract_manager_email_display = ui.input(
+                                    label="Email",
+                                    value="",
+                                ).classes(input_classes + " w-full").props(
+                                    "outlined readonly"
+                                )
                         contract_manager_error = ui.label('').classes('text-red-600 text-xs mt-1 min-h-[18px]').style('display:none')
                         
                         def validate_contract_manager(e=None):
@@ -508,7 +524,22 @@ def new_contract():
                                 contract_manager_select.classes(remove='border border-red-600')
                                 return True
                         
+                        def sync_contract_manager_email(_=None):
+                            name = contract_manager_select.value
+                            if not name or name == "Please select":
+                                contract_manager_email_display.value = ""
+                                contract_manager_email_wrap.set_visibility(False)
+                            else:
+                                contract_manager_email_display.value = (
+                                    contract_managers_data.get(name, "") or ""
+                                )
+                                contract_manager_email_wrap.set_visibility(True)
+
                         contract_manager_select.on('blur', validate_contract_manager)
+                        contract_manager_select.on(
+                            'update:model-value', sync_contract_manager_email
+                        )
+                        sync_contract_manager_email()
                     with ui.column().classes(form_field):
                         comments_input = ui.input(
                             label="Comments*",
@@ -536,13 +567,31 @@ def new_contract():
                 with ui.element('div').classes(form_row):
                     with ui.column().classes(form_field):
                         contract_owner_options = list(contract_managers_data.keys())
-                        contract_owner_select = ui.select(
-                            options=contract_owner_options,
-                            value=fd.get('contract_owner_select', "Please select"),
-                            label="Contract owner*",
-                        ).classes(input_classes).props("outlined use-input").bind_value(
-                            fd, "contract_owner_select"
-                        )
+                        with ui.row().classes(
+                            "w-full gap-4 items-end flex-wrap"
+                        ):
+                            with ui.column().classes("flex-1 min-w-[200px] grow"):
+                                contract_owner_select = ui.select(
+                                    options=contract_owner_options,
+                                    value=fd.get(
+                                        'contract_owner_select', "Please select"
+                                    ),
+                                    label="Contract owner*",
+                                ).classes(input_classes + " w-full").props(
+                                    "outlined use-input"
+                                ).bind_value(
+                                    fd, "contract_owner_select"
+                                )
+                            contract_owner_email_wrap = ui.column().classes(
+                                "flex-1 min-w-[240px] shrink-0"
+                            )
+                            with contract_owner_email_wrap:
+                                contract_owner_email_display = ui.input(
+                                    label="Email",
+                                    value="",
+                                ).classes(input_classes + " w-full").props(
+                                    "outlined readonly"
+                                )
                         contract_owner_error = ui.label('').classes('text-red-600 text-xs mt-1 min-h-[18px]').style('display:none')
                         
                         def validate_contract_owner(e=None):
@@ -557,8 +606,23 @@ def new_contract():
                                 contract_owner_error.style('display:none')
                                 contract_owner_select.classes(remove='border border-red-600')
                                 return True
+
+                        def sync_contract_owner_email(_=None):
+                            name = contract_owner_select.value
+                            if not name or name == "Please select":
+                                contract_owner_email_display.value = ""
+                                contract_owner_email_wrap.set_visibility(False)
+                            else:
+                                contract_owner_email_display.value = (
+                                    contract_managers_data.get(name, "") or ""
+                                )
+                                contract_owner_email_wrap.set_visibility(True)
                         
                         contract_owner_select.on('blur', validate_contract_owner)
+                        contract_owner_select.on(
+                            'update:model-value', sync_contract_owner_email
+                        )
+                        sync_contract_owner_email()
                     with ui.column().classes(form_field):
                         attention_input = ui.input(
                             label="Attention*",
@@ -588,13 +652,31 @@ def new_contract():
                 with ui.element('div').classes(form_row):
                     with ui.column().classes(form_field):
                         contract_backup_options = list(contract_managers_data.keys())
-                        contract_backup_select = ui.select(
-                            options=contract_backup_options,
-                            value=fd.get('contract_backup_select', "Please select"),
-                            label="Owner backup*",
-                        ).classes(input_classes).props("outlined use-input").bind_value(
-                            fd, "contract_backup_select"
-                        )
+                        with ui.row().classes(
+                            "w-full gap-4 items-end flex-wrap"
+                        ):
+                            with ui.column().classes("flex-1 min-w-[200px] grow"):
+                                contract_backup_select = ui.select(
+                                    options=contract_backup_options,
+                                    value=fd.get(
+                                        'contract_backup_select', "Please select"
+                                    ),
+                                    label="Owner backup*",
+                                ).classes(input_classes + " w-full").props(
+                                    "outlined use-input"
+                                ).bind_value(
+                                    fd, "contract_backup_select"
+                                )
+                            contract_backup_email_wrap = ui.column().classes(
+                                "flex-1 min-w-[240px] shrink-0"
+                            )
+                            with contract_backup_email_wrap:
+                                contract_backup_email_display = ui.input(
+                                    label="Email",
+                                    value="",
+                                ).classes(input_classes + " w-full").props(
+                                    "outlined readonly"
+                                )
                         contract_backup_error = ui.label('').classes('text-red-600 text-xs mt-1 min-h-[18px]').style('display:none')
                         
                         def validate_contract_backup(e=None):
@@ -609,8 +691,23 @@ def new_contract():
                                 contract_backup_error.style('display:none')
                                 contract_backup_select.classes(remove='border border-red-600')
                                 return True
+
+                        def sync_contract_backup_email(_=None):
+                            name = contract_backup_select.value
+                            if not name or name == "Please select":
+                                contract_backup_email_display.value = ""
+                                contract_backup_email_wrap.set_visibility(False)
+                            else:
+                                contract_backup_email_display.value = (
+                                    contract_managers_data.get(name, "") or ""
+                                )
+                                contract_backup_email_wrap.set_visibility(True)
                         
                         contract_backup_select.on('blur', validate_contract_backup)
+                        contract_backup_select.on(
+                            'update:model-value', sync_contract_backup_email
+                        )
+                        sync_contract_backup_email()
                     with ui.column().classes(form_field):
                         upload_details_input = ui.input(
                             label="Other files note (optional)",
