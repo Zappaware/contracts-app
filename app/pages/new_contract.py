@@ -1,11 +1,17 @@
 from nicegui import ui, app
 import httpx
+import re
+import uuid
 from app.utils.navigation import get_dashboard_url
 from app.components.breadcrumb import breadcrumb
 import json
 import os
 from app.core.config import settings
-from app.models.contract import DepartmentType, NoticePeriodType
+from app.models.contract import (
+    DepartmentType,
+    ExpirationNoticePeriodType,
+    NoticePeriodType,
+)
 
 
 def new_contract():
@@ -223,19 +229,29 @@ def new_contract():
                             renewal_period_select.set_visibility(True)
                         
                     with ui.column().classes(form_field):
-                        expiration_options = ["15", "30", "60", "90", "120"]
+                        _expiration_options = [e.value for e in ExpirationNoticePeriodType]
+                        _expiration_default = (
+                            ExpirationNoticePeriodType.THIRTY_DAYS.value
+                        )
+                        _expiration_value = fd.get(
+                            "expiration_input", _expiration_default
+                        )
+                        if _expiration_value not in _expiration_options:
+                            _expiration_value = _expiration_default
                         expiration_input = ui.select(
-                            options=expiration_options,
-                            value=fd.get('expiration_input', "30"),
-                            label="Expiry reminder (days)*",
+                            options=_expiration_options,
+                            value=_expiration_value,
+                            label="Expiration Date Notice Frequency*",
                         ).classes(input_classes).props("outlined").bind_value(
                             fd, "expiration_input"
                         )
                         expiration_error = ui.label('').classes('text-red-600 text-xs mt-1 min-h-[18px]').style('display:none')
                         def validate_expiration(e=None):
                             value = expiration_input.value or ''
-                            if not value.strip() or value not in expiration_options:
-                                expiration_error.text = "Please select the expiration reminder notice in days."
+                            if not value.strip() or value not in _expiration_options:
+                                expiration_error.text = (
+                                    "Please provide the Expiration Notice Alert Frequency"
+                                )
                                 expiration_error.style('display:block')
                                 expiration_input.classes('border border-red-600')
                                 return False
@@ -276,18 +292,29 @@ def new_contract():
                                 return True
                         contract_type_select.on('blur', validate_contract_type)
                     with ui.column().classes(form_field):
+                        _currency_options = ["Please select", "AWG", "XCG", "USD", "EUR"]
+                        _currency_codes = {"AWG", "XCG", "USD", "EUR"}
+                        _currency_value = fd.get("currency_select")
+                        if _currency_value not in _currency_codes:
+                            _currency_value = "Please select"
                         currency_select = ui.select(
-                            options=["AWG", "XCG", "USD", "EUR"],
-                            label="Currency*",
-                            value=fd.get('currency_select'),
+                            options=_currency_options,
+                            label="Contract Currency*",
+                            value=_currency_value,
                         ).classes(input_classes).props("outlined").bind_value(
                             fd, "currency_select"
                         )
                         currency_error = ui.label('').classes('text-red-600 text-xs mt-1 min-h-[18px]').style('display:none')
                         def validate_currency(e=None):
                             value = currency_select.value or ''
-                            if not value.strip() or value == "Please Select":
-                                currency_error.text = "Please select the currency."
+                            if (
+                                not value.strip()
+                                or value == "Please select"
+                                or value == "Please Select"
+                            ):
+                                currency_error.text = (
+                                    "Please select the Contract Currency"
+                                )
                                 currency_error.style('display:block')
                                 currency_select.classes('border border-red-600')
                                 return False
@@ -777,17 +804,18 @@ def new_contract():
                 with ui.element("div").classes("flex justify-center gap-4 mt-8 w-full").props(f'id="c225"'):
                     def clear_contract_form():
                         """Reset all contract form fields to their defaults"""
-                        nonlocal vendor_contract_uploaded, vendor_contract_file_name
                         fd.clear()  # Clear persisted form data
                         vendor_select.value = vendor_names[0] if vendor_names else None
                         desc_input.value = ""
                         termination_input.value = NoticePeriodType.THIRTY_DAYS.value
-                        expiration_input.value = "30"
+                        expiration_input.value = (
+                            ExpirationNoticePeriodType.THIRTY_DAYS.value
+                        )
                         auto_renewal_select.value = "Please select"
                         renewal_period_select.value = "Please select"
                         renewal_period_select.set_visibility(False)
                         contract_type_select.value = None
-                        currency_select.value = None
+                        currency_select.value = "Please select"
                         department_select.value = None
                         contract_amount_input.value = ""
                         start_date.value = "08/24/2025"
@@ -885,7 +913,7 @@ def new_contract():
                             "department": department_select.value,
                             "payment_method": payment_select.value,
                             "termination_notice_period": termination_input.value,
-                            "expiration_notice_frequency": f"{expiration_input.value} days",
+                            "expiration_notice_frequency": expiration_input.value,
                             "automatic_renewal": auto_renewal_select.value,
                             "renewal_period": renewal_period_select.value if auto_renewal_select.value == "Yes" else None,
                             "contract_owner_id": owner_id,
