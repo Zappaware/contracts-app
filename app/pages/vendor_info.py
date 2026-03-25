@@ -57,7 +57,8 @@ def vendor_info(vendor_id: int):
     # Basic info (layout aligned with contract_info.py)
     with ui.card().classes("w-full max-w-5xl mx-auto mt-4 p-6"):
         with ui.row().classes("items-center justify-between mb-4 w-full"):
-            ui.label("Vendor Info").classes("text-h5")
+            # Main page title should reflect the selected vendor.
+            ui.label(vendor_name).classes("text-h5")
             if vendor:
                 with ui.row().classes("items-center gap-2"):
                     edit_btn = ui.button(icon="edit").props('flat round color=primary size=sm').tooltip('Edit Vendor Info')
