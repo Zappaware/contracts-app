@@ -585,11 +585,20 @@ def new_contract():
                         
                         contract_backup_select.on('blur', validate_contract_backup)
                     with ui.column().classes(form_field):
-                        upload_details_input = ui.input(label="Description", placeholder="Enter a description for these files", value=fd.get('upload_details_input', '')).classes(input_classes).props("outlined").bind_value(fd, 'upload_details_input')
+                        upload_details_input = ui.input(
+                            label="Other files note (optional)",
+                            placeholder="Optional",
+                            value=fd.get("upload_details_input", ""),
+                        ).classes(input_classes).props("outlined").bind_value(
+                            fd, "upload_details_input"
+                        )
                 
                 # Row 10.3 - Vendor Contract (left) & Attachments (right)
-                with ui.element('div').classes(form_row):
-                    with ui.column().classes(form_field):
+                upload_row = (
+                    "grid grid-cols-1 md:grid-cols-2 gap-8 items-start w-full"
+                )
+                with ui.element("div").classes(upload_row):
+                    with ui.column().classes(f"{form_field} w-full min-w-0"):
                         # Storage for uploaded file (matching new_vendor.py pattern) - MUST be before handler
                         vendor_contract_file = {'file': None}
                         
@@ -720,30 +729,49 @@ def new_contract():
                             vendor_contract_upload.classes(remove='border border-red-600')
                             return True
                     
-                    with ui.column().classes(form_field + " h-[140px]"):
-                        uploaded_files_container = ui.element("div").classes("flex flex-col gap-1 mb-2")
-                        with ui.card().classes("w-full h-auto p-0 min-h-[140px]"):
-                            
-                            async def handle_upload(e):
-                                # NiceGUI upload event has e.file (async SmallFileUpload object)
-                                if hasattr(e, 'file') and e.file:
-                                    uploaded_file = e.file
-                                    file_name = uploaded_file.name if hasattr(uploaded_file, 'name') else 'attachment'
-                                    
-                                    # Read file content asynchronously
-                                    await uploaded_file.read()
-                                    
-                                    with uploaded_files_container:
-                                        with ui.card().classes("p-1 bg-blue-50 flex gap-1 items-center"):
-                                            ui.icon("attach_file", size="xs").classes("text-[#144c8e]")
-                                            ui.label(file_name).classes("text-xs")
-                                            ui.icon("close", size="xs").classes("cursor-pointer text-gray-500 hover:text-red-500")
-                                    
-                                    ui.notify(f'File uploaded: {file_name}', type='positive')
-                                else:
-                                    ui.notify('No file uploaded', type='negative')
-                            
-                            ui.upload(on_upload=handle_upload, auto_upload=True, multiple=False, label="Drop files here or click to browse").props('accept=*/* color=primary outlined').classes("w-full min-h-[140px]")
+                    # gap-0 + upload first: avoids flex gap above an empty list stealing vertical alignment
+                    with ui.column().classes("flex flex-col gap-0 w-full min-w-0"):
+                        async def handle_upload(e):
+                            # NiceGUI upload event has e.file (async SmallFileUpload object)
+                            if hasattr(e, 'file') and e.file:
+                                uploaded_file = e.file
+                                file_name = (
+                                    uploaded_file.name
+                                    if hasattr(uploaded_file, 'name')
+                                    else 'attachment'
+                                )
+
+                                # Read file content asynchronously
+                                await uploaded_file.read()
+
+                                with uploaded_files_container:
+                                    with ui.card().classes(
+                                        "p-1 bg-blue-50 flex gap-1 items-center"
+                                    ):
+                                        ui.icon("attach_file", size="xs").classes(
+                                            "text-[#144c8e]"
+                                        )
+                                        ui.label(file_name).classes("text-xs")
+                                        ui.icon("close", size="xs").classes(
+                                            "cursor-pointer text-gray-500 hover:text-red-500"
+                                        )
+
+                                ui.notify(f'File uploaded: {file_name}', type='positive')
+                            else:
+                                ui.notify('No file uploaded', type='negative')
+
+                        ui.upload(
+                            on_upload=handle_upload,
+                            auto_upload=True,
+                            multiple=False,
+                            label="Other attachments (optional)",
+                        ).props("accept=*/* color=primary outlined").classes(
+                            "w-full min-h-[140px]"
+                        )
+
+                        uploaded_files_container = ui.element("div").classes(
+                            "flex flex-col gap-1 w-full mt-2"
+                        )
 
                 # Add Submit and Cancel buttons at the bottom
                 with ui.element("div").classes("flex justify-center gap-4 mt-8 w-full").props(f'id="c225"'):
