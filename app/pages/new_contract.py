@@ -5,6 +5,7 @@ from app.components.breadcrumb import breadcrumb
 import json
 import os
 from app.core.config import settings
+from app.models.contract import DepartmentType
 
 
 def new_contract():
@@ -247,12 +248,23 @@ def new_contract():
                 # Row 4 - Department & Initial Fee
                 with ui.element('div').classes(form_row):
                     with ui.column().classes(form_field):
-                        department_select = ui.select(options=["Human Resources", "Finance", "IT", "Operations", "Legal", "Marketing", "Sales", "Customer Service", "Risk Management", "Compliance", "Audit", "Treasury", "Credit", "Retail Banking", "Corporate Banking"], label="Please Select*", value=fd.get('department_select')).classes(input_classes).props("outlined").bind_value(fd, 'department_select')
+                        _department_options = [d.value for d in DepartmentType]
+                        department_select = ui.select(
+                            options=_department_options,
+                            label="Department*",
+                            value=fd.get('department_select'),
+                        ).classes(input_classes).props(
+                            'outlined use-input clearable input-debounce=0 placeholder="Please select"'
+                        ).bind_value(fd, 'department_select')
                         department_error = ui.label('').classes('text-red-600 text-xs mt-1 min-h-[18px]').style('display:none')
                         def validate_department(e=None):
                             value = department_select.value or ''
-                            if not value.strip() or value == "Please Select":
-                                department_error.text = "Please select the department."
+                            if (
+                                not str(value).strip()
+                                or value == "Please Select"
+                                or value not in _department_options
+                            ):
+                                department_error.text = "Please select a department."
                                 department_error.style('display:block')
                                 department_select.classes('border border-red-600')
                                 return False

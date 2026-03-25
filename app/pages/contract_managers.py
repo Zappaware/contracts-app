@@ -360,7 +360,9 @@ def contract_managers():
                     department_select = ui.select(
                         options=department_options,
                         label="Select department",
-                    ).classes(input_classes).props("outlined")
+                    ).classes(input_classes).props(
+                        'outlined use-input clearable input-debounce=0'
+                    )
                     department_error = ui.label('').classes(
                         'text-red-600 text-xs min-h-[18px]'
                     ).style('display:none')
@@ -664,7 +666,9 @@ def contract_managers():
                         options=department_options,
                         value=current_department if current_department in department_options else None,
                         label="Select department",
-                    ).classes(input_classes).props("outlined")
+                    ).classes(input_classes).props(
+                        'outlined use-input clearable input-debounce=0'
+                    )
                     department_error = ui.label('').classes(
                         'text-red-600 text-xs min-h-[18px]'
                     ).style('display:none')
