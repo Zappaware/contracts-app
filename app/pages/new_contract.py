@@ -5,7 +5,7 @@ from app.components.breadcrumb import breadcrumb
 import json
 import os
 from app.core.config import settings
-from app.models.contract import DepartmentType
+from app.models.contract import DepartmentType, NoticePeriodType
 
 
 def new_contract():
@@ -115,17 +115,31 @@ def new_contract():
                 form_row = "grid grid-cols-1 md:grid-cols-2 gap-8 items-stretch"
                 form_field = "flex flex-col gap-1"
                 
-                ui.label("Contract Terms").classes("text-lg font-semibold text-gray-800 mb-4 mt-8")
-                # Row 1 - Termination Notice & Contract Expiration Date
+                ui.label("Contract Terms").classes(
+                    "text-lg font-semibold text-gray-800 mb-4 mt-8"
+                )
+                # Row 1 - Termination notice period & contract end date
+                _termination_options = [e.value for e in NoticePeriodType]
+                _termination_default = NoticePeriodType.THIRTY_DAYS.value
+                _termination_value = fd.get("termination_input", _termination_default)
+                if _termination_value not in _termination_options:
+                    _termination_value = _termination_default
                 with ui.element('div').classes(form_row):
                     with ui.column().classes(form_field):
-                        termination_options = ["15", "30", "60", "90", "120"]
-                        termination_input = ui.select(options=termination_options, value=fd.get('termination_input', "30"), label="Days*").classes(input_classes).props("outlined").bind_value(fd, 'termination_input')
+                        termination_input = ui.select(
+                            options=_termination_options,
+                            value=_termination_value,
+                            label="Termination Notice Period*",
+                        ).classes(input_classes).props("outlined").bind_value(
+                            fd, "termination_input"
+                        )
                         termination_error = ui.label('').classes('text-red-600 text-xs mt-1 min-h-[18px]').style('display:none')
                         def validate_termination(e=None):
                             value = termination_input.value or ''
-                            if not value.strip() or value not in termination_options:
-                                termination_error.text = "Please select the termination notice in days."
+                            if not value.strip() or value not in _termination_options:
+                                termination_error.text = (
+                                    "Please provide the Termination Notice Period"
+                                )
                                 termination_error.style('display:block')
                                 termination_input.classes('border border-red-600')
                                 return False
@@ -640,7 +654,7 @@ def new_contract():
                         fd.clear()  # Clear persisted form data
                         vendor_select.value = vendor_names[0] if vendor_names else None
                         desc_input.value = ""
-                        termination_input.value = "30"
+                        termination_input.value = NoticePeriodType.THIRTY_DAYS.value
                         expiration_input.value = "30"
                         auto_renewal_select.value = "Please select"
                         renewal_period_select.value = "Please select"
@@ -743,7 +757,7 @@ def new_contract():
                             "contract_currency": currency_select.value,
                             "department": department_select.value,
                             "payment_method": payment_select.value,
-                            "termination_notice_period": f"{termination_input.value} days",
+                            "termination_notice_period": termination_input.value,
                             "expiration_notice_frequency": f"{expiration_input.value} days",
                             "automatic_renewal": auto_renewal_select.value,
                             "renewal_period": renewal_period_select.value if auto_renewal_select.value == "Yes" else None,
