@@ -647,7 +647,7 @@ def home_page():
         },
         {
             "name": "manager",
-            "label": "Manager",
+            "label": "My Role",
             "field": "manager",
             "align": "left",
             "sortable": True,

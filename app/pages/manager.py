@@ -437,14 +437,14 @@ def manager():
         },
         {
             "name": "manager",
-            "label": "Manager",
+            "label": "My Role",
             "field": "manager",
             "align": "left",
             "sortable": True,
         },
         {
             "name": "my_role",
-            "label": "My Role",
+            "label": "Contract role",
             "field": "my_role",
             "align": "left",
             "sortable": True,
