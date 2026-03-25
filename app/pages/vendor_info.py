@@ -46,7 +46,7 @@ def vendor_info(vendor_id: int):
         db.close()
     
     # Breadcrumb navigation
-    with ui.row().classes("max-w-3xl mx-auto mt-4"):
+    with ui.row().classes("max-w-5xl mx-auto mt-4"):
         vendor_name = vendor.vendor_name if vendor else "Vendor"
         breadcrumb([
             ("Home", get_dashboard_url()),
@@ -54,8 +54,8 @@ def vendor_info(vendor_id: int):
             (vendor_name, None),
         ])
     
-    # Basic info
-    with ui.card().classes("w-full max-w-3xl mx-auto mt-4 p-6"):
+    # Basic info (layout aligned with contract_info.py)
+    with ui.card().classes("w-full max-w-5xl mx-auto mt-4 p-6"):
         with ui.row().classes("items-center justify-between mb-4 w-full"):
             ui.label("Vendor Info").classes("text-h5")
             if vendor:
@@ -399,7 +399,7 @@ def vendor_info(vendor_id: int):
     
     # Documents Section - Two Categories
     if vendor:
-        with ui.card().classes("w-full max-w-3xl mx-auto mt-6 p-6"):
+        with ui.card().classes("w-full max-w-5xl mx-auto mt-6 p-6"):
             ui.label("Documents").classes("text-h5 mb-4 text-blue-600 font-bold")
             
             # Calculate document counts
