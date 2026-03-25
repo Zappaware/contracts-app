@@ -63,12 +63,8 @@ def new_contract():
         if full_name not in contract_managers_data:
             contract_managers_data[full_name] = getattr(user, "email", "") or ""
     
-    # Vendor Contract variables (function scope for accessibility)
-    vendor_contract_uploaded = False
-    vendor_contract_file_name = None
-    vendor_contract_file_content = None
-    vendor_contract_rename_input = None
-    vendor_contract_date_input = None
+    # Vendor Contract: each upload is one row (name + signed date + bytes)
+    vendor_contract_docs = []
     
     with ui.element("div").classes("max-w-7xl mx-auto mt-8 w-full px-4").props(f'id="c213"'):
         with ui.element("div").classes("p-8 bg-white rounded-xl mx-auto grid gap-8 shadow-xl border border-gray-200"):
@@ -723,134 +719,237 @@ def new_contract():
                 )
                 with ui.element("div").classes(upload_row):
                     with ui.column().classes(f"{form_field} w-full min-w-0"):
-                        # Storage for uploaded file (matching new_vendor.py pattern) - MUST be before handler
-                        vendor_contract_file = {'file': None}
-                        
-                        # File display and rename section (initially hidden)
-                        vendor_contract_file_display = ui.element("div").classes("w-full mt-2 hidden")
-                        
+                        vendor_contract_file_display = ui.element("div").classes(
+                            "w-full mt-2 flex flex-col gap-3 hidden"
+                        )
+
+                        def remove_vendor_contract_doc(doc_uid: str):
+                            doc = next(
+                                (
+                                    d
+                                    for d in vendor_contract_docs
+                                    if d["uid"] == doc_uid
+                                ),
+                                None,
+                            )
+                            if not doc:
+                                return
+                            doc["row_el"].delete()
+                            vendor_contract_docs[:] = [
+                                d for d in vendor_contract_docs if d["uid"] != doc_uid
+                            ]
+                            if not vendor_contract_docs:
+                                vendor_contract_file_display.classes(add="hidden")
+
                         async def handle_vendor_contract_upload(e):
-                            nonlocal vendor_contract_uploaded, vendor_contract_file_name, vendor_contract_rename_input, vendor_contract_date_input
-                            
-                            # NiceGUI upload event has e.file (async SmallFileUpload object)
-                            if not hasattr(e, 'file') or not e.file:
-                                ui.notify('No file selected', type='negative')
+                            if not hasattr(e, "file") or not e.file:
+                                ui.notify("No file selected", type="negative")
                                 return
-                            
+
                             uploaded_file = e.file
-                            file_name = uploaded_file.name if hasattr(uploaded_file, 'name') else 'contract.pdf'
-                            
-                            # Check file extension - only PDF allowed
-                            if not file_name.lower().endswith('.pdf'):
-                                ui.notify('Only PDF files are allowed', type='negative')
+                            file_name = (
+                                uploaded_file.name
+                                if hasattr(uploaded_file, "name")
+                                else "contract.pdf"
+                            )
+                            if not file_name.lower().endswith(".pdf"):
+                                ui.notify(
+                                    "Only PDF files are allowed", type="negative"
+                                )
                                 return
-                            
-                            # Read file content asynchronously (await the coroutine)
+
                             file_content = await uploaded_file.read()
-                            
-                            # Store file content as bytes for later upload
-                            vendor_contract_file['file'] = file_content
-                            vendor_contract_uploaded = True
-                            vendor_contract_file_name = file_name
-                            
-                            # Show file display section
-                            vendor_contract_file_display.classes(remove='hidden')
-                            vendor_contract_file_display.clear()
-                            
+                            doc_uid = uuid.uuid4().hex[:12]
+                            vendor_contract_file_display.classes(remove="hidden")
+
+                            def validate_rename_input(ren_inp):
+                                def _validate(_e=None):
+                                    value = ren_inp.value or ""
+                                    if value and not re.match(
+                                        r"^[a-zA-Z0-9\s\-\|&]*$", value
+                                    ):
+                                        cleaned = re.sub(
+                                            r"[^a-zA-Z0-9\s\-\|&]", "", value
+                                        )
+                                        ren_inp.value = cleaned
+                                        ui.notify(
+                                            "Only letters, numbers, and special characters (-, |, &) are allowed",
+                                            type="warning",
+                                        )
+
+                                return _validate
+
                             with vendor_contract_file_display:
-                                with ui.card().classes("p-3 bg-blue-50 w-full"):
-                                    with ui.row().classes("items-center gap-2 mb-2"):
-                                        ui.icon("picture_as_pdf", color="red", size="md")
-                                        ui.label(f"File: {file_name}").classes("text-sm font-medium")
-                                    
-                                    # Rename input with character validation
-                                    nonlocal vendor_contract_rename_input
-                                    vendor_contract_rename_input = ui.input(
-                                        label="Document name*",
-                                        value=file_name.replace(".pdf", ""),
-                                        placeholder="A-Z, 0-9, - | &",
-                                    ).classes(input_classes + " mb-2").props("outlined")
-                                    
-                                    # Add validation on input change
-                                    def validate_rename_input(e):
-                                        import re
-                                        value = vendor_contract_rename_input.value or ''
-                                        if value and not re.match(r'^[a-zA-Z0-9\s\-\|&]*$', value):
-                                            # Remove invalid characters
-                                            cleaned = re.sub(r'[^a-zA-Z0-9\s\-\|&]', '', value)
-                                            vendor_contract_rename_input.value = cleaned
-                                            ui.notify('Only letters, numbers, and special characters (-, |, &) are allowed', type='warning')
-                                    
-                                    vendor_contract_rename_input.on('input', validate_rename_input)
-                                    
-                                    # Date signed input with calendar
-                                    nonlocal vendor_contract_date_input
-                                    with ui.input(
-                                        label="Signed date*",
-                                        placeholder="MM/DD/YYYY",
-                                    ).classes(input_classes).props("outlined") as vendor_contract_date_input:
-                                        with ui.menu().props('no-parent-event') as vendor_contract_date_menu:
-                                            with ui.date().props('mask=MM/DD/YYYY').bind_value(vendor_contract_date_input, 
-                                                forward=lambda d: d.replace('-', '/') if d else '', 
-                                                backward=lambda d: d.replace('/', '-') if d else ''):
-                                                with ui.row().classes('justify-end'):
-                                                    ui.button('Close', on_click=vendor_contract_date_menu.close).props('flat')
-                                        with vendor_contract_date_input.add_slot('append'):
-                                            ui.icon('edit_calendar').on('click', vendor_contract_date_menu.open).classes('cursor-pointer')
-                            
-                            vendor_contract_error.text = ''
-                            vendor_contract_error.style('display:none')
-                            vendor_contract_upload.classes(remove='border border-red-600')
-                            ui.notify('PDF file uploaded successfully', type='positive')
-                        
+                                row_wrap = ui.element("div").classes("w-full")
+                                with row_wrap:
+                                    with ui.card().classes("p-3 bg-blue-50 w-full"):
+                                        with ui.row().classes(
+                                            "items-start justify-between gap-2 mb-2 w-full"
+                                        ):
+                                            with ui.row().classes(
+                                                "items-center gap-2 min-w-0 flex-1"
+                                            ):
+                                                ui.icon(
+                                                    "picture_as_pdf",
+                                                    color="red",
+                                                    size="md",
+                                                )
+                                                ui.label(f"File: {file_name}").classes(
+                                                    "text-sm font-medium truncate"
+                                                )
+                                            ui.button(
+                                                icon="close",
+                                                on_click=lambda u=doc_uid: remove_vendor_contract_doc(
+                                                    u
+                                                ),
+                                            ).props("flat dense round").classes(
+                                                "text-gray-500 shrink-0"
+                                            )
+
+                                        rename_input = ui.input(
+                                            label="Document name*",
+                                            value=file_name.replace(".pdf", ""),
+                                            placeholder="A-Z, 0-9, - | &",
+                                        ).classes(input_classes + " mb-2").props(
+                                            "outlined"
+                                        )
+                                        rename_input.on(
+                                            "input", validate_rename_input(rename_input)
+                                        )
+
+                                        with ui.input(
+                                            label="Signed date*",
+                                            placeholder="MM/DD/YYYY",
+                                        ).classes(input_classes).props("outlined") as date_input:
+                                            with ui.menu().props(
+                                                "no-parent-event"
+                                            ) as date_menu:
+                                                with ui.date().props(
+                                                    "mask=MM/DD/YYYY"
+                                                ).bind_value(
+                                                    date_input,
+                                                    forward=lambda d: d.replace(
+                                                        "-", "/"
+                                                    )
+                                                    if d
+                                                    else "",
+                                                    backward=lambda d: d.replace(
+                                                        "/", "-"
+                                                    )
+                                                    if d
+                                                    else "",
+                                                ):
+                                                    with ui.row().classes(
+                                                        "justify-end"
+                                                    ):
+                                                        ui.button(
+                                                            "Close",
+                                                            on_click=date_menu.close,
+                                                        ).props("flat")
+                                            with date_input.add_slot("append"):
+                                                ui.icon(
+                                                    "edit_calendar"
+                                                ).on(
+                                                    "click", date_menu.open
+                                                ).classes("cursor-pointer")
+
+                            vendor_contract_docs.append(
+                                {
+                                    "uid": doc_uid,
+                                    "file_bytes": file_content,
+                                    "original_name": file_name,
+                                    "rename_input": rename_input,
+                                    "date_input": date_input,
+                                    "row_el": row_wrap,
+                                }
+                            )
+
+                            vendor_contract_error.text = ""
+                            vendor_contract_error.style("display:none")
+                            vendor_contract_upload.classes(remove="border border-red-600")
+                            ui.notify("PDF file uploaded successfully", type="positive")
+
                         vendor_contract_upload = ui.upload(
                             on_upload=handle_vendor_contract_upload,
                             auto_upload=True,
                             label="Signed contract PDF*",
-                        ).props('accept=.pdf color=primary outlined').classes(
+                        ).props("accept=.pdf color=primary outlined").classes(
                             "w-full min-h-[140px]"
                         )
-                        
-                        vendor_contract_error = ui.label('').classes('text-red-600 text-xs mt-1 min-h-[18px]').style('display:none')
-                        
+
+                        vendor_contract_error = ui.label("").classes(
+                            "text-red-600 text-xs mt-1 min-h-[18px]"
+                        ).style("display:none")
+
                         def validate_vendor_contract(_e=None):
-                            nonlocal vendor_contract_uploaded, vendor_contract_file_name, vendor_contract_rename_input, vendor_contract_date_input
-                            if not vendor_contract_uploaded or not vendor_contract_file_name:
-                                vendor_contract_error.text = "Please upload this required document"
-                                vendor_contract_error.style('display:block')
-                                vendor_contract_upload.classes('border border-red-600')
+                            for d in vendor_contract_docs:
+                                ren = d.get("rename_input")
+                                dat = d.get("date_input")
+                                if ren:
+                                    ren.classes(remove="border border-red-600")
+                                if dat:
+                                    dat.classes(remove="border border-red-600")
+
+                            if not vendor_contract_docs:
+                                vendor_contract_error.text = (
+                                    "Please upload this required document"
+                                )
+                                vendor_contract_error.style("display:block")
+                                vendor_contract_upload.classes(
+                                    "border border-red-600"
+                                )
                                 return False
-                            
-                            # Validate rename input (only letters, numbers, -, |, &)
-                            if vendor_contract_rename_input:
-                                rename_value = vendor_contract_rename_input.value or ''
-                                import re
+
+                            for d in vendor_contract_docs:
+                                rename_input = d.get("rename_input")
+                                date_input = d.get("date_input")
+                                rename_value = (
+                                    (rename_input.value or "")
+                                    if rename_input
+                                    else ""
+                                )
                                 if not rename_value.strip():
-                                    vendor_contract_error.text = "Please enter a document name"
-                                    vendor_contract_error.style('display:block')
-                                    vendor_contract_rename_input.classes('border border-red-600')
+                                    vendor_contract_error.text = (
+                                        "Please enter a document name"
+                                    )
+                                    vendor_contract_error.style("display:block")
+                                    if rename_input:
+                                        rename_input.classes(
+                                            "border border-red-600"
+                                        )
                                     return False
-                                # Check for allowed characters: letters, numbers, -, |, &
-                                if not re.match(r'^[a-zA-Z0-9\s\-\|&]+$', rename_value):
-                                    vendor_contract_error.text = "Document name can only contain letters, numbers, and special characters: -, |, &"
-                                    vendor_contract_error.style('display:block')
-                                    vendor_contract_rename_input.classes('border border-red-600')
+                                if not re.match(
+                                    r"^[a-zA-Z0-9\s\-\|&]+$", rename_value
+                                ):
+                                    vendor_contract_error.text = (
+                                        "Document name can only contain letters, numbers, and special characters: -, |, &"
+                                    )
+                                    vendor_contract_error.style("display:block")
+                                    if rename_input:
+                                        rename_input.classes(
+                                            "border border-red-600"
+                                        )
                                     return False
-                                vendor_contract_rename_input.classes(remove='border border-red-600')
-                            
-                            # Validate date signed
-                            if vendor_contract_date_input:
-                                date_value = vendor_contract_date_input.value or ''
+
+                                date_value = (
+                                    (date_input.value or "") if date_input else ""
+                                )
                                 if not date_value.strip():
-                                    vendor_contract_error.text = "Please enter the document date signed"
-                                    vendor_contract_error.style('display:block')
-                                    vendor_contract_date_input.classes('border border-red-600')
+                                    vendor_contract_error.text = (
+                                        "Please enter the document date signed"
+                                    )
+                                    vendor_contract_error.style("display:block")
+                                    if date_input:
+                                        date_input.classes(
+                                            "border border-red-600"
+                                        )
                                     return False
-                                vendor_contract_date_input.classes(remove='border border-red-600')
-                            
-                            vendor_contract_error.text = ''
-                            vendor_contract_error.style('display:none')
-                            vendor_contract_upload.classes(remove='border border-red-600')
+
+                            vendor_contract_error.text = ""
+                            vendor_contract_error.style("display:none")
+                            vendor_contract_upload.classes(
+                                remove="border border-red-600"
+                            )
                             return True
                     
                     # gap-0 + upload first: avoids flex gap above an empty list stealing vertical alignment
@@ -923,13 +1022,19 @@ def new_contract():
                         notify_select.value = "Please select"
                         attention_input.value = ""
                         contract_manager_select.value = "Please select"
+                        contract_manager_email_display.value = ""
+                        contract_manager_email_wrap.set_visibility(False)
                         contract_owner_select.value = "Please select"
+                        contract_owner_email_display.value = ""
+                        contract_owner_email_wrap.set_visibility(False)
                         contract_backup_select.value = "Please select"
+                        contract_backup_email_display.value = ""
+                        contract_backup_email_wrap.set_visibility(False)
                         upload_details_input.value = ""
-                        vendor_contract_uploaded = False
-                        vendor_contract_file_name = None
-                        vendor_contract_file_display.classes(add='hidden')
-                        vendor_contract_file['file'] = None
+                        for d in vendor_contract_docs:
+                            d["row_el"].delete()
+                        vendor_contract_docs.clear()
+                        vendor_contract_file_display.classes(add="hidden")
                         ui.notify('✨ Form cleared', type='info')
                     
                     ui.button("Cancel", icon="close", on_click=clear_contract_form).props("flat").classes("text-gray-700")
@@ -1022,32 +1127,37 @@ def new_contract():
                         api_host = os.getenv("API_BASE_URL", "http://127.0.0.1:8000")
                         url = f"{api_host}{settings.api_v1_prefix}/contracts/"
                         
-                        # Get uploaded file content
-                        if not vendor_contract_uploaded:
-                            ui.notify('Please upload the vendor contract document', type='negative')
+                        if not vendor_contract_docs:
+                            ui.notify(
+                                "Please upload the vendor contract document",
+                                type="negative",
+                            )
                             return
-                        
-                        # Get document name and date
-                        doc_name = vendor_contract_rename_input.value if vendor_contract_rename_input else vendor_contract_file_name
-                        doc_date = convert_date(vendor_contract_date_input.value) if vendor_contract_date_input else None
-                        
+
+                        first = vendor_contract_docs[0]
+                        doc_name = (first["rename_input"].value or "").strip()
+                        doc_date = (
+                            convert_date(first["date_input"].value)
+                            if first.get("date_input")
+                            else None
+                        )
                         if not doc_date:
-                            ui.notify('Please enter the document signed date', type='negative')
+                            ui.notify(
+                                "Please enter the document signed date",
+                                type="negative",
+                            )
                             return
-                        
-                        # Prepare multipart form data (matching new_vendor.py pattern)
+
                         files = {
-                            'contract_data': (None, json.dumps(contract_data)),
-                            'document_name': (None, doc_name),
-                            'document_signed_date': (None, doc_date)
+                            "contract_data": (None, json.dumps(contract_data)),
+                            "document_name": (None, doc_name),
+                            "document_signed_date": (None, doc_date),
+                            "contract_document": (
+                                "contract.pdf",
+                                first["file_bytes"],
+                                "application/pdf",
+                            ),
                         }
-                        
-                        # Add the uploaded PDF file
-                        if vendor_contract_file.get('file'):
-                            files['contract_document'] = ('contract.pdf', vendor_contract_file['file'], 'application/pdf')
-                        else:
-                            ui.notify('Error: Contract document not properly uploaded. Please re-upload the file.', type='negative')
-                            return
                         
                         # Send to backend API
                         try:
@@ -1071,19 +1181,64 @@ def new_contract():
                                 if response.status_code == 201:
                                     result = response.json()
                                     contract_id = result.get("contract_id", "N/A")
-                                    vendor_name = result.get("vendor_name", "N/A")
-                                    ui.notify(
-                                        f'✅ SUCCESS! Contract "{contract_id}" created successfully!',
-                                        type='positive',
-                                        position='top',
-                                        close_button=True,
-                                        timeout=5000
-                                    )
+                                    contract_db_id = result.get("id")
+
+                                    extra_upload_failures = []
+                                    if (
+                                        contract_db_id is not None
+                                        and len(vendor_contract_docs) > 1
+                                    ):
+                                        docs_url = (
+                                            f"{api_host}{settings.api_v1_prefix}"
+                                            f"/contracts/{contract_db_id}/documents"
+                                        )
+                                        for item in vendor_contract_docs[1:]:
+                                            nm = (
+                                                item["rename_input"].value or ""
+                                            ).strip()
+                                            dt = convert_date(
+                                                item["date_input"].value
+                                            )
+                                            extra_files = {
+                                                "document_name": (None, nm),
+                                                "document_signed_date": (
+                                                    None,
+                                                    dt,
+                                                ),
+                                                "file": (
+                                                    f"{nm}.pdf",
+                                                    item["file_bytes"],
+                                                    "application/pdf",
+                                                ),
+                                            }
+                                            r2 = await client.post(
+                                                docs_url, files=extra_files
+                                            )
+                                            if r2.status_code not in (200, 201):
+                                                extra_upload_failures.append(
+                                                    r2.text[:300]
+                                                )
+
+                                    if extra_upload_failures:
+                                        ui.notify(
+                                            f'Contract "{contract_id}" was created, but '
+                                            f"{len(extra_upload_failures)} additional PDF(s) "
+                                            "failed to upload. Add them from the contract record.",
+                                            type="warning",
+                                            position="top",
+                                            close_button=True,
+                                            timeout=10000,
+                                        )
+                                    else:
+                                        ui.notify(
+                                            f'✅ SUCCESS! Contract "{contract_id}" created successfully!',
+                                            type="positive",
+                                            position="top",
+                                            close_button=True,
+                                            timeout=5000,
+                                        )
                                     print(f"✅ Contract created: {contract_id}")
-                                    # Clear the form after successful submission
                                     clear_contract_form()
-                                    # Optionally navigate to active contracts page
-                                    # ui.navigate.to('/active-contracts')
                                 else:
                                     error_text = ""
                                     try:
