@@ -15,12 +15,12 @@ def header(current_path: str = None):
         "no-underline text-base text-gray-500 items-center text-normal hover:underline font-[segoe ui] hover:text-black"
     )
     ui.dropdown_button.default_classes(
-        "text-weight-regular normal-case text-gray-500 font-[segoe ui]"
+        "text-weight-regular uppercase text-gray-500 font-[segoe ui]"
     ).default_props("flat")
     with (
         ui.header()
         .classes(
-            "bg-[#f8f9fa] p-2 font-[segoe ui] items-center flex flex-row justify-between"
+            "app-top-header bg-[#f8f9fa] p-2 font-[segoe ui] items-center flex flex-row justify-between uppercase"
         )
         .props("flat")
     ):
@@ -45,45 +45,47 @@ def header(current_path: str = None):
             # Home link - same styling as "New Contract"/"New Vendor", but role-based target
             user_role = app.storage.user.get('user_role', None)
             home_target = '/' if user_role == UserRole.CONTRACT_ADMIN.value else '/manager'
-            home_link = ui.link("Home", home_target)
+            home_link = ui.link("Home", home_target).classes("uppercase")
             if current_path and current_path in ('/', '/manager'):
                 home_link.classes("nav-active")
-            new_contract_link = ui.link("New Contract", "/new-contract")
+            new_contract_link = ui.link("New Contract", "/new-contract").classes(
+                "uppercase"
+            )
             if current_path == '/new-contract':
                 new_contract_link.classes("nav-active")
-            new_vendor_link = ui.link("New Vendor", "/new-vendor")
+            new_vendor_link = ui.link("New Vendor", "/new-vendor").classes("uppercase")
             if current_path == '/new-vendor':
                 new_vendor_link.classes("nav-active")
             with (
                 ui.dropdown_button("Reports", auto_close=True, color=None)
                 .classes(
-                    "text-weight-regular normal-case text-gray-500 font-[segoe ui]"
+                    "text-weight-regular uppercase text-gray-500 font-[segoe ui]"
                 )
                 .props("flat")
             ):
                 ui.link("Active Contracts", "/active-contracts").classes(
-                    "text-black font-[segoe ui] flex flex-column p-2"
+                    "text-black font-[segoe ui] flex flex-column p-2 uppercase"
                 )
                 ui.link("Pending Documents", "/pending-contracts").classes(
-                    "text-black font-[segoe ui] flex flex-column p-2"
+                    "text-black font-[segoe ui] flex flex-column p-2 uppercase"
                 )
                 ui.link("Expired Contracts", "/expired-contracts").classes(
-                    "text-black font-[segoe ui] flex flex-column p-2"
+                    "text-black font-[segoe ui] flex flex-column p-2 uppercase"
                 )
                 ui.link("Terminated Contracts", "/terminated-contracts").classes(
-                    "text-black font-[segoe ui] flex flex-column p-2"
+                    "text-black font-[segoe ui] flex flex-column p-2 uppercase"
                 )
                 ui.link("Material Outsourcing Agreement Report", "/moa-report").classes(
-                    "text-black font-[segoe ui] flex flex-column p-2 border-t border-gray-200"
+                    "text-black font-[segoe ui] flex flex-column p-2 border-t border-gray-200 uppercase"
                 )
                 ui.link("Contracts Monetary Value Report", "/monetary-value-report").classes(
-                    "text-black font-[segoe ui] flex flex-column p-2"
+                    "text-black font-[segoe ui] flex flex-column p-2 uppercase"
                 )
                 ui.link("Due Diligence Report", "/due-diligence-report").classes(
-                    "text-black font-[segoe ui] flex flex-column p-2"
+                    "text-black font-[segoe ui] flex flex-column p-2 uppercase"
                 )
                 ui.menu_item("Audit trail").classes(
-                    "text-black font-[segoe ui] flex flex-column p-2 border-t border-gray-200"
+                    "text-black font-[segoe ui] flex flex-column p-2 border-t border-gray-200 uppercase"
                 )
 
         # Spacer to push right section to the end
@@ -142,7 +144,7 @@ def header(current_path: str = None):
             # Notification bell button with badge - use button with menu
             with ui.element("div").classes("relative"):
                 notification_btn = ui.button(icon="notifications", color=None).classes(
-                    "text-weight-regular normal-case text-gray-500 font-[segoe ui]"
+                    "text-weight-regular uppercase text-gray-500 font-[segoe ui]"
                 ).props("flat")
                 
                 # Badge showing notification count
@@ -159,7 +161,9 @@ def header(current_path: str = None):
             with notification_btn:
                 notification_menu = ui.menu().props('anchor="bottom end" self="top end"')
                 with notification_menu:
-                    with ui.card().classes("min-w-[400px] max-w-[500px] max-h-[600px] overflow-y-auto shadow-xl p-0"):
+                    with ui.card().classes(
+                        "min-w-[400px] max-w-[500px] max-h-[600px] overflow-y-auto shadow-xl p-0 uppercase"
+                    ):
                         ui.label("Notifications").classes("text-h6 font-bold mb-4 p-4 border-b sticky top-0 bg-white z-10")
                         
                         if notification_count == 0:
@@ -201,11 +205,11 @@ def header(current_path: str = None):
             
             # Logout button with confirmation dialog
             logout_btn = ui.button("Logout", color=None, icon="logout").classes(
-                "text-weight-regular normal-case text-gray-500 font-[segoe ui]"
+                "text-weight-regular uppercase text-gray-500 font-[segoe ui]"
             ).props("flat")
             
             # Logout confirmation dialog
-            with ui.dialog() as logout_dialog, ui.card().classes("min-w-[400px]"):
+            with ui.dialog() as logout_dialog, ui.card().classes("min-w-[400px] uppercase"):
                 ui.label("Confirm Logout").classes("text-h6 mb-4 font-bold")
                 ui.label("Are you sure you want to log out?").classes("mb-6 text-gray-700")
                 
