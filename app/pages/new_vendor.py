@@ -993,7 +993,11 @@ def new_vendor():
                     # Row 8 - Last Due Diligence Date (MM/DD/YY) & Next Required Due Diligence Date (AC: date, calculated, editable)
                     with ui.element('div').classes(form_row):
                         with ui.column().classes(form_field):
-                            with ui.input('MM/DD/YY', value=fd.get('due_diligence_date', '')).classes(input_classes).props("outlined").bind_value(fd, 'due_diligence_date') as due_diligence_date:
+                            with ui.input(
+                                label="Last Due Diligence Date*",
+                                placeholder="MM/DD/YY",
+                                value=fd.get('due_diligence_date', ''),
+                            ).classes(input_classes).props("outlined").bind_value(fd, 'due_diligence_date') as due_diligence_date:
                                 due_diligence_error = ui.label('').classes('text-red-600 text-xs mt-1 min-h-[18px]').style('display:none')
                                 with ui.menu().props('no-parent-event') as due_diligence_menu:
                                     with ui.date(value=None).props('mask=MM/DD/YY').bind_value(due_diligence_date,
@@ -1016,7 +1020,11 @@ def new_vendor():
                                 return True
                             due_diligence_date.on('blur', validate_due_diligence)
                         with ui.column().classes(form_field):
-                            with ui.input('MM/DD/YY', value=fd.get('next_required_dd_date', '')).classes(input_classes).props("outlined").bind_value(fd, 'next_required_dd_date') as next_required_dd_date:
+                            with ui.input(
+                                label="Next Required Due Diligence Date*",
+                                placeholder="MM/DD/YY",
+                                value=fd.get('next_required_dd_date', ''),
+                            ).classes(input_classes).props("outlined").bind_value(fd, 'next_required_dd_date') as next_required_dd_date:
                                 next_required_dd_date_error = ui.label('').classes('text-red-600 text-xs mt-1 min-h-[18px]').style('display:none')
                                 with ui.menu().props('no-parent-event') as next_required_dd_menu:
                                     with ui.date(value=None).props('mask=MM/DD/YY').bind_value(next_required_dd_date,
