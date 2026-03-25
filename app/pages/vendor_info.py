@@ -65,105 +65,137 @@ def vendor_info(vendor_id: int):
         if not vendor:
             ui.label("No vendor selected. Please select a vendor from the vendors list.").classes("text-red-600")
         else:
-            # Get primary email
-            primary_email = next((e.email for e in vendor.emails if e.is_primary), 
-                                vendor.emails[0].email if vendor.emails else "N/A")
-            
-            # Get primary address
-            primary_address = next((a for a in vendor.addresses if a.is_primary),
-                                  vendor.addresses[0] if vendor.addresses else None)
-            
-            # Get primary phone
-            primary_phone = next((p for p in vendor.phones if p.is_primary),
-                                vendor.phones[0] if vendor.phones else None)
-            
-            with ui.row().classes("mb-2 gap-4"):
-                ui.label(f"Vendor ID: {vendor.vendor_id}").classes("font-bold")
-                ui.label(f"Vendor Name: {vendor.vendor_name}").classes("font-bold")
-            with ui.row().classes("mb-2 items-center gap-4"):
-                with ui.row().classes("items-center gap-2"):
-                    ui.label("Status:").classes("text-lg font-bold")
-                    # Status coloring: Active = green, Inactive = black (per requirements)
-                    status_color = "green" if vendor.status.value == "Active" else "black"
-                    ui.badge(vendor.status.value, color=status_color).classes("text-sm font-semibold")
-                ui.label(f"Contact Person: {vendor.vendor_contact_person}")
-                ui.label(f"Email: {primary_email}")
-            with ui.row().classes("mb-2 items-center gap-2"):
-                ui.label("Next Required Due Diligence Date:").classes("font-medium")
-                if vendor.next_required_due_diligence_date:
-                    next_dd_date = vendor.next_required_due_diligence_date.strftime("%Y-%m-%d")
-                    # Check if due diligence date has passed
-                    if isinstance(vendor.next_required_due_diligence_date, datetime):
-                        dd_date = vendor.next_required_due_diligence_date.date()
+            primary_email = next(
+                (e.email for e in vendor.emails if e.is_primary),
+                vendor.emails[0].email if vendor.emails else None,
+            )
+            primary_address = next(
+                (a for a in vendor.addresses if a.is_primary),
+                vendor.addresses[0] if vendor.addresses else None,
+            )
+            primary_phone = next(
+                (p for p in vendor.phones if p.is_primary),
+                vendor.phones[0] if vendor.phones else None,
+            )
+            phone_display = (
+                f"{primary_phone.area_code} {primary_phone.phone_number}".strip()
+                if primary_phone
+                else None
+            )
+            alert_freq = (
+                vendor.next_required_due_diligence_alert_frequency.value
+                if vendor.next_required_due_diligence_alert_frequency
+                else None
+            )
+
+            def _field(label: str, value: str):
+                with ui.column().classes("gap-0"):
+                    ui.label(label).classes("text-xs text-gray-500 font-medium")
+                    ui.label(value or "N/A").classes("text-sm font-semibold")
+
+            def _dd_date_column(label: str, dt_value, *, overdue_message: bool = True):
+                """Show a due-diligence date with optional overdue warning (past calendar day)."""
+                with ui.column().classes("gap-0"):
+                    ui.label(label).classes("text-xs text-gray-500 font-medium")
+                    if not dt_value:
+                        ui.label("N/A").classes("text-sm font-semibold")
+                        return
+                    formatted = dt_value.strftime("%Y-%m-%d") if hasattr(dt_value, "strftime") else str(dt_value)
+                    if isinstance(dt_value, datetime):
+                        cmp_date = dt_value.date()
                     else:
-                        dd_date = vendor.next_required_due_diligence_date
-                    
-                    if dd_date < date.today():
-                        # Date has passed - display in red with attention icon
+                        cmp_date = dt_value
+                    if overdue_message and cmp_date < date.today():
                         with ui.row().classes("items-center gap-2"):
                             ui.icon("warning", color="red").classes("text-xl")
-                            ui.label(next_dd_date).classes("text-red-600 font-bold")
+                            ui.label(formatted).classes("text-sm font-semibold text-red-600")
                     else:
-                        ui.label(next_dd_date)
+                        ui.label(formatted).classes("text-sm font-semibold")
+
+            ui.label("Overview").classes("text-sm font-bold text-gray-600 uppercase tracking-wide mb-2")
+            with ui.row().classes("grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 w-full"):
+                _field("Vendor ID", vendor.vendor_id)
+                _field("Vendor Name", vendor.vendor_name)
+                with ui.column().classes("gap-0"):
+                    ui.label("Status").classes("text-xs text-gray-500 font-medium")
+                    status_color = "green" if vendor.status.value == "Active" else "black"
+                    ui.badge(vendor.status.value, color=status_color).classes("text-sm font-semibold")
+                _field("Contact Person", vendor.vendor_contact_person)
+
+            ui.label("Contact").classes("text-sm font-bold text-gray-600 uppercase tracking-wide mb-2 mt-6")
+            with ui.row().classes("grid grid-cols-1 md:grid-cols-2 gap-4 w-full"):
+                _field("Email", primary_email)
+                _field("Phone", phone_display)
+
+            with ui.row().classes("justify-start w-full mt-6"):
+                more_sections_btn = (
+                    ui.button("MORE", icon="expand_more")
+                    .props("flat color=primary")
+                    .classes("text-base font-medium min-h-14 px-8 py-3")
+                )
+
+            other_addresses = []
+            if primary_address and vendor.addresses:
+                pid = primary_address.id
+                other_addresses = [a for a in vendor.addresses if a.id != pid]
+            elif vendor.addresses and not primary_address:
+                other_addresses = list(vendor.addresses)
+
+            more_details_block = ui.column().classes("w-full gap-0 hidden")
+            with more_details_block:
+                ui.label("Address").classes("text-sm font-bold text-gray-600 uppercase tracking-wide mb-2 mt-2")
+                if primary_address:
+                    with ui.row().classes("grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 w-full"):
+                        _field("Street", primary_address.address)
+                        _field("City", primary_address.city)
+                        _field("State", primary_address.state)
+                        _field("Zip Code", primary_address.zip_code)
+                    with ui.row().classes("grid grid-cols-1 md:grid-cols-2 gap-4 w-full mt-2"):
+                        _field("Country", vendor.vendor_country)
                 else:
-                    ui.label("N/A")
+                    with ui.column().classes("gap-3 w-full"):
+                        ui.label("No primary address on file.").classes("text-sm text-gray-500")
+                        with ui.row().classes("grid grid-cols-1 md:grid-cols-2 gap-4 w-full"):
+                            _field("Country", vendor.vendor_country)
 
-            more = ui.button("More", icon="expand_more").props("flat")
-            details_card = ui.card().classes("mt-4 hidden w-full")
+                if other_addresses:
+                    ui.label("Additional addresses").classes("text-xs text-gray-500 font-medium mt-4 mb-1")
+                    for idx, ad in enumerate(other_addresses, start=1):
+                        with ui.card().classes("w-full p-4 border border-gray-200"):
+                            ui.label(f"Address {idx + 1}" if primary_address else f"Address {idx}").classes(
+                                "text-xs font-bold text-gray-600 mb-2"
+                            )
+                            with ui.row().classes("grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 w-full"):
+                                _field("Street", ad.address)
+                                _field("City", ad.city)
+                                _field("State", ad.state)
+                                _field("Zip Code", ad.zip_code)
 
-            def toggle_details():
-                if "hidden" in details_card._classes:
-                    details_card.classes(remove="hidden")
-                    more.props("icon=expand_less")
-                    more.set_text("Less")
+                ui.label("Banking & arrangements").classes("text-sm font-bold text-gray-600 uppercase tracking-wide mb-2 mt-6")
+                with ui.row().classes("grid grid-cols-1 md:grid-cols-3 gap-4 w-full"):
+                    _field("Bank Customer", vendor.bank_customer.value)
+                    _field("CIF", vendor.cif or "N/A")
+                    _field("Material Outsourcing", vendor.material_outsourcing_arrangement.value)
+
+                ui.label("Due diligence").classes("text-sm font-bold text-gray-600 uppercase tracking-wide mb-2 mt-6")
+                with ui.row().classes("grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 w-full"):
+                    _field("Due Diligence Required", vendor.due_diligence_required.value)
+                    _dd_date_column("Last Due Diligence Date", vendor.last_due_diligence_date)
+                    _dd_date_column("Next Required Due Diligence Date", vendor.next_required_due_diligence_date)
+                with ui.row().classes("grid grid-cols-1 md:grid-cols-3 gap-4 w-full mt-2"):
+                    _field("Alert Frequency", alert_freq)
+
+            def toggle_more_details_sections():
+                if "hidden" in more_details_block._classes:
+                    more_details_block.classes(remove="hidden")
+                    more_sections_btn.props("icon=expand_less")
+                    more_sections_btn.set_text("LESS")
                 else:
-                    details_card.classes(add="hidden")
-                    more.props("icon=expand_more")
-                    more.set_text("More")
-            more.on("click", toggle_details)
+                    more_details_block.classes(add="hidden")
+                    more_sections_btn.props("icon=expand_more")
+                    more_sections_btn.set_text("MORE")
 
-            with details_card:
-                ui.label("All Vendor Details").classes("text-h6 mb-2")
-                with ui.row().classes("gap-4 w-full"):
-                    if primary_address:
-                        ui.label(f"Address: {primary_address.address}")
-                        ui.label(f"City: {primary_address.city}")
-                        ui.label(f"State: {primary_address.state}")
-                        ui.label(f"Zip: {primary_address.zip_code}")
-                    else:
-                        ui.label("Address: N/A")
-                with ui.row().classes("gap-4 mt-2 w-full"):
-                    ui.label(f"Country: {vendor.vendor_country}")
-                with ui.row().classes("gap-4 mt-2 w-full"):
-                    phone_display = f"{primary_phone.area_code} {primary_phone.phone_number}" if primary_phone else "N/A"
-                    ui.label(f"Phone: {phone_display}")
-                    ui.label(f"Bank Customer: {vendor.bank_customer.value}")
-                    ui.label(f"CIF: {vendor.cif or 'N/A'}")
-                with ui.row().classes("gap-4 mt-2 w-full"):
-                    ui.label(f"Material Outsourcing: {vendor.material_outsourcing_arrangement.value}")
-                    if vendor.last_due_diligence_date:
-                        last_dd_date = vendor.last_due_diligence_date.strftime("%Y-%m-%d")
-                        # Check if last due diligence date has passed
-                        if isinstance(vendor.last_due_diligence_date, datetime):
-                            last_dd_date_obj = vendor.last_due_diligence_date.date()
-                        else:
-                            last_dd_date_obj = vendor.last_due_diligence_date
-                        
-                        if last_dd_date_obj < date.today():
-                            # Date has passed - display in red with attention icon
-                            with ui.row().classes("items-center gap-2"):
-                                ui.icon("warning", color="red").classes("text-xl")
-                                ui.label(f"Last Due Diligence: {last_dd_date}").classes("text-red-600 font-bold")
-                        else:
-                            ui.label(f"Last Due Diligence: {last_dd_date}")
-                    else:
-                        ui.label("Last Due Diligence: N/A")
-                    # Display alert frequency value (e.g., "30 days" instead of enum)
-                    alert_freq = vendor.next_required_due_diligence_alert_frequency.value if vendor.next_required_due_diligence_alert_frequency else 'N/A'
-                    ui.label(f"Alert Frequency: {alert_freq}")
-                with ui.column().classes("mt-4"):
-                    ui.label("Due Diligence Info:").classes("font-bold")
-                    ui.label(f"Required: {vendor.due_diligence_required.value}")
+            more_sections_btn.on("click", toggle_more_details_sections)
     
     # Edit Vendor Dialog
     if vendor:
