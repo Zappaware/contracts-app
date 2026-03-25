@@ -923,7 +923,7 @@ def seed_vendors_and_contracts():
             {
                 "description": "IT Infrastructure Support Agreement",
                 "contract_type": ContractType.SERVICE_AGREEMENT,
-                "department": DepartmentType.IT,
+                "department": DepartmentType.IT_OPERATIONS,
                 "amount": 50000.00,
                 "currency": CurrencyType.USD,
                 "start_offset_days": -30,
@@ -932,7 +932,7 @@ def seed_vendors_and_contracts():
             {
                 "description": "Annual Software Maintenance",
                 "contract_type": ContractType.MAINTENANCE_CONTRACT,
-                "department": DepartmentType.IT,
+                "department": DepartmentType.IT_OPERATIONS,
                 "amount": 25000.00,
                 "currency": CurrencyType.AWG,
                 "start_offset_days": -60,
@@ -941,7 +941,7 @@ def seed_vendors_and_contracts():
             {
                 "description": "Cloud Services License",
                 "contract_type": ContractType.SOFTWARE_LICENSE,
-                "department": DepartmentType.IT,
+                "department": DepartmentType.IT_OPERATIONS,
                 "amount": 75000.00,
                 "currency": CurrencyType.USD,
                 "start_offset_days": 0,
@@ -950,7 +950,7 @@ def seed_vendors_and_contracts():
             {
                 "description": "Security Audit Consulting",
                 "contract_type": ContractType.CONSULTING_AGREEMENT,
-                "department": DepartmentType.RISK_MANAGEMENT,
+                "department": DepartmentType.CREDIT_RISK,
                 "amount": 30000.00,
                 "currency": CurrencyType.EUR,
                 "start_offset_days": -90,
@@ -959,7 +959,7 @@ def seed_vendors_and_contracts():
             {
                 "description": "Data Center Hosting Services",
                 "contract_type": ContractType.SERVICE_AGREEMENT,
-                "department": DepartmentType.IT,
+                "department": DepartmentType.IT_OPERATIONS,
                 "amount": 120000.00,
                 "currency": CurrencyType.USD,
                 "start_offset_days": -180,
@@ -968,7 +968,7 @@ def seed_vendors_and_contracts():
             {
                 "description": "Business Strategy Consulting",
                 "contract_type": ContractType.CONSULTING_AGREEMENT,
-                "department": DepartmentType.OPERATIONS,
+                "department": DepartmentType.IT_OPERATIONS,
                 "amount": 45000.00,
                 "currency": CurrencyType.USD,
                 "start_offset_days": -45,
@@ -977,7 +977,7 @@ def seed_vendors_and_contracts():
             {
                 "description": "Custom Software Development",
                 "contract_type": ContractType.SERVICE_AGREEMENT,
-                "department": DepartmentType.IT,
+                "department": DepartmentType.IT_OPERATIONS,
                 "amount": 85000.00,
                 "currency": CurrencyType.AWG,
                 "start_offset_days": -120,
@@ -986,7 +986,7 @@ def seed_vendors_and_contracts():
             {
                 "description": "Network Equipment Support",
                 "contract_type": ContractType.SUPPORT_CONTRACT,
-                "department": DepartmentType.IT,
+                "department": DepartmentType.IT_OPERATIONS,
                 "amount": 35000.00,
                 "currency": CurrencyType.USD,
                 "start_offset_days": -15,
@@ -1004,7 +1004,7 @@ def seed_vendors_and_contracts():
             {
                 "description": "Enterprise System Integration",
                 "contract_type": ContractType.OUTSOURCING_AGREEMENT,
-                "department": DepartmentType.IT,
+                "department": DepartmentType.IT_OPERATIONS,
                 "amount": 95000.00,
                 "currency": CurrencyType.USD,
                 "start_offset_days": -200,
@@ -1013,7 +1013,7 @@ def seed_vendors_and_contracts():
             {
                 "description": "Marketing Campaign Services",
                 "contract_type": ContractType.SERVICE_AGREEMENT,
-                "department": DepartmentType.MARKETING,
+                "department": DepartmentType.MARKETING_DEPARTMENT,
                 "amount": 32000.00,
                 "currency": CurrencyType.USD,
                 "start_offset_days": -300,
@@ -1040,7 +1040,7 @@ def seed_vendors_and_contracts():
             {
                 "description": "Legal Document Review",
                 "contract_type": ContractType.CONSULTING_AGREEMENT,
-                "department": DepartmentType.LEGAL,
+                "department": DepartmentType.MANAGEMENT_TEAM,
                 "amount": 42000.00,
                 "currency": CurrencyType.USD,
                 "start_offset_days": -310,
@@ -1058,7 +1058,7 @@ def seed_vendors_and_contracts():
             {
                 "description": "Equipment Rental Agreement",
                 "contract_type": ContractType.LEASE_AGREEMENT,
-                "department": DepartmentType.OPERATIONS,
+                "department": DepartmentType.IT_OPERATIONS,
                 "amount": 65000.00,
                 "currency": CurrencyType.USD,
                 "start_offset_days": -100,
@@ -1067,7 +1067,7 @@ def seed_vendors_and_contracts():
             {
                 "description": "Call Center Support Services",
                 "contract_type": ContractType.SUPPORT_CONTRACT,
-                "department": DepartmentType.CUSTOMER_SERVICE,
+                "department": DepartmentType.CONTACT_CENTER,
                 "amount": 38000.00,
                 "currency": CurrencyType.USD,
                 "start_offset_days": -320,
@@ -1076,7 +1076,7 @@ def seed_vendors_and_contracts():
             {
                 "description": "Mobile Network Services",
                 "contract_type": ContractType.SERVICE_AGREEMENT,
-                "department": DepartmentType.IT,
+                "department": DepartmentType.IT_OPERATIONS,
                 "amount": 22000.00,
                 "currency": CurrencyType.AWG,
                 "start_offset_days": -290,
@@ -1085,7 +1085,7 @@ def seed_vendors_and_contracts():
             {
                 "description": "Office Supplies Annual Contract",
                 "contract_type": ContractType.PURCHASE_AGREEMENT,
-                "department": DepartmentType.OPERATIONS,
+                "department": DepartmentType.IT_OPERATIONS,
                 "amount": 15000.00,
                 "currency": CurrencyType.USD,
                 "start_offset_days": -5,
@@ -1094,7 +1094,7 @@ def seed_vendors_and_contracts():
             {
                 "description": "Building Maintenance Services",
                 "contract_type": ContractType.MAINTENANCE_CONTRACT,
-                "department": DepartmentType.OPERATIONS,
+                "department": DepartmentType.IT_OPERATIONS,
                 "amount": 48000.00,
                 "currency": CurrencyType.USD,
                 "start_offset_days": -305,
@@ -1104,7 +1104,7 @@ def seed_vendors_and_contracts():
             {
                 "description": "IT Support Services - EXPIRED 5 days ago",
                 "contract_type": ContractType.SERVICE_AGREEMENT,
-                "department": DepartmentType.IT,
+                "department": DepartmentType.IT_OPERATIONS,
                 "amount": 35000.00,
                 "currency": CurrencyType.USD,
                 "start_offset_days": -370,
@@ -1113,7 +1113,7 @@ def seed_vendors_and_contracts():
             {
                 "description": "Software License - EXPIRED 15 days ago",
                 "contract_type": ContractType.SOFTWARE_LICENSE,
-                "department": DepartmentType.IT,
+                "department": DepartmentType.IT_OPERATIONS,
                 "amount": 28000.00,
                 "currency": CurrencyType.USD,
                 "start_offset_days": -380,
@@ -1122,7 +1122,7 @@ def seed_vendors_and_contracts():
             {
                 "description": "Security Services - EXPIRED 30 days ago",
                 "contract_type": ContractType.SERVICE_AGREEMENT,
-                "department": DepartmentType.OPERATIONS,
+                "department": DepartmentType.IT_OPERATIONS,
                 "amount": 42000.00,
                 "currency": CurrencyType.USD,
                 "start_offset_days": -395,
@@ -1131,7 +1131,7 @@ def seed_vendors_and_contracts():
             {
                 "description": "Cleaning Services - EXPIRED 2 days ago",
                 "contract_type": ContractType.SERVICE_AGREEMENT,
-                "department": DepartmentType.OPERATIONS,
+                "department": DepartmentType.IT_OPERATIONS,
                 "amount": 12000.00,
                 "currency": CurrencyType.AWG,
                 "start_offset_days": -367,
@@ -1149,7 +1149,7 @@ def seed_vendors_and_contracts():
             {
                 "description": "Freight and Delivery - Expiring in 5 days",
                 "contract_type": ContractType.SERVICE_AGREEMENT,
-                "department": DepartmentType.OPERATIONS,
+                "department": DepartmentType.IT_OPERATIONS,
                 "amount": 32000.00,
                 "currency": CurrencyType.USD,
                 "start_offset_days": -360,
@@ -1158,7 +1158,7 @@ def seed_vendors_and_contracts():
             {
                 "description": "Equipment Maintenance - Expiring in 20 days",
                 "contract_type": ContractType.MAINTENANCE_CONTRACT,
-                "department": DepartmentType.OPERATIONS,
+                "department": DepartmentType.IT_OPERATIONS,
                 "amount": 25000.00,
                 "currency": CurrencyType.USD,
                 "start_offset_days": -345,
@@ -1167,7 +1167,7 @@ def seed_vendors_and_contracts():
             {
                 "description": "Telecommunications - Expiring in 15 days",
                 "contract_type": ContractType.SERVICE_AGREEMENT,
-                "department": DepartmentType.IT,
+                "department": DepartmentType.IT_OPERATIONS,
                 "amount": 18000.00,
                 "currency": CurrencyType.USD,
                 "start_offset_days": -350,

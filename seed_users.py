@@ -25,7 +25,7 @@ def seed_users():
                 "first_name": "William",
                 "last_name": "Defoe",
                 "email": "william.defoe@arubabank.com",
-                "department": DepartmentType.IT,
+                "department": DepartmentType.IT_OPERATIONS,
                 "position": "IT Manager",
                 "role": UserRole.CONTRACT_ADMIN,
                 "password": "password123"
@@ -35,7 +35,7 @@ def seed_users():
                 "first_name": "John",
                 "last_name": "Doe",
                 "email": "john.doe@arubabank.com",
-                "department": DepartmentType.OPERATIONS,
+                "department": DepartmentType.IT_OPERATIONS,
                 "position": "Operations Manager",
                 "role": UserRole.CONTRACT_MANAGER,
                 "password": "password123"
@@ -55,7 +55,7 @@ def seed_users():
                 "first_name": "Robert",
                 "last_name": "Johnson",
                 "email": "robert.johnson@arubabank.com",
-                "department": DepartmentType.LEGAL,
+                "department": DepartmentType.MANAGEMENT_TEAM,
                 "position": "Legal Manager",
                 "role": UserRole.CONTRACT_MANAGER,
                 "password": "password123"
@@ -65,7 +65,7 @@ def seed_users():
                 "first_name": "Maria",
                 "last_name": "Lopez",
                 "email": "maria.lopez@arubabank.com",
-                "department": DepartmentType.OPERATIONS,
+                "department": DepartmentType.IT_OPERATIONS,
                 "position": "Contract Manager Owner",
                 "role": UserRole.CONTRACT_MANAGER_OWNER,
                 "password": "password123"
@@ -76,7 +76,7 @@ def seed_users():
                 "first_name": "Carlos",
                 "last_name": "Martinez",
                 "email": "carlos.martinez@orcobank.com",
-                "department": DepartmentType.IT,
+                "department": DepartmentType.IT_OPERATIONS,
                 "position": "IT Manager",
                 "role": UserRole.CONTRACT_ADMIN,
                 "password": "password123"
@@ -96,7 +96,7 @@ def seed_users():
                 "first_name": "Miguel",
                 "last_name": "Santos",
                 "email": "miguel.santos@orcobank.com",
-                "department": DepartmentType.OPERATIONS,
+                "department": DepartmentType.IT_OPERATIONS,
                 "position": "Contract Manager Owner",
                 "role": UserRole.CONTRACT_MANAGER_OWNER,
                 "password": "password123"
